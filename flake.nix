@@ -51,7 +51,14 @@
           "x86_64-apple-darwin"
           "aarch64-apple-darwin"
         ],
-      }: let
+      }:
+        assert pkgs.lib.assertMsg (pkgs ? rust-bin)
+          "rs-harbor: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
+        assert pkgs.lib.assertMsg (builtins.elem channel ["nightly" "stable"])
+          "rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${channel}\"";
+        assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
+          "rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${date}\"";
+        let
         channelSet =
           if channel == "nightly"
           then pkgs.rust-bin.nightly
@@ -76,7 +83,7 @@
       #   system        - the host system string
       #   osxSdkVersion - macOS SDK version (default: "26.1")
       #
-      # Returns: { mingwCC, mingwBinutils, winpthreads, osxcrossToolchain, osxcrossRustHelpers }
+      # Returns: { mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, osxcrossRustHelpers }
       mkCross = {
         pkgs,
         system,
@@ -99,33 +106,49 @@
           if osxcrossToolchain != null
           then osxcross.lib.${system}.mkRustHelpers osxcrossToolchain
           else null;
+
+        # Pre-built attrset of Windows cross-compilation env vars.
+        # Consumers can merge this into mkShell when needed, without
+        # polluting every dev shell unconditionally.
+        windowsEnv = {
+          CC_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-gcc";
+          CXX_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-g++";
+          AR_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-ar";
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "${mingwCC}/bin/x86_64-w64-mingw32-gcc";
+          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-L ${winpthreads}/lib";
+        };
       in {
         inherit mingwCC mingwBinutils winpthreads;
         inherit osxcrossToolchain osxcrossRustHelpers;
+        inherit windowsEnv;
       };
 
       # Build a devShell with Rust cross-compilation environment variables pre-configured.
       #
       # Args:
-      #   pkgs          - nixpkgs
-      #   craneLib       - from mkToolchain
-      #   cross          - from mkCross
-      #   packages       - extra packages to include (default: [])
-      #   extraEnv       - attrset of extra environment variables (default: {})
-      #   extraShellHook - additional shell hook commands (default: "")
-      #   checks         - flake checks to wire into the shell (default: {})
+      #   pkgs               - nixpkgs
+      #   craneLib            - from mkToolchain
+      #   cross              - from mkCross
+      #   enableWindowsEnv   - set Windows cross-compilation env vars (default: true)
+      #   enableOsxcrossEnv  - include osxcross toolchain + shell hook (default: true)
+      #   packages           - extra packages to include (default: [])
+      #   extraEnv           - attrset of extra environment variables (default: {})
+      #   extraShellHook     - additional shell hook commands (default: "")
+      #   checks             - flake checks to wire into the shell (default: {})
       #
       # Returns: a devShell derivation
       mkDevShell = {
         pkgs,
         craneLib,
         cross,
+        enableWindowsEnv ? true,
+        enableOsxcrossEnv ? true,
         packages ? [],
         extraEnv ? {},
         extraShellHook ? "",
         checks ? {},
       }: let
-        inherit (cross) mingwCC mingwBinutils winpthreads osxcrossToolchain osxcrossRustHelpers;
+        inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
 
         basePackages = with pkgs; [
           cmake
@@ -134,36 +157,37 @@
           mold
           lld
           pkg-config
+        ];
+
+        windowsPackages = pkgs.lib.optionals enableWindowsEnv [
           mingwBinutils
         ];
 
-        osxPackages = pkgs.lib.optionals (osxcrossToolchain != null) [
+        osxPackages = pkgs.lib.optionals (enableOsxcrossEnv && osxcrossToolchain != null) [
           osxcrossToolchain
         ];
 
         osxShellHook =
-          if osxcrossRustHelpers != null
+          if enableOsxcrossEnv && osxcrossRustHelpers != null
           then osxcrossRustHelpers.mkDevShellHook {}
           else "";
 
         baseEnv = {
           LIBCLANG_PATH = pkgs.lib.makeLibraryPath [pkgs.clang.cc];
-
-          # Windows cross-compilation
-          CC_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-gcc";
-          CXX_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-g++";
-          AR_x86_64_pc_windows_gnu = "${mingwCC}/bin/x86_64-w64-mingw32-ar";
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER = "${mingwCC}/bin/x86_64-w64-mingw32-gcc";
-          CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-L ${winpthreads}/lib";
         };
 
-        mergedEnv = baseEnv // extraEnv;
+        crossEnv =
+          if enableWindowsEnv
+          then cross.windowsEnv
+          else {};
+
+        mergedEnv = baseEnv // crossEnv // extraEnv;
       in
         craneLib.devShell (mergedEnv
           // {
             inherit checks;
 
-            packages = basePackages ++ osxPackages ++ packages;
+            packages = basePackages ++ windowsPackages ++ osxPackages ++ packages;
 
             shellHook = ''
               ${osxShellHook}
@@ -191,6 +215,62 @@
       devShells.default = self.lib.mkDevShell {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
+      };
+
+      checks = {
+        # mkToolchain returns expected attributes
+        mkToolchain-shape = let
+          t = self.lib.mkToolchain {inherit pkgs;};
+        in
+          assert t ? rustToolchain;
+          assert t ? craneLib;
+          assert t ? crossTargets;
+          assert builtins.isList t.crossTargets;
+          assert builtins.length t.crossTargets > 0;
+          pkgs.runCommand "check-mkToolchain-shape" {} "touch $out";
+
+        # stable channel works
+        mkToolchain-stable = let
+          t = self.lib.mkToolchain {inherit pkgs; channel = "stable";};
+        in
+          assert t ? rustToolchain;
+          assert t ? craneLib;
+          pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
+
+        # mkCross returns expected attributes
+        mkCross-shape = let
+          c = self.lib.mkCross {inherit pkgs system; enableOsxcross = false;};
+        in
+          assert c ? mingwCC;
+          assert c ? mingwBinutils;
+          assert c ? winpthreads;
+          assert c ? windowsEnv;
+          assert c ? osxcrossToolchain;
+          assert c ? osxcrossRustHelpers;
+          assert builtins.isAttrs c.windowsEnv;
+          assert c.windowsEnv ? CC_x86_64_pc_windows_gnu;
+          assert c.windowsEnv ? CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER;
+          pkgs.runCommand "check-mkCross-shape" {} "touch $out";
+
+        # osxcross disabled returns nulls
+        mkCross-osxcross-disabled = let
+          c = self.lib.mkCross {inherit pkgs system; enableOsxcross = false;};
+        in
+          assert c.osxcrossToolchain == null;
+          assert c.osxcrossRustHelpers == null;
+          pkgs.runCommand "check-mkCross-osxcross-disabled" {} "touch $out";
+
+        # Validation logic works correctly
+        validation-helpers = let
+          dateRegex = "[0-9]{4}-[0-9]{2}-[0-9]{2}";
+        in
+          assert builtins.match dateRegex "2025-12-01" != null;
+          assert builtins.match dateRegex "yesterday" == null;
+          assert builtins.match dateRegex "25-12-01" == null;
+          assert builtins.elem "nightly" ["nightly" "stable"];
+          assert builtins.elem "stable" ["nightly" "stable"];
+          assert !(builtins.elem "beta" ["nightly" "stable"]);
+          pkgs.runCommand "check-validation-helpers" {} "touch $out";
       };
     });
 }

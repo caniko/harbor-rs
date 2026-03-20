@@ -8,6 +8,12 @@ Provides three composable functions:
 - **`mkCross`** — MinGW (Windows) and osxcross (macOS) cross-compilation toolchains
 - **`mkDevShell`** — Pre-configured devShell with all cross-compilation env vars
 
+## Prerequisites
+
+- [Nix](https://nixos.org/) with flakes enabled
+- The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
+- macOS cross-compilation via osxcross requires the `--impure` flag
+
 ## Usage
 
 ```nix
@@ -75,7 +81,7 @@ Returns: `{ rustToolchain, craneLib, crossTargets }`
 | `enableOsxcross` | `true` | Enable macOS cross-compilation (requires `--impure`) |
 | `osxSdkVersion` | `"26.1"` | macOS SDK version |
 
-Returns: `{ mingwCC, mingwBinutils, winpthreads, osxcrossToolchain, osxcrossRustHelpers }`
+Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, osxcrossRustHelpers }`
 
 ### `mkDevShell`
 
@@ -84,6 +90,8 @@ Returns: `{ mingwCC, mingwBinutils, winpthreads, osxcrossToolchain, osxcrossRust
 | `pkgs` | required | nixpkgs |
 | `craneLib` | required | From `mkToolchain` |
 | `cross` | required | From `mkCross` |
+| `enableWindowsEnv` | `true` | Include Windows cross-compilation env vars |
+| `enableOsxcrossEnv` | `true` | Include osxcross toolchain and shell hook |
 | `packages` | `[]` | Extra packages |
 | `extraEnv` | `{}` | Extra environment variables |
 | `extraShellHook` | `""` | Additional shell hook |
@@ -96,3 +104,9 @@ Returns: a devShell derivation
 **Packages:** cmake, gcc, clang, mold, lld, pkg-config, mingw binutils, osxcross (if enabled)
 
 **Environment:** `LIBCLANG_PATH`, Windows cross-compilation (`CC_x86_64_pc_windows_gnu`, linker, rustflags)
+
+## Testing
+
+```bash
+nix flake check   # Run all checks (attribute shapes, validation logic)
+```
