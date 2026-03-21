@@ -29,7 +29,7 @@
     ...
   }: let
     # Library functions available without system context
-    lib = {
+    lib = rec {
       # Build a Rust toolchain + craneLib for a given pkgs set.
       #
       # Args:
@@ -194,6 +194,42 @@
               ${extraShellHook}
             '';
           });
+
+      # Build multiple devShells for workspace ergonomics.
+      #
+      # Returns four shells from one config: default (native-only),
+      # windows, macos, and cross (all targets). Downstream workspaces
+      # use `nix develop` for native and `nix develop .#cross` etc.
+      #
+      # Args: same as mkDevShell, minus enableWindowsEnv/enableOsxcrossEnv.
+      #   enableOsxcrossEnv controls whether the macos/cross shells get osxcross.
+      #
+      # Returns: { default, windows, macos, cross }
+      mkDevShells = {
+        pkgs,
+        craneLib,
+        cross,
+        enableOsxcrossEnv ? true,
+        packages ? [],
+        extraEnv ? {},
+        extraShellHook ? "",
+        checks ? {},
+      }: let
+        shell = {
+          win ? false,
+          osx ? false,
+        }:
+          mkDevShell {
+            inherit pkgs craneLib cross packages extraEnv extraShellHook checks;
+            enableWindowsEnv = win;
+            enableOsxcrossEnv = osx && enableOsxcrossEnv;
+          };
+      in {
+        default = shell {};
+        windows = shell {win = true;};
+        macos = shell {osx = true;};
+        cross = shell {win = true; osx = true;};
+      };
     };
   in
     {
@@ -211,10 +247,11 @@
         enableOsxcross = false; # requires --impure; enable manually
       };
     in {
-      # Default devShell for testing rs-harbor itself
-      devShells.default = self.lib.mkDevShell {
+      # DevShells for testing rs-harbor itself
+      devShells = self.lib.mkDevShells {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
+        enableOsxcrossEnv = false; # requires --impure; enable manually
       };
 
       checks = {
@@ -259,6 +296,20 @@
           assert c.osxcrossToolchain == null;
           assert c.osxcrossRustHelpers == null;
           pkgs.runCommand "check-mkCross-osxcross-disabled" {} "touch $out";
+
+        # mkDevShells returns expected shell variants
+        mkDevShells-shape = let
+          s = self.lib.mkDevShells {
+            inherit pkgs cross;
+            inherit (toolchain) craneLib;
+            enableOsxcrossEnv = false;
+          };
+        in
+          assert s ? default;
+          assert s ? windows;
+          assert s ? macos;
+          assert s ? cross;
+          pkgs.runCommand "check-mkDevShells-shape" {} "touch $out";
 
         # Validation logic works correctly
         validation-helpers = let

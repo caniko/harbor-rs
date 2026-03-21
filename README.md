@@ -2,11 +2,12 @@
 
 Reusable Rust cross-compilation and toolchain infrastructure for Nix flakes.
 
-Provides three composable functions:
+Provides four composable functions:
 
 - **`mkToolchain`** — Rust nightly/stable toolchain with crane and cross-compilation targets
 - **`mkCross`** — MinGW (Windows) and osxcross (macOS) cross-compilation toolchains
-- **`mkDevShell`** — Pre-configured devShell with all cross-compilation env vars
+- **`mkDevShell`** — Single devShell with configurable cross-compilation env vars
+- **`mkDevShells`** — Multiple devShells (default, windows, macos, cross) from one config
 
 ## Prerequisites
 
@@ -37,7 +38,12 @@ Provides three composable functions:
       toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
       cross = rs-harbor.lib.mkCross { inherit pkgs system; };
     in {
-      devShells.default = rs-harbor.lib.mkDevShell {
+      # Returns: { default, windows, macos, cross }
+      # Use: nix develop          (native)
+      #      nix develop .#cross   (all cross targets)
+      #      nix develop .#windows (windows only)
+      #      nix develop .#macos   (macos only)
+      devShells = rs-harbor.lib.mkDevShells {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
 
@@ -99,9 +105,33 @@ Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, 
 
 Returns: a devShell derivation
 
+### `mkDevShells`
+
+Builds four devShells from a single config — ideal for workspaces where not all crates cross-compile.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `pkgs` | required | nixpkgs |
+| `craneLib` | required | From `mkToolchain` |
+| `cross` | required | From `mkCross` |
+| `enableOsxcrossEnv` | `true` | Enable osxcross in the macos/cross shells |
+| `packages` | `[]` | Extra packages |
+| `extraEnv` | `{}` | Extra environment variables |
+| `extraShellHook` | `""` | Additional shell hook |
+| `checks` | `{}` | Flake checks |
+
+Returns: `{ default, windows, macos, cross }` — assign directly to `devShells` in your flake output.
+
+| Shell | `nix develop .#<name>` | Windows env | osxcross |
+|-------|------------------------|-------------|----------|
+| `default` | `nix develop` | no | no |
+| `windows` | `nix develop .#windows` | yes | no |
+| `macos` | `nix develop .#macos` | no | yes |
+| `cross` | `nix develop .#cross` | yes | yes |
+
 ## What's included in the devShell
 
-**Packages:** cmake, gcc, clang, mold, lld, pkg-config, mingw binutils, osxcross (if enabled)
+**Packages:** cmake, gcc, clang, mold, lld, pkg-config, mingw binutils (if Windows enabled), osxcross (if macOS enabled)
 
 **Environment:** `LIBCLANG_PATH`, Windows cross-compilation (`CC_x86_64_pc_windows_gnu`, linker, rustflags)
 
