@@ -140,3 +140,7 @@ Returns: `{ default, windows, macos, cross }` — assign directly to `devShells`
 ```bash
 nix flake check   # Run all checks (attribute shapes, validation logic)
 ```
+
+## CI
+
+Woodpecker CI on Codeberg runs `nix flake check` on every push and pull request to verify attribute shapes and validation logic.

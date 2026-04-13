@@ -1,0 +1,126 @@
+{
+  self,
+  pkgs,
+  system,
+  toolchain,
+  cross,
+}: {
+  # mkToolchain returns expected attributes
+  mkToolchain-shape = let
+    t = self.lib.mkToolchain {inherit pkgs;};
+  in
+    assert t ? rustToolchain;
+    assert t ? craneLib;
+    assert t ? crossTargets;
+    assert builtins.isList t.crossTargets;
+    assert builtins.length t.crossTargets > 0;
+    pkgs.runCommand "check-mkToolchain-shape" {} "touch $out";
+
+  # stable channel works
+  mkToolchain-stable = let
+    t = self.lib.mkToolchain {
+      inherit pkgs;
+      channel = "stable";
+    };
+  in
+    assert t ? rustToolchain;
+    assert t ? craneLib;
+    pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
+
+  # mkCross returns expected attributes
+  mkCross-shape = let
+    c = self.lib.mkCross {
+      inherit pkgs system;
+      enableOsxcross = false;
+    };
+  in
+    assert c ? mingwCC;
+    assert c ? mingwBinutils;
+    assert c ? winpthreads;
+    assert c ? windowsEnv;
+    assert c ? osxcrossToolchain;
+    assert c ? osxcrossRustHelpers;
+    assert builtins.isAttrs c.windowsEnv;
+    assert c.windowsEnv ? CC_x86_64_pc_windows_gnu;
+    assert c.windowsEnv ? CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER;
+    pkgs.runCommand "check-mkCross-shape" {} "touch $out";
+
+  # osxcross disabled returns nulls
+  mkCross-osxcross-disabled = let
+    c = self.lib.mkCross {
+      inherit pkgs system;
+      enableOsxcross = false;
+    };
+  in
+    assert c.osxcrossToolchain == null;
+    assert c.osxcrossRustHelpers == null;
+    pkgs.runCommand "check-mkCross-osxcross-disabled" {} "touch $out";
+
+  # mkDevShells returns expected shell variants
+  mkDevShells-shape = let
+    s = self.lib.mkDevShells {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      enableOsxcrossEnv = false;
+    };
+  in
+    assert s ? default;
+    assert s ? windows;
+    assert s ? macos;
+    assert s ? cross;
+    pkgs.runCommand "check-mkDevShells-shape" {} "touch $out";
+
+  # mkCargoConfig returns expected attributes
+  mkCargoConfig-shape = let
+    c = self.lib.mkCargoConfig {inherit pkgs;};
+  in
+    assert c ? configText;
+    assert c ? configPath;
+    assert builtins.isString c.configText;
+    pkgs.runCommand "check-mkCargoConfig-shape" {} "touch $out";
+
+  # mkCargoConfig stable disables nightly features by default
+  mkCargoConfig-stable = let
+    c = self.lib.mkCargoConfig {
+      inherit pkgs;
+      channel = "stable";
+    };
+  in
+    assert !(pkgs.lib.hasInfix "cranelift" c.configText);
+    assert !(pkgs.lib.hasInfix "share-generics" c.configText);
+    pkgs.runCommand "check-mkCargoConfig-stable" {} "touch $out";
+
+  # mkCargoConfig nightly includes expected optimizations
+  mkCargoConfig-nightly = let
+    c = self.lib.mkCargoConfig {
+      inherit pkgs;
+      channel = "nightly";
+    };
+  in
+    assert pkgs.lib.hasInfix "cranelift" c.configText;
+    assert pkgs.lib.hasInfix "share-generics" c.configText;
+    assert pkgs.lib.hasInfix "mold" c.configText;
+    pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
+
+  # mkCargoConfig respects enableMold = false
+  mkCargoConfig-no-mold = let
+    c = self.lib.mkCargoConfig {
+      inherit pkgs;
+      enableMold = false;
+    };
+  in
+    assert !(pkgs.lib.hasInfix "mold" c.configText);
+    pkgs.runCommand "check-mkCargoConfig-no-mold" {} "touch $out";
+
+  # Validation logic works correctly
+  validation-helpers = let
+    dateRegex = "[0-9]{4}-[0-9]{2}-[0-9]{2}";
+  in
+    assert builtins.match dateRegex "2025-12-01" != null;
+    assert builtins.match dateRegex "yesterday" == null;
+    assert builtins.match dateRegex "25-12-01" == null;
+    assert builtins.elem "nightly" ["nightly" "stable"];
+    assert builtins.elem "stable" ["nightly" "stable"];
+    assert !(builtins.elem "beta" ["nightly" "stable"]);
+    pkgs.runCommand "check-validation-helpers" {} "touch $out";
+}
