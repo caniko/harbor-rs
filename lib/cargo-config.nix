@@ -15,6 +15,7 @@
   enableMold ? true,
   enableCranelift ? (channel == "nightly"),
   enableShareGenerics ? (channel == "nightly"),
+  enableParallelFrontend ? (channel == "nightly"),
   extraConfig ? "",
 }:
   assert pkgs.lib.assertMsg (builtins.elem channel ["nightly" "stable"])
@@ -23,6 +24,8 @@
     "rs-harbor: mkCargoConfig 'enableCranelift' requires channel=\"nightly\"";
   assert pkgs.lib.assertMsg (!enableShareGenerics || channel == "nightly")
     "rs-harbor: mkCargoConfig 'enableShareGenerics' requires channel=\"nightly\"";
+  assert pkgs.lib.assertMsg (!enableParallelFrontend || channel == "nightly")
+    "rs-harbor: mkCargoConfig 'enableParallelFrontend' requires channel=\"nightly\"";
   assert pkgs.lib.assertMsg (builtins.isList crossTargets)
     "rs-harbor: mkCargoConfig 'crossTargets' must be a list of target triples";
   let
@@ -54,7 +57,11 @@
         if enableShareGenerics && (isLinux triple || isDarwin triple)
         then ["-Zshare-generics=y"]
         else [];
-      allFlags = moldFlags ++ lldFlags ++ shareGenFlags;
+      parallelFlags =
+        if enableParallelFrontend
+        then ["-Zthreads=0"]
+        else [];
+      allFlags = moldFlags ++ lldFlags ++ shareGenFlags ++ parallelFlags;
       linkerLine =
         optionalString (enableMold && isLinux triple) "linker = \"clang\"\n";
       flagsLine = mkRustflags allFlags;

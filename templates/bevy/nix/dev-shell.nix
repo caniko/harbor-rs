@@ -5,9 +5,10 @@
   cross,
   cargoConfig,
   bevyDeps,
+  checks ? {},
 }:
   rs-harbor.lib.mkDevShells {
-    inherit pkgs cross cargoConfig;
+    inherit pkgs cross cargoConfig checks;
     inherit (toolchain) craneLib;
     enableOsxcrossEnv = false;
 

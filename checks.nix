@@ -88,6 +88,7 @@
   in
     assert !(pkgs.lib.hasInfix "cranelift" c.configText);
     assert !(pkgs.lib.hasInfix "share-generics" c.configText);
+    assert !(pkgs.lib.hasInfix "threads" c.configText);
     pkgs.runCommand "check-mkCargoConfig-stable" {} "touch $out";
 
   # mkCargoConfig nightly includes expected optimizations
@@ -100,6 +101,7 @@
     assert pkgs.lib.hasInfix "cranelift" c.configText;
     assert pkgs.lib.hasInfix "share-generics" c.configText;
     assert pkgs.lib.hasInfix "mold" c.configText;
+    assert pkgs.lib.hasInfix "threads" c.configText;
     pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
 
   # mkCargoConfig respects enableMold = false
@@ -111,6 +113,77 @@
   in
     assert !(pkgs.lib.hasInfix "mold" c.configText);
     pkgs.runCommand "check-mkCargoConfig-no-mold" {} "touch $out";
+
+  # mkCargoConfig respects enableParallelFrontend = false
+  mkCargoConfig-no-parallel-frontend = let
+    c = self.lib.mkCargoConfig {
+      inherit pkgs;
+      enableParallelFrontend = false;
+    };
+  in
+    assert !(pkgs.lib.hasInfix "threads" c.configText);
+    pkgs.runCommand "check-mkCargoConfig-no-parallel-frontend" {} "touch $out";
+
+  # mkAdapter returns expected attributes
+  mkAdapter-shape = let
+    a = self.lib.mkAdapter {
+      attic = {endpoint = "https://cache.example.com"; cache = "main";};
+    };
+  in
+    assert a ? _type;
+    assert a._type == "harbor-adapter";
+    assert a ? _version;
+    assert a._version == 1;
+    assert a ? attic;
+    assert a.attic ? endpoint;
+    assert a.attic ? cache;
+    assert a.attic ? tokenEnvVar;
+    assert a.attic.tokenEnvVar == "ATTIC_TOKEN";
+    assert a.attic ? serverName;
+    assert a.attic.serverName == "harbor";
+    pkgs.runCommand "check-mkAdapter-shape" {} "touch $out";
+
+  # mkAdapter preserves custom tokenEnvVar
+  mkAdapter-custom-token = let
+    a = self.lib.mkAdapter {
+      attic = {endpoint = "https://cache.example.com"; cache = "main"; tokenEnvVar = "MY_TOKEN";};
+    };
+  in
+    assert a.attic.tokenEnvVar == "MY_TOKEN";
+    pkgs.runCommand "check-mkAdapter-custom-token" {} "touch $out";
+
+  # isHarborAdapter accepts valid adapters
+  isHarborAdapter-valid = let
+    a = self.lib.mkAdapter {
+      attic = {endpoint = "https://x.com"; cache = "c";};
+    };
+  in
+    assert self.lib.isHarborAdapter a;
+    pkgs.runCommand "check-isHarborAdapter-valid" {} "touch $out";
+
+  # isHarborAdapter rejects invalid values
+  isHarborAdapter-invalid =
+    assert !(self.lib.isHarborAdapter {});
+    assert !(self.lib.isHarborAdapter {_type = "wrong";});
+    assert !(self.lib.isHarborAdapter "string");
+    assert !(self.lib.isHarborAdapter 42);
+    pkgs.runCommand "check-isHarborAdapter-invalid" {} "touch $out";
+
+  # mkAtticPush returns a valid app attrset
+  mkAtticPush-shape = let
+    adapter = self.lib.mkAdapter {
+      attic = {endpoint = "https://x.com"; cache = "c";};
+    };
+    app = self.lib.mkAtticPush {
+      inherit pkgs adapter;
+      paths = [pkgs.hello];
+    };
+  in
+    assert app ? type;
+    assert app.type == "app";
+    assert app ? program;
+    assert builtins.isString app.program;
+    pkgs.runCommand "check-mkAtticPush-shape" {} "touch $out";
 
   # Validation logic works correctly
   validation-helpers = let

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-bevy = "0.15"
+bevy = "0.18"
 
 # Optimize dependencies in dev for playable frame rates
 [profile.dev.package."*"]
@@ -15,3 +15,4 @@ opt-level = 2
 lto = "thin"
 codegen-units = 1
 opt-level = 3
+strip = true

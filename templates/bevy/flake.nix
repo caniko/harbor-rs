@@ -29,12 +29,30 @@
         inherit pkgs system;
         enableOsxcross = false;
       };
-      cargoConfig = rs-harbor.lib.mkCargoConfig {inherit pkgs;};
+      cargoConfig = rs-harbor.lib.mkCargoConfig {
+        inherit pkgs;
+        extraConfig = ''
+          [alias]
+          rd = "run --features bevy/dynamic_linking"
+        '';
+      };
 
       bevyDeps = import ./nix/bevy-deps.nix {inherit pkgs;};
+
+      src = craneLib.cleanCargoSource ./.;
+      inherit (toolchain) craneLib;
+
+      build = import ./nix/package.nix {inherit craneLib bevyDeps src;};
     in {
+      packages.default = build.default;
+
+      checks = {
+        inherit (build) default clippy fmt;
+      };
+
       devShells = import ./nix/dev-shell.nix {
         inherit pkgs rs-harbor toolchain cross cargoConfig bevyDeps;
+        checks = self.checks.${system};
       };
     });
 }
