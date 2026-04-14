@@ -2,12 +2,14 @@
 
 Reusable Rust cross-compilation and toolchain infrastructure for Nix flakes.
 
-Provides four composable functions:
+Provides composable functions:
 
 - **`mkToolchain`** — Rust nightly/stable toolchain with crane and cross-compilation targets
 - **`mkCross`** — MinGW (Windows) and osxcross (macOS) cross-compilation toolchains
 - **`mkDevShell`** — Single devShell with configurable cross-compilation env vars
 - **`mkDevShells`** — Multiple devShells (default, windows, macos, cross) from one config
+- **`mkAppImage`** — Bundle a built executable as a self-contained AppImage (opt-in, Linux only)
+- **`mkFlatpakManifest`** — Generate a Flatpak manifest for packaging with flatpak-builder (opt-in, Linux only)
 
 ## Prerequisites
 
@@ -128,6 +130,66 @@ Returns: `{ default, windows, macos, cross }` — assign directly to `devShells`
 | `windows` | `nix develop .#windows` | yes | no |
 | `macos` | `nix develop .#macos` | no | yes |
 | `cross` | `nix develop .#cross` | yes | yes |
+
+### `mkAppImage`
+
+Wraps a Nix-built executable as a self-contained [AppImage](https://appimage.org/). **Opt-in:** you must add [nix-appimage](https://github.com/ralismark/nix-appimage) to your own flake inputs and pass it as an argument.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `nix-appimage` | required | The nix-appimage flake input |
+| `system` | required | Host system string (must be Linux) |
+| `program` | required | Absolute store path to executable, e.g. `"${pkg}/bin/my-app"` |
+| `pname` | derived from program | AppImage filename stem |
+| `squashfsArgs` | `[]` | Extra arguments to `mksquashfs` |
+
+Returns: a derivation producing a `.AppImage` file
+
+```nix
+# In your flake inputs:
+nix-appimage.url = "github:ralismark/nix-appimage";
+
+# In your outputs:
+packages.appimage = rs-harbor.lib.mkAppImage {
+  inherit system nix-appimage;
+  program = "${myPackage}/bin/my-app";
+};
+```
+
+### `mkFlatpakManifest`
+
+Generates a [Flatpak](https://flatpak.org/) manifest (JSON) for packaging a pre-built binary with `flatpak-builder`. **Opt-in:** no extra inputs required, but only useful on Linux.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `pkgs` | required | nixpkgs |
+| `appId` | required | Reverse-DNS app ID, e.g. `"com.example.MyApp"` |
+| `pname` | required | Binary name |
+| `desktopFile` | required | Desktop entry file content (string) |
+| `icon` | `null` | Path to icon file |
+| `runtime` | `"org.freedesktop.Platform"` | Flatpak runtime |
+| `runtimeVersion` | `"24.08"` | Runtime version |
+| `sdk` | `"org.freedesktop.Sdk"` | Flatpak SDK |
+| `sdkExtensions` | `[]` | SDK extensions |
+| `finishArgs` | `["--share=ipc" "--socket=x11" ...]` | Sandbox permissions |
+| `extraModules` | `[]` | Additional Flatpak modules |
+
+Returns: `{ manifestText, manifestPath }`
+
+```nix
+packages.flatpak-manifest = (rs-harbor.lib.mkFlatpakManifest {
+  inherit pkgs;
+  appId = "com.example.MyApp";
+  pname = "my-app";
+  desktopFile = ''
+    [Desktop Entry]
+    Type=Application
+    Name=My App
+    Exec=my-app
+  '';
+}).manifestPath;
+# Then: nix build .#flatpak-manifest && flatpak-builder --user --install build-dir ./result
+```
 
 ## What's included in the devShell
 

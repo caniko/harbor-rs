@@ -8,6 +8,9 @@
     rust-overlay.follows = "rs-harbor/rust-overlay";
     crane.follows = "rs-harbor/crane";
     flake-utils.follows = "rs-harbor/flake-utils";
+
+    # Uncomment to enable AppImage packaging (Linux only):
+    # nix-appimage.url = "github:ralismark/nix-appimage";
   };
 
   outputs = {
@@ -45,6 +48,34 @@
       build = import ./nix/package.nix {inherit craneLib bevyDeps src;};
     in {
       packages.default = build.default;
+
+      # Uncomment for AppImage packaging (requires nix-appimage input above):
+      # packages.appimage = rs-harbor.lib.mkAppImage {
+      #   inherit system nix-appimage;
+      #   program = "${build.default}/bin/my-bevy-game";
+      # };
+
+      # Uncomment for Flatpak manifest generation:
+      # packages.flatpak-manifest = (rs-harbor.lib.mkFlatpakManifest {
+      #   inherit pkgs;
+      #   appId = "com.example.MyBevyGame";
+      #   pname = "my-bevy-game";
+      #   desktopFile = ''
+      #     [Desktop Entry]
+      #     Type=Application
+      #     Name=My Bevy Game
+      #     Exec=my-bevy-game
+      #     Icon=com.example.MyBevyGame
+      #     Categories=Game;
+      #   '';
+      #   finishArgs = [
+      #     "--share=ipc"
+      #     "--socket=x11"
+      #     "--socket=wayland"
+      #     "--device=dri"
+      #     "--socket=pulseaudio"
+      #   ];
+      # }).manifestPath;
 
       checks = {
         inherit (build) default clippy fmt;

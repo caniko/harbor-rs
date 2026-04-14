@@ -8,4 +8,6 @@ in {
   inherit (devShellLib) mkDevShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   mkAtticPush = import ./attic-push.nix;
+  mkAppImage = import ./appimage.nix;
+  mkFlatpakManifest = import ./flatpak-manifest.nix;
 }

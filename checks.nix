@@ -4,7 +4,9 @@
   system,
   toolchain,
   cross,
-}: {
+}: let
+  isLinux = builtins.match ".*-linux" system != null;
+in {
   # mkToolchain returns expected attributes
   mkToolchain-shape = let
     t = self.lib.mkToolchain {inherit pkgs;};
@@ -196,4 +198,54 @@
     assert builtins.elem "stable" ["nightly" "stable"];
     assert !(builtins.elem "beta" ["nightly" "stable"]);
     pkgs.runCommand "check-validation-helpers" {} "touch $out";
+}
+// pkgs.lib.optionalAttrs isLinux {
+  # mkFlatpakManifest returns expected attributes
+  mkFlatpakManifest-shape = let
+    m = self.lib.mkFlatpakManifest {
+      inherit pkgs;
+      appId = "com.example.TestApp";
+      pname = "test-app";
+      desktopFile = "[Desktop Entry]\nType=Application\nName=Test\nExec=test-app";
+    };
+  in
+    assert m ? manifestText;
+    assert m ? manifestPath;
+    assert builtins.isString m.manifestText;
+    assert pkgs.lib.hasInfix "com.example.TestApp" m.manifestText;
+    assert pkgs.lib.hasInfix "test-app" m.manifestText;
+    assert pkgs.lib.hasInfix "org.freedesktop.Platform" m.manifestText;
+    assert pkgs.lib.hasInfix "24.08" m.manifestText;
+    pkgs.runCommand "check-mkFlatpakManifest-shape" {} "touch $out";
+
+  # mkFlatpakManifest respects custom runtime
+  mkFlatpakManifest-custom-runtime = let
+    m = self.lib.mkFlatpakManifest {
+      inherit pkgs;
+      appId = "org.test.App";
+      pname = "myapp";
+      desktopFile = "[Desktop Entry]\nType=Application\nName=Test\nExec=myapp";
+      runtime = "org.gnome.Platform";
+      runtimeVersion = "46";
+      sdk = "org.gnome.Sdk";
+    };
+  in
+    assert pkgs.lib.hasInfix "org.gnome.Platform" m.manifestText;
+    assert pkgs.lib.hasInfix "46" m.manifestText;
+    assert pkgs.lib.hasInfix "org.gnome.Sdk" m.manifestText;
+    pkgs.runCommand "check-mkFlatpakManifest-custom-runtime" {} "touch $out";
+
+  # mkFlatpakManifest respects custom finishArgs
+  mkFlatpakManifest-finish-args = let
+    m = self.lib.mkFlatpakManifest {
+      inherit pkgs;
+      appId = "org.test.App2";
+      pname = "myapp2";
+      desktopFile = "[Desktop Entry]\nType=Application\nName=Test\nExec=myapp2";
+      finishArgs = ["--share=network" "--socket=x11"];
+    };
+  in
+    assert pkgs.lib.hasInfix "share=network" m.manifestText;
+    assert pkgs.lib.hasInfix "socket=x11" m.manifestText;
+    pkgs.runCommand "check-mkFlatpakManifest-finish-args" {} "touch $out";
 }
