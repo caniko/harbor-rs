@@ -15,7 +15,7 @@ Provides composable functions:
 
 - [Nix](https://nixos.org/) with flakes enabled
 - The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
-- macOS cross-compilation via osxcross requires the `--impure` flag
+- macOS cross-compilation via osxcross requires `MACOS_SDK` to be visible during evaluation, usually via `--impure`
 
 ## Usage
 
@@ -50,7 +50,10 @@ Provides composable functions:
         inherit (toolchain) craneLib;
 
         # Your project-specific packages
-        packages = with pkgs; [ just wayland.dev vulkan-loader ];
+        packages = with pkgs; [ just vulkan-loader ];
+
+        # Native libraries that expose .pc files for build scripts
+        pkgConfigDeps = with pkgs; [ wayland libxkbcommon udev alsa-lib ];
 
         # Extra environment variables
         extraEnv = {
@@ -86,7 +89,7 @@ Returns: `{ rustToolchain, craneLib, crossTargets }`
 |-------|---------|-------------|
 | `pkgs` | required | nixpkgs |
 | `system` | required | Host system string |
-| `enableOsxcross` | `true` | Enable macOS cross-compilation (requires `--impure`) |
+| `enableOsxcross` | `builtins.getEnv "MACOS_SDK" != ""` | Enable macOS cross-compilation when the SDK path is visible during evaluation |
 | `osxSdkVersion` | `"26.1"` | macOS SDK version |
 
 Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, osxcrossRustHelpers }`
@@ -100,6 +103,7 @@ Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, 
 | `cross` | required | From `mkCross` |
 | `enableWindowsEnv` | `true` | Include Windows cross-compilation env vars |
 | `enableOsxcrossEnv` | `true` | Include osxcross toolchain and shell hook |
+| `pkgConfigDeps` | `[]` | Packages whose `dev/lib/pkgconfig` entries should populate `PKG_CONFIG_PATH` |
 | `packages` | `[]` | Extra packages |
 | `extraEnv` | `{}` | Extra environment variables |
 | `extraShellHook` | `""` | Additional shell hook |
@@ -117,6 +121,7 @@ Builds four devShells from a single config — ideal for workspaces where not al
 | `craneLib` | required | From `mkToolchain` |
 | `cross` | required | From `mkCross` |
 | `enableOsxcrossEnv` | `true` | Enable osxcross in the macos/cross shells |
+| `pkgConfigDeps` | `[]` | Packages whose `dev/lib/pkgconfig` entries should populate `PKG_CONFIG_PATH` |
 | `packages` | `[]` | Extra packages |
 | `extraEnv` | `{}` | Extra environment variables |
 | `extraShellHook` | `""` | Additional shell hook |
@@ -195,7 +200,11 @@ packages.flatpak-manifest = (rs-harbor.lib.mkFlatpakManifest {
 
 **Packages:** cmake, gcc, clang, mold, lld, pkg-config, mingw binutils (if Windows enabled), osxcross (if macOS enabled)
 
-**Environment:** `LIBCLANG_PATH`, Windows cross-compilation (`CC_x86_64_pc_windows_gnu`, linker, rustflags)
+**Environment:** `LIBCLANG_PATH`, optional `PKG_CONFIG_PATH` from `pkgConfigDeps`, Windows cross-compilation (`CC_x86_64_pc_windows_gnu`, linker, rustflags)
+
+Windows GNU targets intentionally use the MinGW GCC wrapper as the linker driver without forcing
+`-fuse-ld=lld`. For this toolchain, routing through lld can inject unsupported PIE arguments and
+break final linking.
 
 ## Testing
 

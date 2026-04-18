@@ -28,10 +28,7 @@
       };
 
       toolchain = rs-harbor.lib.mkToolchain {inherit pkgs;};
-      cross = rs-harbor.lib.mkCross {
-        inherit pkgs system;
-        enableOsxcross = false;
-      };
+      cross = rs-harbor.lib.mkCross {inherit pkgs system;};
       cargoConfig = rs-harbor.lib.mkCargoConfig {
         inherit pkgs;
         extraConfig = ''

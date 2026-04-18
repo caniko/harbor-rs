@@ -10,7 +10,7 @@
   rs-harbor.lib.mkDevShells {
     inherit pkgs cross cargoConfig checks;
     inherit (toolchain) craneLib;
-    enableOsxcrossEnv = false;
+    pkgConfigDeps = bevyDeps.buildInputs;
 
     packages = bevyDeps.buildInputs ++ bevyDeps.nativeBuildInputs;
 

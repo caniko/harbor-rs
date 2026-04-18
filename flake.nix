@@ -47,16 +47,12 @@
       };
 
       toolchain = self.lib.mkToolchain {inherit pkgs;};
-      cross = self.lib.mkCross {
-        inherit pkgs system;
-        enableOsxcross = false;
-      };
+      cross = self.lib.mkCross {inherit pkgs system;};
       cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
     in {
       devShells = self.lib.mkDevShells {
         inherit pkgs cross cargoConfig;
         inherit (toolchain) craneLib;
-        enableOsxcrossEnv = false;
       };
 
       checks = import ./checks.nix {inherit self pkgs system toolchain cross;};

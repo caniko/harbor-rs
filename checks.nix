@@ -58,12 +58,20 @@ in {
     assert c.osxcrossRustHelpers == null;
     pkgs.runCommand "check-mkCross-osxcross-disabled" {} "touch $out";
 
+  # Pure evaluation should not enable osxcross unless MACOS_SDK is visible.
+  mkCross-osxcross-default-disabled-without-sdk = let
+    c = self.lib.mkCross {inherit pkgs system;};
+  in
+    assert builtins.getEnv "MACOS_SDK" == "";
+    assert c.osxcrossToolchain == null;
+    assert c.osxcrossRustHelpers == null;
+    pkgs.runCommand "check-mkCross-osxcross-default-disabled-without-sdk" {} "touch $out";
+
   # mkDevShells returns expected shell variants
   mkDevShells-shape = let
     s = self.lib.mkDevShells {
       inherit pkgs cross;
       inherit (toolchain) craneLib;
-      enableOsxcrossEnv = false;
     };
   in
     assert s ? default;
@@ -71,6 +79,20 @@ in {
     assert s ? macos;
     assert s ? cross;
     pkgs.runCommand "check-mkDevShells-shape" {} "touch $out";
+
+  # mkDevShells accepts pkg-config dependency inputs
+  mkDevShells-pkg-config-deps = let
+    s = self.lib.mkDevShells {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      pkgConfigDeps = with pkgs; [
+        wayland
+        libxkbcommon
+      ];
+    };
+  in
+    assert s ? default;
+    pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
   # mkCargoConfig returns expected attributes
   mkCargoConfig-shape = let
@@ -115,6 +137,13 @@ in {
   in
     assert !(pkgs.lib.hasInfix "mold" c.configText);
     pkgs.runCommand "check-mkCargoConfig-no-mold" {} "touch $out";
+
+  # Windows GNU should not force lld through the MinGW GCC wrapper
+  mkCargoConfig-no-windows-gnu-lld = let
+    c = self.lib.mkCargoConfig {inherit pkgs;};
+  in
+    assert !(pkgs.lib.hasInfix "link-arg=-fuse-ld=lld" c.configText);
+    pkgs.runCommand "check-mkCargoConfig-no-windows-gnu-lld" {} "touch $out";
 
   # mkCargoConfig respects enableParallelFrontend = false
   mkCargoConfig-no-parallel-frontend = let

@@ -49,10 +49,6 @@
         if enableMold && isLinux triple
         then ["-C" "link-arg=-fuse-ld=mold"]
         else [];
-      lldFlags =
-        if isWindowsGnu triple
-        then ["-C" "link-arg=-fuse-ld=lld"]
-        else [];
       shareGenFlags =
         if enableShareGenerics && (isLinux triple || isDarwin triple)
         then ["-Zshare-generics=y"]
@@ -61,7 +57,10 @@
         if enableParallelFrontend
         then ["-Zthreads=0"]
         else [];
-      allFlags = moldFlags ++ lldFlags ++ shareGenFlags ++ parallelFlags;
+      # Do not force `-fuse-ld=lld` for MinGW/GNU Windows targets. When Rust
+      # links through the GCC wrapper provided by pkgsCross.mingwW64, that path
+      # can inject unsupported PIE arguments into lld and fail the final link.
+      allFlags = moldFlags ++ shareGenFlags ++ parallelFlags;
       linkerLine =
         optionalString (enableMold && isLinux triple) "linker = \"clang\"\n";
       flagsLine = mkRustflags allFlags;

@@ -11,6 +11,7 @@ rec {
     cross,
     enableWindowsEnv ? true,
     enableOsxcrossEnv ? true,
+    pkgConfigDeps ? [],
     packages ? [],
     extraEnv ? {},
     extraShellHook ? "",
@@ -68,7 +69,11 @@ rec {
       then cross.windowsEnv
       else {};
 
-    mergedEnv = baseEnv // crossEnv // extraEnv;
+    pkgConfigEnv = pkgs.lib.optionalAttrs (pkgConfigDeps != []) {
+      PKG_CONFIG_PATH = pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" pkgConfigDeps;
+    };
+
+    mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;
   in
     craneLib.devShell (mergedEnv
       // {
@@ -93,6 +98,7 @@ rec {
     craneLib,
     cross,
     enableOsxcrossEnv ? true,
+    pkgConfigDeps ? [],
     packages ? [],
     extraEnv ? {},
     extraShellHook ? "",
@@ -104,7 +110,7 @@ rec {
       osx ? false,
     }:
       mkDevShell {
-        inherit pkgs craneLib cross packages extraEnv extraShellHook checks cargoConfig;
+        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig;
         enableWindowsEnv = win;
         enableOsxcrossEnv = osx && enableOsxcrossEnv;
       };

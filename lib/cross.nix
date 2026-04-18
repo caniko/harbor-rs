@@ -6,7 +6,7 @@
 {osxcross}: {
   pkgs,
   system,
-  enableOsxcross ? true,
+  enableOsxcross ? (builtins.getEnv "MACOS_SDK" != ""),
   osxSdkVersion ? "26.1",
 }: let
   mingwCC = pkgs.pkgsCross.mingwW64.stdenv.cc;
