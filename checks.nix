@@ -40,6 +40,7 @@ in {
     assert c ? mingwBinutils;
     assert c ? winpthreads;
     assert c ? windowsEnv;
+    assert c ? macosSdk;
     assert c ? osxcrossToolchain;
     assert c ? osxcrossRustHelpers;
     assert builtins.isAttrs c.windowsEnv;
@@ -54,18 +55,183 @@ in {
       enableOsxcross = false;
     };
   in
+    assert c.macosSdk == null;
     assert c.osxcrossToolchain == null;
     assert c.osxcrossRustHelpers == null;
     pkgs.runCommand "check-mkCross-osxcross-disabled" {} "touch $out";
 
-  # Pure evaluation should not enable osxcross unless MACOS_SDK is visible.
+  # Pure evaluation should not enable osxcross without an SDK input.
   mkCross-osxcross-default-disabled-without-sdk = let
     c = self.lib.mkCross {inherit pkgs system;};
   in
     assert builtins.getEnv "MACOS_SDK" == "";
+    assert c.macosSdk == null;
     assert c.osxcrossToolchain == null;
     assert c.osxcrossRustHelpers == null;
     pkgs.runCommand "check-mkCross-osxcross-default-disabled-without-sdk" {} "touch $out";
+
+  # mkCross enables osxcross from a pure macOS SDK ref without MACOS_SDK.
+  mkCross-osxcross-enabled-with-macos-sdk-ref =
+    if system == "x86_64-linux"
+    then let
+      fakeMacosSdk = {
+        _type = "osxcross-macos-sdk";
+        sdk = pkgs.emptyDirectory;
+        sdkVersion = "26.1";
+        sdkRoot = "${pkgs.emptyDirectory}/MacOSX26.1.sdk";
+      };
+      fakeOsxcross = {
+        lib.${system} = {
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        macosSdk = fakeMacosSdk;
+      };
+    in
+      assert builtins.getEnv "MACOS_SDK" == "";
+      assert c.macosSdk == fakeMacosSdk;
+      assert c.osxcrossToolchain._type == "fake-osxcross-toolchain";
+      assert c.osxcrossToolchain.macosSdk == fakeMacosSdk;
+      assert c.osxcrossToolchain.sdkVersion == "26.1";
+      assert c.osxcrossRustHelpers._type == "fake-rust-helpers";
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-macos-sdk-ref" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-macos-sdk-ref-skipped" {} "touch $out";
+
+  # mkCross can initialize the pure macOS SDK ref from an archive input.
+  mkCross-osxcross-enabled-with-sdk-archive =
+    if system == "x86_64-linux"
+    then let
+      fakeSdkArchive = pkgs.emptyDirectory;
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdk = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+              sdk = pkgs.emptyDirectory;
+              sdkRoot = "${pkgs.emptyDirectory}/MacOSX${args.sdkVersion}.sdk";
+            };
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        sdkArchive = fakeSdkArchive;
+        osxSdkVersion = "26.1";
+        macosSdkOutputHash = "sha256-fake";
+      };
+    in
+      assert c.macosSdk._type == "osxcross-macos-sdk";
+      assert c.macosSdk.sdkArchive == fakeSdkArchive;
+      assert c.macosSdk.sdkVersion == "26.1";
+      assert c.macosSdk.outputHash == "sha256-fake";
+      assert c.osxcrossToolchain.macosSdk == c.macosSdk;
+      assert c.osxcrossToolchain.sdkVersion == "26.1";
+      assert c.osxcrossRustHelpers.toolchain == c.osxcrossToolchain;
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-archive" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-archive-skipped" {} "touch $out";
+
+  # mkCross can use a VCS-compatible SDK store path produced by host init.
+  mkCross-osxcross-enabled-with-sdk-store-path =
+    if system == "x86_64-linux"
+    then let
+      fakeSdkStorePath = "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdkRef = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+              sdkRoot = "${args.sdk}/MacOSX${args.sdkVersion}.sdk";
+            };
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        macosSdkStorePath = fakeSdkStorePath;
+        osxSdkVersion = "26.1";
+      };
+    in
+      assert c.macosSdk._type == "osxcross-macos-sdk";
+      assert toString c.macosSdk.sdk == fakeSdkStorePath;
+      assert c.macosSdk.sdkVersion == "26.1";
+      assert c.macosSdk.sdkRoot == "${fakeSdkStorePath}/MacOSX26.1.sdk";
+      assert c.osxcrossToolchain.macosSdk == c.macosSdk;
+      assert c.osxcrossRustHelpers.toolchain == c.osxcrossToolchain;
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-store-path" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-store-path-skipped" {} "touch $out";
+
+  # mkCross rejects ambiguous SDK inputs.
+  mkCross-osxcross-sdk-input-conflict = let
+    fakeMacosSdk = {
+      _type = "osxcross-macos-sdk";
+      sdk = pkgs.emptyDirectory;
+      sdkVersion = "26.1";
+      sdkRoot = "${pkgs.emptyDirectory}/MacOSX26.1.sdk";
+    };
+    conflict = builtins.tryEval (self.lib.mkCross {
+      inherit pkgs system;
+      sdkArchive = pkgs.emptyDirectory;
+      macosSdk = fakeMacosSdk;
+    });
+    storeConflict = builtins.tryEval (self.lib.mkCross {
+      inherit pkgs system;
+      macosSdkStorePath = "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
+      sdkArchive = pkgs.emptyDirectory;
+    });
+  in
+    assert conflict.success == false;
+    assert storeConflict.success == false;
+    pkgs.runCommand "check-mkCross-osxcross-sdk-input-conflict" {} "touch $out";
+
+  # init-macos-sdk documents the VCS-compatible store-path flow.
+  init-macos-sdk-help =
+    pkgs.runCommand "check-init-macos-sdk-help" {} ''
+      "${self.packages.${system}.init-macos-sdk}/bin/init-macos-sdk" --help > help
+      grep 'nix run rs-harbor#init-macos-sdk' help
+      grep 'macosSdkStorePath' help
+      grep 'Recursive hash' help
+      touch "$out"
+    '';
 
   # mkDevShells returns expected shell variants
   mkDevShells-shape = let

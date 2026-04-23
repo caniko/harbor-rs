@@ -15,7 +15,31 @@ Provides composable functions:
 
 - [Nix](https://nixos.org/) with flakes enabled
 - The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
-- macOS cross-compilation via osxcross requires `MACOS_SDK` to be visible during evaluation, usually via `--impure`
+- macOS cross-compilation via osxcross prefers a stable SDK store path produced by `init-macos-sdk`; legacy `MACOS_SDK`/`--impure` still works as a fallback
+
+## One-Time macOS SDK Init
+
+Do not commit a host-local SDK archive path to project flakes. Each host should initialize the SDK once from wherever that host stores the archive:
+
+```bash
+nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
+```
+
+The command prints the stable SDK store path to commit:
+
+```nix
+cross = rs-harbor.lib.mkCross {
+  inherit pkgs system;
+  macosSdkStorePath = "/nix/store/<stable-hash>-macosx-sdk-26.1";
+  osxSdkVersion = "26.1";
+};
+```
+
+On another host, either run the same init command with that host's local archive path or copy the printed store path from a binary cache:
+
+```bash
+nix copy --from <cache> /nix/store/<stable-hash>-macosx-sdk-26.1
+```
 
 ## Usage
 
@@ -23,6 +47,7 @@ Provides composable functions:
 {
   inputs = {
     rs-harbor.url = "git+ssh://git@codeberg.org/caniko/rs-harbor.git";
+
     # Pin shared inputs
     nixpkgs.follows = "rs-harbor/nixpkgs";
     rust-overlay.follows = "rs-harbor/rust-overlay";
@@ -38,7 +63,11 @@ Provides composable functions:
       };
 
       toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
-      cross = rs-harbor.lib.mkCross { inherit pkgs system; };
+      cross = rs-harbor.lib.mkCross {
+        inherit pkgs system;
+        macosSdkStorePath = "/nix/store/<stable-hash>-macosx-sdk-26.1";
+        osxSdkVersion = "26.1";
+      };
     in {
       # Returns: { default, windows, macos, cross }
       # Use: nix develop          (native)
@@ -89,10 +118,22 @@ Returns: `{ rustToolchain, craneLib, crossTargets }`
 |-------|---------|-------------|
 | `pkgs` | required | nixpkgs |
 | `system` | required | Host system string |
-| `enableOsxcross` | `builtins.getEnv "MACOS_SDK" != ""` | Enable macOS cross-compilation when the SDK path is visible during evaluation |
+| `macosSdkStorePath` | `null` | Stable SDK store path from `init-macos-sdk`; preferred for VCS-compatible project flakes |
+| `sdkArchive` | `null` | Lower-level local/archive input; useful for experiments but host-specific if committed directly |
+| `macosSdk` | `null` | Existing pure macOS SDK ref from `osxcross.lib.<system>.mkMacosSdk` or `mkMacosSdkRef`; cannot be combined with `macosSdkStorePath` or `sdkArchive` |
+| `macosSdkOutputHash` | `null` | Optional fixed-output hash passed to `mkMacosSdk` when using `sdkArchive` |
+| `enableOsxcross` | `macosSdkStorePath != null || sdkArchive != null || macosSdk != null || builtins.getEnv "MACOS_SDK" != ""` | Enable macOS cross-compilation when a pure SDK input or legacy env SDK is available |
 | `osxSdkVersion` | `"26.1"` | macOS SDK version |
 
-Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, osxcrossToolchain, osxcrossRustHelpers }`
+Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, macosSdk, osxcrossToolchain, osxcrossRustHelpers }`
+
+If you already have a realized SDK store output, pass its ref instead of an archive:
+
+```nix
+cross = rs-harbor.lib.mkCross {
+  inherit pkgs system macosSdk;
+};
+```
 
 ### `mkDevShell`
 
