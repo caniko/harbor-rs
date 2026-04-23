@@ -75,11 +75,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1770284927,
-        "narHash": "sha256-KBc4mNcKHFTXpYD3m7SStygCMVxbPlmmlps4hs/RcE4=",
+        "lastModified": 1776948612,
+        "narHash": "sha256-/uSla6gMxJJEAhjumJc90djLH5ieCCNtFNdsy0cCg0o=",
         "owner": "caniko",
         "repo": "osxcross",
-        "rev": "dc11cbe0e40febe145e9935aac2b6632f2feefdf",
+        "rev": "47a045b28af76a83d645292eb9aac3f3a56d861c",
         "type": "github"
       },
       "original": {
