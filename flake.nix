@@ -45,8 +45,9 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
+      realizeMacosSdk = osxcross.packages.${system}.realize-macos-sdk;
       initMacosSdk = import ./nix/init-macos-sdk.nix {
-        inherit pkgs osxcross;
+        inherit pkgs realizeMacosSdk;
       };
 
       toolchain = self.lib.mkToolchain {inherit pkgs;};
