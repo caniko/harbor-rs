@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="{{ lang | default(value=config.default_language) }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ config.title }}{% endblock title %}</title>
+    <meta name="description" content="{{ config.description }}">
+    <link rel="icon" type="image/svg+xml" href="{{ get_url(path='rs-harbor-mark.svg') | safe }}">
+    <link rel="stylesheet" href="{{ get_url(path='style.css') | safe }}">
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="site-header">
+        <div class="nav-inner">
+          <a class="brand" href="{{ config.base_url | safe }}">
+            <img src="{{ get_url(path='rs-harbor-mark.svg') | safe }}" alt="">
+            <span>{{ config.title }}</span>
+          </a>
+          <nav class="site-nav" aria-label="Primary">
+            <a href="{{ config.base_url ~ '/docs/' }}">Documentation</a>
+            <a href="{{ config.extra.repo_url }}">Source</a>
+          </nav>
+        </div>
+      </header>
+
+      <main>
+        {% block content %}{% endblock content %}
+      </main>
+
+      <footer class="site-footer">
+        <p>{{ config.title }} is released under {{ config.extra.license }}.</p>
+        <p><a href="{{ config.extra.repo_url }}">Codeberg</a></p>
+      </footer>
+    </div>
+  </body>
+</html>
