@@ -43,6 +43,7 @@
 
   containerCommandText = ''
     ${containerRuntime} run --rm -it \
+      --userns=keep-id \
       --volume "$PWD:$PWD" \
       --workdir "$PWD" \
       --user "$(id -u):$(id -g)" \
@@ -140,8 +141,16 @@
         nix_store_args=(--volume /nix/store:/nix/store:ro)
       fi
 
+      userns_args=()
+      case "$(basename "$runner")" in
+        podman)
+          userns_args=(--userns=keep-id)
+          ;;
+      esac
+
       echo "steam-runtime-exec: runtime=$runtime image=$image runner=$runner" >&2
       exec "$runner" run --rm "''${tty_args[@]}" \
+        "''${userns_args[@]}" \
         "''${nix_store_args[@]}" \
         --volume "$PWD:$PWD" \
         --workdir "$PWD" \
