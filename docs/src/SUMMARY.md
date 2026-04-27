@@ -18,6 +18,7 @@
 
 - [mkAppImage](./packaging/appimage.md)
 - [mkFlatpakManifest](./packaging/flatpak.md)
+- [Steam Runtime Tools](./packaging/steam-runtime.md)
 
 # Integration
 

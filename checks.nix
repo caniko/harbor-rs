@@ -260,6 +260,38 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
+  # mkSteamRuntimeTools returns expected metadata and packages
+  mkSteamRuntimeTools-shape = let
+    s = self.lib.mkSteamRuntimeTools {inherit pkgs;};
+  in
+    assert s ? runtimes;
+    assert s ? selectedRuntime;
+    assert s ? image;
+    assert s ? containerCommandText;
+    assert s ? steamRuntimeExec;
+    assert s ? auditElfRuntimeDeps;
+    assert s ? auditWindowsRuntimeDeps;
+    assert s ? auditDarwinRuntimeDeps;
+    assert s.packages ? steamRuntimeExec;
+    assert s.packages ? auditElfRuntimeDeps;
+    assert s.selectedRuntime.name == "Steam Linux Runtime 3.0 (sniper)";
+    assert s.image == "registry.gitlab.steamos.cloud/steamrt/sniper/sdk";
+    pkgs.runCommand "check-mkSteamRuntimeTools-shape" {} "touch $out";
+
+  # mkSteamRuntimeTools supports custom images without changing downstream policy
+  mkSteamRuntimeTools-custom-image = let
+    s = self.lib.mkSteamRuntimeTools {
+      inherit pkgs;
+      runtime = "custom";
+      customImage = "registry.example.com/custom/steam-sdk:latest";
+      containerRuntime = "docker";
+    };
+  in
+    assert s.selectedRuntime.name == "custom";
+    assert s.image == "registry.example.com/custom/steam-sdk:latest";
+    assert pkgs.lib.hasInfix "docker run" s.containerCommandText;
+    pkgs.runCommand "check-mkSteamRuntimeTools-custom-image" {} "touch $out";
+
   # mkCargoConfig returns expected attributes
   mkCargoConfig-shape = let
     c = self.lib.mkCargoConfig {inherit pkgs;};
