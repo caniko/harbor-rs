@@ -10,12 +10,15 @@ MinGW toolchain components are exposed through the returned environment and can 
 
 osxcross is optional and turns on when one of these inputs is available:
 
+- `macosSdk`: an already realized SDK reference
 - `macosSdkStorePath`: preferred for version-controlled flakes
 - `sdkArchive`: a local SDK archive path
-- `macosSdk`: an already realized SDK reference
-- `MACOS_SDK`: legacy environment-variable fallback
+- `MACOS_SDK`: local discovery fallback owned by rs-harbor
 
 Only one of `macosSdkStorePath`, `sdkArchive`, or `macosSdk` can be provided at a time.
+Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`, then `MACOS_SDK`.
+
+`MACOS_SDK` accepts a direct `MacOSX<version>.sdk` directory, a parent directory containing that SDK, or a supported SDK archive. Directory inputs are validated for the SDK settings file, `TargetConditionals.h`, and the required CoreFoundation/SystemConfiguration frameworks before osxcross is invoked.
 
 ## Example
 

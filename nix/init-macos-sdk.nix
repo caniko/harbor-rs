@@ -1,10 +1,14 @@
 {
   pkgs,
   realizeMacosSdk,
+  validateMacosSdk,
 }:
 pkgs.writeShellApplication {
   name = "init-macos-sdk";
-  runtimeInputs = [realizeMacosSdk];
+  runtimeInputs = [
+    realizeMacosSdk
+    validateMacosSdk
+  ];
   text = ''
     set -euo pipefail
 
@@ -13,7 +17,7 @@ pkgs.writeShellApplication {
     Usage:
       nix run rs-harbor#init-macos-sdk -- /path/to/MacOSX26.1.sdk.tar.xz 26.1
 
-    Realizes a local macOS SDK archive into a stable Nix store output.
+    Realizes and validates a local macOS SDK archive into a stable Nix store output.
 
     Output includes:
       Store path      Commit this as macosSdkStorePath in project flakes
@@ -39,6 +43,7 @@ pkgs.writeShellApplication {
     SDK_VERSION=""
     RECURSIVE_HASH=""
     eval "$(realize-macos-sdk --env "$archive" "$sdk_version")"
+    validate-macos-sdk "$SDK_ROOT" "$SDK_VERSION" >/dev/null
 
     cat <<EOF
     macOS SDK initialized.

@@ -157,6 +157,148 @@ in {
       pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-archive" {} "touch $out"
     else pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-archive-skipped" {} "touch $out";
 
+  # mkCross resolves MACOS_SDK when it points directly at a complete .sdk directory.
+  mkCross-osxcross-enabled-with-env-direct-sdk =
+    if system == "x86_64-linux"
+    then let
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdkRef = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+            };
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        macosSdkEnvPath = toString ./tests/fixtures/macos-sdk-complete/MacOSX26.1.sdk;
+        osxSdkVersion = "26.1";
+      };
+    in
+      assert c.macosSdk._type == "osxcross-macos-sdk";
+      assert builtins.baseNameOf (toString c.macosSdk.sdkRoot) == "MacOSX26.1.sdk";
+      assert c.osxcrossToolchain.macosSdk == c.macosSdk;
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-direct-sdk" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-direct-sdk-skipped" {} "touch $out";
+
+  # mkCross resolves MACOS_SDK when it points at a parent directory containing MacOSX<version>.sdk.
+  mkCross-osxcross-enabled-with-env-parent-sdk =
+    if system == "x86_64-linux"
+    then let
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdkRef = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+            };
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        macosSdkEnvPath = toString ./tests/fixtures/macos-sdk-complete;
+        osxSdkVersion = "26.1";
+      };
+    in
+      assert c.macosSdk._type == "osxcross-macos-sdk";
+      assert builtins.baseNameOf (toString c.macosSdk.sdkRoot) == "MacOSX26.1.sdk";
+      assert c.osxcrossToolchain.macosSdk == c.macosSdk;
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-parent-sdk" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-parent-sdk-skipped" {} "touch $out";
+
+  # mkCross resolves MACOS_SDK archives through the archive workflow.
+  mkCross-osxcross-enabled-with-env-sdk-archive =
+    if system == "x86_64-linux"
+    then let
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdk = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+              sdk = pkgs.emptyDirectory;
+              sdkRoot = "${pkgs.emptyDirectory}/MacOSX${args.sdkVersion}.sdk";
+            };
+          mkOsxcross = args:
+            args
+            // {
+              _type = "fake-osxcross-toolchain";
+              darwinTarget = "darwin25";
+              supportedArchs = ["x86_64"];
+              effectiveOsxVersionMin = "10.13";
+            };
+          mkRustHelpers = toolchain: {
+            _type = "fake-rust-helpers";
+            inherit toolchain;
+          };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      c = mkCross {
+        inherit pkgs system;
+        macosSdkEnvPath = toString ./tests/fixtures/MacOSX26.1.sdk.tar.xz;
+        osxSdkVersion = "26.1";
+      };
+    in
+      assert c.macosSdk._type == "osxcross-macos-sdk";
+      assert builtins.baseNameOf (toString c.macosSdk.sdkArchive) == "MacOSX26.1.sdk.tar.xz";
+      assert c.osxcrossToolchain.macosSdk == c.macosSdk;
+      pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-sdk-archive" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-enabled-with-env-sdk-archive-skipped" {} "touch $out";
+
+  # mkCross rejects incomplete SDK directories with validation diagnostics.
+  mkCross-osxcross-rejects-incomplete-env-sdk =
+    if system == "x86_64-linux"
+    then let
+      fakeOsxcross = {
+        lib.${system} = {
+          mkMacosSdkRef = args:
+            args
+            // {
+              _type = "osxcross-macos-sdk";
+            };
+        };
+      };
+      mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
+      failure = builtins.tryEval ((mkCross {
+          inherit pkgs system;
+          macosSdkEnvPath = toString ./tests/fixtures/macos-sdk-incomplete/MacOSX26.1.sdk;
+          osxSdkVersion = "26.1";
+        })
+        .macosSdk
+        .sdkRoot);
+    in
+      assert failure.success == false;
+      pkgs.runCommand "check-mkCross-osxcross-rejects-incomplete-env-sdk" {} "touch $out"
+    else pkgs.runCommand "check-mkCross-osxcross-rejects-incomplete-env-sdk-skipped" {} "touch $out";
+
   # mkCross can use a VCS-compatible SDK store path produced by host init.
   mkCross-osxcross-enabled-with-sdk-store-path =
     if system == "x86_64-linux"
@@ -228,8 +370,25 @@ in {
     pkgs.runCommand "check-init-macos-sdk-help" {} ''
       "${self.packages.${system}.init-macos-sdk}/bin/init-macos-sdk" --help > help
       grep 'nix run rs-harbor#init-macos-sdk' help
+      grep 'validates' help
       grep 'macosSdkStorePath' help
       grep 'Recursive hash' help
+      touch "$out"
+    '';
+
+  validate-macos-sdk-fixtures =
+    pkgs.runCommand "check-validate-macos-sdk-fixtures" {} ''
+      "${self.packages.${system}.validate-macos-sdk}/bin/validate-macos-sdk" \
+        "${./tests/fixtures/macos-sdk-complete/MacOSX26.1.sdk}" 26.1 > complete
+      if "${self.packages.${system}.validate-macos-sdk}/bin/validate-macos-sdk" \
+        "${./tests/fixtures/macos-sdk-incomplete/MacOSX26.1.sdk}" 26.1 > incomplete.out 2> incomplete.err
+      then
+        echo "incomplete SDK unexpectedly passed validation" >&2
+        exit 1
+      fi
+      grep 'TargetConditionals.h' incomplete.err
+      grep 'SystemConfiguration.framework' incomplete.err
+      grep 'CoreFoundation.framework' incomplete.err
       touch "$out"
     '';
 

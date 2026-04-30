@@ -46,8 +46,11 @@
         overlays = [(import rust-overlay)];
       };
       realizeMacosSdk = osxcross.packages.${system}.realize-macos-sdk;
+      validateMacosSdk = import ./nix/validate-macos-sdk.nix {
+        inherit pkgs;
+      };
       initMacosSdk = import ./nix/init-macos-sdk.nix {
-        inherit pkgs realizeMacosSdk;
+        inherit pkgs realizeMacosSdk validateMacosSdk;
       };
 
       toolchain = self.lib.mkToolchain {inherit pkgs;};
@@ -59,12 +62,17 @@
         sitePackages
         // {
           init-macos-sdk = initMacosSdk;
+          validate-macos-sdk = validateMacosSdk;
         };
 
       apps = {
         init-macos-sdk = {
           type = "app";
           program = "${initMacosSdk}/bin/init-macos-sdk";
+        };
+        validate-macos-sdk = {
+          type = "app";
+          program = "${validateMacosSdk}/bin/validate-macos-sdk";
         };
       };
 

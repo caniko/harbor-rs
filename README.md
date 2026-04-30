@@ -15,7 +15,7 @@ Provides composable functions:
 
 - [Nix](https://nixos.org/) with flakes enabled
 - The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
-- macOS cross-compilation via osxcross prefers a stable SDK store path produced by `init-macos-sdk`; legacy `MACOS_SDK`/`--impure` still works as a fallback
+- macOS cross-compilation via osxcross prefers a stable SDK store path produced by `init-macos-sdk`; `MACOS_SDK` is an rs-harbor discovery input for local, impure workflows
 
 ## One-Time macOS SDK Init
 
@@ -25,7 +25,7 @@ Do not commit a host-local SDK archive path to project flakes. Each host should 
 nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
 ```
 
-The command prints the stable SDK store path to commit:
+The command realizes the archive, validates that it contains a complete Apple SDK, and then prints the stable SDK store path to commit:
 
 ```nix
 cross = rs-harbor.lib.mkCross {
@@ -122,7 +122,8 @@ Returns: `{ rustToolchain, craneLib, crossTargets }`
 | `sdkArchive` | `null` | Lower-level local/archive input; useful for experiments but host-specific if committed directly |
 | `macosSdk` | `null` | Existing pure macOS SDK ref from `osxcross.lib.<system>.mkMacosSdk` or `mkMacosSdkRef`; cannot be combined with `macosSdkStorePath` or `sdkArchive` |
 | `macosSdkOutputHash` | `null` | Optional fixed-output hash passed to `mkMacosSdk` when using `sdkArchive` |
-| `enableOsxcross` | `macosSdkStorePath != null || sdkArchive != null || macosSdk != null || builtins.getEnv "MACOS_SDK" != ""` | Enable macOS cross-compilation when a pure SDK input or legacy env SDK is available |
+| `macosSdkEnvPath` | `builtins.getEnv "MACOS_SDK"` | Local SDK path fallback. Accepts a direct `.sdk` directory, a parent containing `MacOSX<version>.sdk`, or a supported SDK archive |
+| `enableOsxcross` | `macosSdkStorePath != null || sdkArchive != null || macosSdk != null || macosSdkEnvPath != ""` | Enable macOS cross-compilation when a pure SDK input or local env SDK is available |
 | `osxSdkVersion` | `"26.1"` | macOS SDK version |
 
 Returns: `{ mingwCC, mingwBinutils, winpthreads, windowsEnv, macosSdk, osxcrossToolchain, osxcrossRustHelpers }`
@@ -134,6 +135,8 @@ cross = rs-harbor.lib.mkCross {
   inherit pkgs system macosSdk;
 };
 ```
+
+Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`, then `MACOS_SDK`. Directory SDK inputs are checked for `SDKSettings.json`, `usr/include/TargetConditionals.h`, `System/Library/Frameworks`, `SystemConfiguration.framework`, and `CoreFoundation.framework` before rs-harbor passes them to osxcross.
 
 ### `mkDevShell`
 

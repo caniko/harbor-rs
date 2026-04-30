@@ -1,4 +1,4 @@
-# mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, enableOsxcross?, osxSdkVersion? }
+# mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableOsxcross?, osxSdkVersion? }
 #         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv,
 #              macosSdk, osxcrossToolchain, osxcrossRustHelpers }
 #
@@ -10,7 +10,8 @@
   sdkArchive ? null,
   macosSdk ? null,
   macosSdkOutputHash ? null,
-  enableOsxcross ? (macosSdkStorePath != null || sdkArchive != null || macosSdk != null || builtins.getEnv "MACOS_SDK" != ""),
+  macosSdkEnvPath ? builtins.getEnv "MACOS_SDK",
+  enableOsxcross ? (macosSdkStorePath != null || sdkArchive != null || macosSdk != null || macosSdkEnvPath != ""),
   osxSdkVersion ? "26.1",
 }:
 if
@@ -20,11 +21,123 @@ if
   > 1
 then throw "rs-harbor.mkCross: pass only one of macosSdk, macosSdkStorePath, or sdkArchive"
 else let
+  lib = pkgs.lib;
   mingwCC = pkgs.pkgsCross.mingwW64.stdenv.cc;
   mingwBinutils = pkgs.pkgsCross.mingwW64.stdenv.cc.bintools.bintools;
   winpthreads = pkgs.pkgsCross.mingwW64.windows.pthreads;
 
   supportsOsxcross = system == "x86_64-linux";
+
+  archiveSuffixes = [
+    ".tar"
+    ".tar.gz"
+    ".tgz"
+    ".tar.xz"
+    ".txz"
+    ".tar.bz2"
+    ".tbz2"
+  ];
+
+  hasArchiveSuffix = value:
+    lib.any (suffix: lib.hasSuffix suffix (toString value)) archiveSuffixes;
+
+  requireAbsolutePath = context: value: let
+    str = toString value;
+  in
+    if lib.hasPrefix "/" str
+    then str
+    else throw "rs-harbor.mkCross: ${context} must be an absolute path, got '${str}'";
+
+  pathExistsAbs = value: let
+    str = toString value;
+  in
+    lib.hasPrefix "/" str && builtins.pathExists (/. + str);
+
+  sdkRootFor = value:
+    if lib.hasSuffix ".sdk" (toString value)
+    then toString value
+    else "${toString value}/MacOSX${osxSdkVersion}.sdk";
+
+  requiredSdkEntries = [
+    "SDKSettings.json"
+    "usr/include/TargetConditionals.h"
+    "System/Library/Frameworks"
+    "System/Library/Frameworks/SystemConfiguration.framework"
+    "System/Library/Frameworks/CoreFoundation.framework"
+  ];
+
+  missingSdkEntries = sdkRoot:
+    lib.filter (entry: !(pathExistsAbs "${toString sdkRoot}/${entry}")) requiredSdkEntries;
+
+  validateVisibleSdkRoot = context: sdkRoot: let
+    root = toString sdkRoot;
+    missing = missingSdkEntries root;
+  in
+    if !(pathExistsAbs root)
+    then root
+    else if missing == []
+    then root
+    else
+      throw ''
+        rs-harbor.mkCross: ${context} is not a complete macOS SDK.
+        SDK root: ${root}
+        Missing required entries: ${lib.concatStringsSep ", " missing}
+        Expected a real Apple SDK root such as MacOSX${osxSdkVersion}.sdk, not a fake/minimal fixture.
+      '';
+
+  mkStorePathSdkRef = storePath: let
+    path = toString storePath;
+    root = validateVisibleSdkRoot "macosSdkStorePath" (sdkRootFor path);
+  in
+    osxcross.lib.${system}.mkMacosSdkRef {
+      sdk = storePath;
+      sdkRoot = root;
+      sdkVersion = osxSdkVersion;
+    };
+
+  mkEnvSdkRef = envPath: let
+    path = requireAbsolutePath "MACOS_SDK" envPath;
+    directRoot = path;
+    parentRoot = "${path}/MacOSX${osxSdkVersion}.sdk";
+  in
+    if pathExistsAbs directRoot && lib.hasSuffix ".sdk" directRoot
+    then let
+      checkedSdkRoot = validateVisibleSdkRoot "MACOS_SDK direct SDK directory" directRoot;
+      sdkPath = /. + path;
+    in
+      assert checkedSdkRoot != "";
+      osxcross.lib.${system}.mkMacosSdkRef {
+        sdk = sdkPath;
+        sdkRoot = sdkPath;
+        sdkVersion = osxSdkVersion;
+      }
+    else if pathExistsAbs parentRoot
+    then let
+      checkedSdkRoot = validateVisibleSdkRoot "MACOS_SDK parent directory" parentRoot;
+      sdkParent = /. + path;
+      sdkRoot = "${sdkParent}/MacOSX${osxSdkVersion}.sdk";
+    in
+      assert checkedSdkRoot != "";
+      osxcross.lib.${system}.mkMacosSdkRef {
+        sdk = sdkParent;
+        inherit sdkRoot;
+        sdkVersion = osxSdkVersion;
+      }
+    else if pathExistsAbs path && hasArchiveSuffix path
+    then
+      osxcross.lib.${system}.mkMacosSdk {
+        sdkArchive = /. + path;
+        sdkVersion = osxSdkVersion;
+        outputHash = macosSdkOutputHash;
+      }
+    else
+      throw ''
+        rs-harbor.mkCross: MACOS_SDK must point to one of:
+        - a MacOSX${osxSdkVersion}.sdk directory
+        - a parent directory containing MacOSX${osxSdkVersion}.sdk
+        - a supported SDK archive (${lib.concatStringsSep ", " archiveSuffixes})
+        Got: ${path}
+      '';
 
   effectiveMacosSdk =
     if !enableOsxcross || !supportsOsxcross
@@ -32,11 +145,7 @@ else let
     else if macosSdk != null
     then macosSdk
     else if macosSdkStorePath != null
-    then
-      osxcross.lib.${system}.mkMacosSdkRef {
-        sdk = macosSdkStorePath;
-        sdkVersion = osxSdkVersion;
-      }
+    then mkStorePathSdkRef macosSdkStorePath
     else if sdkArchive != null
     then
       osxcross.lib.${system}.mkMacosSdk {
@@ -44,7 +153,9 @@ else let
         sdkVersion = osxSdkVersion;
         outputHash = macosSdkOutputHash;
       }
-    else null;
+    else if macosSdkEnvPath != ""
+    then mkEnvSdkRef macosSdkEnvPath
+    else throw "rs-harbor.mkCross: enableOsxcross is true, but no macOS SDK input was provided";
 
   osxcrossArgs =
     {
