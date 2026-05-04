@@ -240,6 +240,51 @@ packages.flatpak-manifest = (rs-harbor.lib.mkFlatpakManifest {
 # Then: nix build .#flatpak-manifest && flatpak-builder --user --install build-dir ./result
 ```
 
+## `rs-harbor` CLI
+
+Build helpers with non-trivial logic live in a Rust binary, `rs-harbor`,
+exposed as a flake package. clap handles argument parsing; goblin parses
+ELF/PE/Mach-O for the audit subcommands; lipo orchestration and dSYM
+bundle assembly are direct `std::fs` / `std::process::Command` calls.
+20 unit + integration tests run under `cargo test` (and `nix flake check`).
+
+```text
+rs-harbor
+├── audit elf   <PATH>   --allow-needed-regex / --forbid-path-regex / --require-origin-rpath / --skip-ldd
+├── audit pe    <PATH>   --allow-dll-regex / --forbid-path-regex
+├── audit macho <PATH>   --allow-dylib-regex / --forbid-path-regex
+├── stage macos          --binary / --dylib / --archs / --skip-per-arch / --skip-universal
+└── steam-runtime exec   --runtime / --image / --container-runtime / --interactive / --mount-nix-store
+```
+
+Run any subcommand directly:
+
+```bash
+nix run rs-harbor -- stage macos --binary myapp --dylib libsteam_api.dylib
+nix run rs-harbor -- audit elf --skip-ldd dist/linux/myapp
+```
+
+The Nix-side helpers (`mkSteamRuntimeTools`, `mkMacosUniversalStager`)
+all require an `rsHarborCli` argument so they can emit thin
+`writeShellApplication` shims that wrap the matching CLI subcommand
+with the project's selected runtime / image / defaults baked in:
+
+```nix
+let
+  rsHarborCli = rs-harbor.packages.${system}.rs-harbor;
+in {
+  inherit (rs-harbor.lib.mkSteamRuntimeTools {
+    inherit pkgs rsHarborCli;
+  })
+    auditElfRuntimeDeps
+    auditWindowsRuntimeDeps
+    auditDarwinRuntimeDeps
+    steamRuntimeExec
+    steamRuntimeCargoBootstrap
+    ;
+}
+```
+
 ## What's included in the devShell
 
 **Packages:** cmake, gcc, clang, mold, lld, pkg-config, mingw binutils (if Windows enabled), osxcross (if macOS enabled)
