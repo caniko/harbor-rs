@@ -497,9 +497,14 @@ in {
     assert pkgs.lib.hasInfix "lld-link" s.CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER;
     pkgs.runCommand "check-mkWindowsMsvcDevShell-shape" {} "touch $out";
 
-  # mkMacosUniversalStager exposes a stager package and the cargo profile snippet
+  # mkMacosUniversalStager exposes a stager package and the cargo profile snippet.
+  # The stager is a thin shim around the rs-harbor Rust CLI's
+  # `rs-harbor stage macos` subcommand.
   mkMacosUniversalStager-shape = let
-    s = self.lib.mkMacosUniversalStager {inherit pkgs;};
+    s = self.lib.mkMacosUniversalStager {
+      inherit pkgs;
+      rsHarborCli = self.packages.${system}.rs-harbor;
+    };
   in
     assert s ? stager;
     assert s ? cargoMacosPackedDebuginfoSnippet;
@@ -507,9 +512,20 @@ in {
     assert pkgs.lib.hasInfix "split-debuginfo = \"packed\"" s.cargoMacosPackedDebuginfoSnippet;
     pkgs.runCommand "check-mkMacosUniversalStager-shape" {} ''
       "${s.stager}/bin/stage-macos-universal" --help > help
-      grep -- '--binary NAME' help
-      grep -- '--dylib NAME' help
-      grep -- '--archs LIST' help
+      grep -- '--binary <BINARY>' help
+      grep -- '--dylib <DYLIB>' help
+      grep -- '--archs <ARCHS>' help
+      touch "$out"
+    '';
+
+  # The rs-harbor CLI exposes top-level subcommands.
+  rs-harbor-cli-shape =
+    pkgs.runCommand "check-rs-harbor-cli-shape" {} ''
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" --help > help
+      grep 'rs-harbor build helpers' help
+      grep 'stage' help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" stage --help > stage-help
+      grep 'macos' stage-help
       touch "$out"
     '';
 

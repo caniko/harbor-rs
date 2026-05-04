@@ -57,8 +57,24 @@
       cross = self.lib.mkCross {inherit pkgs system;};
       cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
       sitePackages = import ./nix/site.nix {inherit pkgs;};
-      macosStaging = self.lib.mkMacosUniversalStager {inherit pkgs;};
       bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {inherit pkgs;};
+
+      # rs-harbor's own type-safe CLI, used to back the helper packages
+      # (e.g. stage-macos-universal). Built with crane against the
+      # workspace at the repo root.
+      craneLib = toolchain.craneLib;
+      rsHarborCli = craneLib.buildPackage {
+        pname = "rs-harbor";
+        version = "0.1.0";
+        src = craneLib.cleanCargoSource ./.;
+        strictDeps = true;
+        doCheck = true;
+      };
+
+      macosStaging = self.lib.mkMacosUniversalStager {
+        inherit pkgs;
+        rsHarborCli = rsHarborCli;
+      };
       steamRuntimeTools = self.lib.mkSteamRuntimeTools {inherit pkgs;};
     in {
       packages =
@@ -69,6 +85,7 @@
           stage-macos-universal = macosStaging.stager;
           bootstrap-cmds-mig = bootstrapCmdsMig;
           steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
+          rs-harbor = rsHarborCli;
         };
 
       apps = {
