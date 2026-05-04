@@ -13,5 +13,6 @@ in {
   inherit (adapterLib) mkAdapter isHarborAdapter;
   mkAtticPush = import ./attic-push.nix;
   mkAppImage = import ./appimage.nix;
+  mkAndroidApk = import ./android-apk.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
 }

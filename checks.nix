@@ -780,4 +780,113 @@ in {
     assert pkgs.lib.hasInfix "share=network" m.manifestText;
     assert pkgs.lib.hasInfix "socket=x11" m.manifestText;
     pkgs.runCommand "check-mkFlatpakManifest-finish-args" {} "touch $out";
+
+  # mkAndroidApk produces a derivation with the project-specific bits
+  # baked into the build script. We don't try to actually build the APK
+  # in CI (it needs the Android SDK + a real `cargo ndk` workflow);
+  # instead we evaluate the derivation and assert basic shape.
+  mkAndroidApk-shape = let
+    fakeSdk = pkgs.runCommand "fake-androidsdk" {} ''
+      mkdir -p $out/libexec/android-sdk/ndk/29.0.14206865
+      mkdir -p $out/libexec/android-sdk/platform-tools
+      mkdir -p $out/libexec/android-sdk/emulator
+    '';
+    fakeToolchain = pkgs.symlinkJoin {
+      name = "fake-rust";
+      paths = [pkgs.coreutils];
+    };
+    drv = self.lib.mkAndroidApk {
+      inherit pkgs;
+      androidSdk = fakeSdk;
+      rustToolchain = fakeToolchain;
+      workspaceSrc = ./.;
+      cargoPkg = "test-pkg";
+      gradleModule = ":app";
+      jniLibsDir = "android/app/src/main/jniLibs";
+      apkOutPath = "android/app/build/outputs/apk/debug/app-debug.apk";
+      cargoNoDefaultFeatures = true;
+      cargoFeatures = ["alpha" "beta"];
+    };
+  in
+    assert drv.pname == "android-apk";
+    assert drv.drvAttrs ? __noChroot;
+    assert drv.drvAttrs.__noChroot == true;
+    assert pkgs.lib.hasInfix "cargo ndk -t arm64-v8a" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix "test-pkg" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix "--no-default-features" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix "--features alpha,beta" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix ":app:assembleDebug" drv.drvAttrs.buildPhase;
+    assert !(pkgs.lib.hasInfix "--offline" drv.drvAttrs.buildPhase);
+    pkgs.runCommand "check-mkAndroidApk-shape" {} "touch $out";
+
+  # Hermetic mode flips to gradle --offline + drops __noChroot.
+  mkAndroidApk-hermetic = let
+    fakeSdk = pkgs.runCommand "fake-androidsdk" {} ''
+      mkdir -p $out/libexec/android-sdk/ndk/29.0.14206865
+    '';
+    fakeToolchain = pkgs.symlinkJoin {
+      name = "fake-rust";
+      paths = [pkgs.coreutils];
+    };
+    fakeCacheTar = pkgs.runCommand "fake-cache.tar" {} ''
+      mkdir -p $out
+      touch $out/dummy
+    '';
+    drv = self.lib.mkAndroidApk {
+      inherit pkgs;
+      androidSdk = fakeSdk;
+      rustToolchain = fakeToolchain;
+      workspaceSrc = ./.;
+      cargoPkg = "test-peer";
+      gradleModule = ":test-peer";
+      jniLibsDir = "android/test-peer/src/main/jniLibs";
+      apkOutPath = "android/test-peer/build/outputs/apk/release/test-peer-release.apk";
+      mode = "release";
+      mavenCacheTar = fakeCacheTar;
+    };
+  in
+    assert !(drv.drvAttrs ? __noChroot && drv.drvAttrs.__noChroot == true);
+    assert pkgs.lib.hasInfix "--offline" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix ":test-peer:assembleRelease" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix "--release" drv.drvAttrs.buildPhase;
+    assert pkgs.lib.hasInfix "extracted maven cache" drv.drvAttrs.preBuild;
+    pkgs.runCommand "check-mkAndroidApk-hermetic" {} "touch $out";
+
+  # Bad inputs are rejected with clear messages.
+  mkAndroidApk-rejects-bad-mode = let
+    fakeSdk = pkgs.runCommand "fake-androidsdk" {} "mkdir -p $out";
+    fakeToolchain = pkgs.symlinkJoin {
+      name = "fake-rust";
+      paths = [pkgs.coreutils];
+    };
+    result = builtins.tryEval (self.lib.mkAndroidApk {
+      inherit pkgs;
+      androidSdk = fakeSdk;
+      rustToolchain = fakeToolchain;
+      workspaceSrc = ./.;
+      cargoPkg = "x";
+      gradleModule = ":x";
+      jniLibsDir = "x";
+      apkOutPath = "x";
+      mode = "bogus";
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkAndroidApk-rejects-bad-mode" {} "touch $out";
+
+  mkAndroidApk-rejects-missing-toolchain = let
+    fakeSdk = pkgs.runCommand "fake-androidsdk" {} "mkdir -p $out";
+    result = builtins.tryEval (self.lib.mkAndroidApk {
+      inherit pkgs;
+      androidSdk = fakeSdk;
+      rustToolchain = null;
+      workspaceSrc = ./.;
+      cargoPkg = "x";
+      gradleModule = ":x";
+      jniLibsDir = "x";
+      apkOutPath = "x";
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkAndroidApk-rejects-missing-toolchain" {} "touch $out";
 }
