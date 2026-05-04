@@ -2,9 +2,19 @@
 //! interface. Each test invokes the cargo-built binary via `assert_cmd`.
 
 use std::fs;
+use std::path::PathBuf;
 
 use assert_cmd::Command;
 use tempfile::tempdir;
+
+#[path = "fixtures/macho.rs"]
+mod macho_fixture;
+
+fn fixture_path(name: &str) -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures")
+        .join(name)
+}
 
 fn rs_harbor() -> Command {
     Command::cargo_bin("rs-harbor").expect("locate rs-harbor binary")
@@ -196,6 +206,113 @@ fn audit_elf_skip_ldd_does_not_invoke_resolver() {
         ])
         .assert()
         .success();
+}
+
+#[test]
+fn audit_pe_passes_on_vendored_hello_exe() {
+    // tests/fixtures/hello.exe is a stripped 13KB mingw-built PE32+ that
+    // imports KERNEL32.dll, msvcrt.dll, and api-ms-win-* DLLs — exactly
+    // the shapes that the Steam runtime allowlist covers.
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "pe",
+            "--allow-dll-regex",
+            ".*",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+            fixture_path("hello.exe").to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("checked 1 file(s)"),
+        "expected checked-count line: {stdout}"
+    );
+}
+
+#[test]
+fn audit_pe_fails_when_required_dll_disallowed() {
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "pe",
+            "--allow-dll-regex",
+            "^(rs-harbor-never-imports-this-dll)\\.dll$",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+            fixture_path("hello.exe").to_str().unwrap(),
+        ])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(
+        stderr.contains("disallowed DLL import"),
+        "expected DLL rejection: {stderr}"
+    );
+}
+
+#[test]
+fn audit_macho_passes_on_built_thin_dylib() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("libfoo.dylib");
+    fs::write(
+        &path,
+        macho_fixture::build_thin_dylib(
+            "@rpath/libfoo.dylib",
+            &["/usr/lib/libSystem.B.dylib", "@rpath/libsteam_api.dylib"],
+        ),
+    )
+    .unwrap();
+
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "macho",
+            "--allow-dylib-regex",
+            "^(@rpath|/usr/lib/)",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+        ])
+        .arg(&path)
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("checked 1 file(s)"),
+        "expected checked-count line: {stdout}"
+    );
+}
+
+#[test]
+fn audit_macho_fails_on_disallowed_dependency() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("libbad.dylib");
+    fs::write(
+        &path,
+        macho_fixture::build_thin_dylib(
+            "@rpath/libbad.dylib",
+            &["/usr/local/Cellar/oops/lib/libforbidden.dylib"],
+        ),
+    )
+    .unwrap();
+
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "macho",
+            "--allow-dylib-regex",
+            "^(@rpath|/usr/lib/)",
+        ])
+        .arg(&path)
+        .assert()
+        .failure();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(
+        stderr.contains("forbidden dependency path") || stderr.contains("disallowed dependency"),
+        "expected dylib rejection: {stderr}"
+    );
 }
 
 #[test]

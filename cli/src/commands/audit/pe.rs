@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::Args;
-use goblin::Object;
+use goblin::pe::PE;
 use regex::Regex;
 
 use super::common::{Report, collect_files, compile_regex, require_match};
@@ -50,9 +50,12 @@ fn check_file(
         Ok(b) => b,
         Err(_) => return Ok(()),
     };
-    let pe = match Object::parse(&bytes) {
-        Ok(Object::PE(pe)) => pe,
-        _ => return Ok(()),
+    // Use goblin's PE::parse directly rather than the Object dispatcher;
+    // some PE32+ files round-trip through Object as Coff, which would be
+    // silently skipped.
+    let pe = match PE::parse(&bytes) {
+        Ok(pe) => pe,
+        Err(_) => return Ok(()),
     };
 
     report.note_checked();

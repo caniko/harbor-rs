@@ -63,10 +63,20 @@
       # (e.g. stage-macos-universal). Built with crane against the
       # workspace at the repo root.
       craneLib = toolchain.craneLib;
+      # Custom source filter: keep cleanCargoSource defaults plus the
+      # binary fixtures used by the integration test suite (PE/Mach-O
+      # samples for `rs-harbor audit`).
+      rsHarborSrc = pkgs.lib.cleanSourceWith {
+        src = ./.;
+        filter = path: type:
+          (craneLib.filterCargoSources path type)
+          || (builtins.match ".*/tests/fixtures/.*" path != null);
+        name = "rs-harbor-source";
+      };
       rsHarborCli = craneLib.buildPackage {
         pname = "rs-harbor";
         version = "0.1.0";
-        src = craneLib.cleanCargoSource ./.;
+        src = rsHarborSrc;
         strictDeps = true;
         doCheck = true;
       };
