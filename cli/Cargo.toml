@@ -13,6 +13,9 @@ path = "src/main.rs"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+goblin = { version = "0.10", default-features = false, features = ["std", "elf64", "elf32", "pe64", "pe32", "mach64", "mach32", "te", "archive", "endian_fd"] }
+regex = "1"
+walkdir = "2"
 which = "6"
 
 [lints]

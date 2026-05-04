@@ -75,7 +75,10 @@
         inherit pkgs;
         rsHarborCli = rsHarborCli;
       };
-      steamRuntimeTools = self.lib.mkSteamRuntimeTools {inherit pkgs;};
+      steamRuntimeTools = self.lib.mkSteamRuntimeTools {
+        inherit pkgs;
+        rsHarborCli = rsHarborCli;
+      };
     in {
       packages =
         sitePackages

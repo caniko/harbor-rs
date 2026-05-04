@@ -16,6 +16,11 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum TopCommand {
+    /// Audit release-staged binaries for forbidden runtime dependencies.
+    Audit {
+        #[command(subcommand)]
+        command: commands::audit::AuditCommand,
+    },
     /// Stage cargo build outputs for release distribution.
     Stage {
         #[command(subcommand)]
@@ -32,6 +37,7 @@ enum StageCommand {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        TopCommand::Audit { command } => commands::audit::run(command),
         TopCommand::Stage { command } => match command {
             StageCommand::Macos(args) => commands::stage_macos::run(args),
         },

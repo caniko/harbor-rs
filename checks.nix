@@ -524,8 +524,40 @@ in {
       "${self.packages.${system}.rs-harbor}/bin/rs-harbor" --help > help
       grep 'rs-harbor build helpers' help
       grep 'stage' help
+      grep 'audit' help
       "${self.packages.${system}.rs-harbor}/bin/rs-harbor" stage --help > stage-help
       grep 'macos' stage-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit --help > audit-help
+      grep 'elf' audit-help
+      grep 'pe' audit-help
+      grep 'macho' audit-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit elf --help > elf-help
+      grep -- '--allow-needed-regex' elf-help
+      grep -- '--require-origin-rpath' elf-help
+      grep -- '--skip-ldd' elf-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit pe --help > pe-help
+      grep -- '--allow-dll-regex' pe-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit macho --help > macho-help
+      grep -- '--allow-dylib-regex' macho-help
+      touch "$out"
+    '';
+
+  # When mkSteamRuntimeTools is given an rsHarborCli, the audit helpers
+  # become thin shims around `rs-harbor audit ...`.
+  mkSteamRuntimeTools-rust-audit-shims = let
+    s = self.lib.mkSteamRuntimeTools {
+      inherit pkgs;
+      rsHarborCli = self.packages.${system}.rs-harbor;
+    };
+  in
+    pkgs.runCommand "check-mkSteamRuntimeTools-rust-audit-shims" {} ''
+      "${s.auditElfRuntimeDeps}/bin/audit-elf-runtime-deps" --help > elf-help
+      grep 'rs-harbor audit elf' elf-help
+      grep -- '--allow-needed-regex' elf-help
+      "${s.auditWindowsRuntimeDeps}/bin/audit-windows-runtime-deps" --help > pe-help
+      grep -- '--allow-dll-regex' pe-help
+      "${s.auditDarwinRuntimeDeps}/bin/audit-darwin-runtime-deps" --help > macho-help
+      grep -- '--allow-dylib-regex' macho-help
       touch "$out"
     '';
 

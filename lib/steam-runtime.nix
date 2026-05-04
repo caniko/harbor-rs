@@ -12,6 +12,11 @@
   customImage ? null,
   containerRuntime ? "podman",
   steamworksRsLibSubdir ? "linux64",
+  # Optional: rs-harbor Rust CLI derivation. When provided, the audit
+  # helpers become thin shims around `rs-harbor audit elf|pe|macho`
+  # (goblin-based parsing, real arg parser, unit tests). When null,
+  # the legacy writeShellApplication implementations are used.
+  rsHarborCli ? null,
 }: let
   inherit (pkgs) lib;
 
@@ -628,12 +633,58 @@
       fi
     done
   '';
+  # When rsHarborCli is wired in, replace the writeShellApplication audit
+  # helpers with thin shims that exec `rs-harbor audit elf|pe|macho`. The
+  # rust implementation parses ELF/PE/Mach-O via goblin, has unit tests,
+  # and uses clap for argument parsing. The legacy shell helpers stay
+  # available for downstream projects that haven't wired the CLI yet.
+  rustAuditShim = {
+    name,
+    subcommand,
+  }:
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [rsHarborCli];
+      text = ''
+        exec rs-harbor audit ${subcommand} "$@"
+      '';
+    };
+  effectiveAuditElfRuntimeDeps =
+    if rsHarborCli == null
+    then auditElfRuntimeDeps
+    else
+      rustAuditShim {
+        name = "audit-elf-runtime-deps";
+        subcommand = "elf";
+      };
+  effectiveAuditWindowsRuntimeDeps =
+    if rsHarborCli == null
+    then auditWindowsRuntimeDeps
+    else
+      rustAuditShim {
+        name = "audit-windows-runtime-deps";
+        subcommand = "pe";
+      };
+  effectiveAuditDarwinRuntimeDeps =
+    if rsHarborCli == null
+    then auditDarwinRuntimeDeps
+    else
+      rustAuditShim {
+        name = "audit-darwin-runtime-deps";
+        subcommand = "macho";
+      };
 in {
   inherit runtimes selectedRuntime image containerCommandText;
-  inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;
+  inherit steamRuntimeExec;
+  auditElfRuntimeDeps = effectiveAuditElfRuntimeDeps;
+  auditWindowsRuntimeDeps = effectiveAuditWindowsRuntimeDeps;
+  auditDarwinRuntimeDeps = effectiveAuditDarwinRuntimeDeps;
   inherit defaultAllowRegexes steamworksRsCargoLibraryHook steamRuntimeCargoBootstrap;
 
   packages = {
-    inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps steamRuntimeCargoBootstrap;
+    inherit steamRuntimeExec steamRuntimeCargoBootstrap;
+    auditElfRuntimeDeps = effectiveAuditElfRuntimeDeps;
+    auditWindowsRuntimeDeps = effectiveAuditWindowsRuntimeDeps;
+    auditDarwinRuntimeDeps = effectiveAuditDarwinRuntimeDeps;
   };
 }

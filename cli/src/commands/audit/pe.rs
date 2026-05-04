@@ -1,0 +1,139 @@
+//! `rs-harbor audit pe` — Windows PE dependency auditor.
+
+use std::path::{Path, PathBuf};
+
+use anyhow::Result;
+use clap::Args;
+use goblin::Object;
+use regex::Regex;
+
+use super::common::{Report, collect_files, compile_regex, require_match};
+
+const DEFAULT_ALLOW_DLL_REGEX: &str = ".*";
+const DEFAULT_FORBID_PATH_REGEX: &str = "(/nix/store|/usr/local|/home/)";
+
+#[derive(Args, Debug)]
+pub struct AuditPeArgs {
+    /// Every imported DLL name must match this regex (case-insensitive).
+    #[arg(long, default_value = DEFAULT_ALLOW_DLL_REGEX)]
+    pub allow_dll_regex: String,
+
+    /// Embedded path strings must not match this regex.
+    #[arg(long, default_value = DEFAULT_FORBID_PATH_REGEX)]
+    pub forbid_path_regex: String,
+
+    /// File or directory to audit.
+    pub input: PathBuf,
+}
+
+pub fn run(args: AuditPeArgs) -> Result<()> {
+    let allow_dll = compile_regex(
+        "allow-dll",
+        &format!("(?i){}", args.allow_dll_regex),
+    )?;
+    let forbid_path = compile_regex("forbid-path", &args.forbid_path_regex)?;
+
+    let mut report = Report::default();
+    for path in collect_files(&args.input)? {
+        check_file(&path, &allow_dll, &forbid_path, &mut report)?;
+    }
+    report.finish("audit-windows-runtime-deps", &args.input)
+}
+
+fn check_file(
+    path: &Path,
+    allow_dll: &Regex,
+    forbid_path: &Regex,
+    report: &mut Report,
+) -> Result<()> {
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(_) => return Ok(()),
+    };
+    let pe = match Object::parse(&bytes) {
+        Ok(Object::PE(pe)) => pe,
+        _ => return Ok(()),
+    };
+
+    report.note_checked();
+    println!("audit-windows-runtime-deps: checking {}", path.display());
+
+    for import in &pe.libraries {
+        require_match(
+            report,
+            allow_dll,
+            import,
+            &format!("disallowed DLL import in {}: {import}", path.display()),
+        );
+    }
+
+    for window in extract_printable_strings(&bytes, 4) {
+        if forbid_path.is_match(&window) {
+            report.fail(format!(
+                "forbidden path string in {}: {window}",
+                path.display()
+            ));
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+/// Iterate ASCII-printable runs of length >= `min_len`, modelled on the
+/// behaviour of `strings(1)`. Used to spot embedded `/nix/store/...` paths
+/// in release binaries.
+fn extract_printable_strings(bytes: &[u8], min_len: usize) -> impl Iterator<Item = String> + '_ {
+    let mut start = 0usize;
+    let mut idx = 0usize;
+    std::iter::from_fn(move || {
+        while idx < bytes.len() {
+            let b = bytes[idx];
+            let printable = (0x20..0x7f).contains(&b) || b == b'\t';
+            if printable {
+                idx += 1;
+                continue;
+            }
+            let span = &bytes[start..idx];
+            idx += 1;
+            start = idx;
+            if span.len() >= min_len {
+                return Some(String::from_utf8_lossy(span).into_owned());
+            }
+        }
+        if start < bytes.len() {
+            let span = &bytes[start..bytes.len()];
+            start = bytes.len();
+            if span.len() >= min_len {
+                return Some(String::from_utf8_lossy(span).into_owned());
+            }
+        }
+        None
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+
+    #[derive(Parser, Debug)]
+    struct Test {
+        #[command(flatten)]
+        args: AuditPeArgs,
+    }
+
+    #[test]
+    fn parses_minimal() {
+        let cli = Test::try_parse_from(["t", "dist/windows/"]).unwrap();
+        assert_eq!(cli.args.input, PathBuf::from("dist/windows/"));
+    }
+
+    #[test]
+    fn extracts_printable_runs() {
+        let bytes = b"\x00abc\x01defg\x00hij";
+        let runs: Vec<_> = extract_printable_strings(bytes, 4).collect();
+        // "abc" is too short; "defg" passes; "hij" is too short.
+        assert_eq!(runs, vec!["defg".to_string()]);
+    }
+}
