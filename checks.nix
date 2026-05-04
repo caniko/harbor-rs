@@ -449,7 +449,53 @@ in {
     assert s ? steamworksRsCargoLibraryHook;
     assert pkgs.lib.hasInfix "redistributable_bin/linux64" s.steamworksRsCargoLibraryHook;
     assert pkgs.lib.hasInfix "LD_LIBRARY_PATH" s.steamworksRsCargoLibraryHook;
-    pkgs.runCommand "check-mkSteamRuntimeTools-shape" {} "touch $out";
+    assert s ? steamRuntimeCargoBootstrap;
+    assert s.packages ? steamRuntimeCargoBootstrap;
+    pkgs.runCommand "check-mkSteamRuntimeTools-shape" {} ''
+      "${s.steamRuntimeCargoBootstrap}/bin/steam-runtime-cargo-bootstrap" --help > help
+      grep -- '--features LIST' help
+      grep 'STEAM_RUNTIME_BUILD_ROOT' help
+      grep 'STEAM_RUNTIME_TARGET' help
+      touch "$out"
+    '';
+
+  # bootstrap-cmds-mig is exposed as a flake package
+  bootstrap-cmds-mig-shape =
+    pkgs.runCommand "check-bootstrap-cmds-mig-shape" {} ''
+      mig="${self.packages.${system}.bootstrap-cmds-mig}/bin/mig"
+      test -x "$mig"
+      touch "$out"
+    '';
+
+  # mkOsxcrossHooks emits both shell-hook fragments
+  mkOsxcrossHooks-shape = let
+    h = self.lib.mkOsxcrossHooks {llvmPackages = pkgs.llvmPackages;};
+  in
+    assert h ? appleClangShimsHook;
+    assert h ? macosShellGuard;
+    assert pkgs.lib.hasInfix "OSXCROSS_TARGET_DIR" h.appleClangShimsHook;
+    assert pkgs.lib.hasInfix "RS_HARBOR_HOST_CLANG" h.appleClangShimsHook;
+    assert pkgs.lib.hasInfix "OSXCROSS_SDKROOT" h.macosShellGuard;
+    assert pkgs.lib.hasInfix "CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER" h.macosShellGuard;
+    pkgs.runCommand "check-mkOsxcrossHooks-shape" {} "touch $out";
+
+  # mkWindowsMsvcDevShell evaluates and produces a derivation with the
+  # MSVC env vars wired up
+  mkWindowsMsvcDevShell-shape = let
+    s = self.lib.mkWindowsMsvcDevShell {
+      inherit pkgs;
+      lib = pkgs.lib;
+      llvmPackages = pkgs.llvmPackages;
+      inherit toolchain;
+    };
+  in
+    assert pkgs.lib.isDerivation s;
+    assert s ? CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER;
+    assert s ? CC_x86_64_pc_windows_msvc;
+    assert s ? INCLUDE;
+    assert s ? LIB;
+    assert pkgs.lib.hasInfix "lld-link" s.CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER;
+    pkgs.runCommand "check-mkWindowsMsvcDevShell-shape" {} "touch $out";
 
   # mkMacosUniversalStager exposes a stager package and the cargo profile snippet
   mkMacosUniversalStager-shape = let

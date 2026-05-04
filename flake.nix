@@ -58,6 +58,8 @@
       cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
       sitePackages = import ./nix/site.nix {inherit pkgs;};
       macosStaging = self.lib.mkMacosUniversalStager {inherit pkgs;};
+      bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {inherit pkgs;};
+      steamRuntimeTools = self.lib.mkSteamRuntimeTools {inherit pkgs;};
     in {
       packages =
         sitePackages
@@ -65,6 +67,8 @@
           init-macos-sdk = initMacosSdk;
           validate-macos-sdk = validateMacosSdk;
           stage-macos-universal = macosStaging.stager;
+          bootstrap-cmds-mig = bootstrapCmdsMig;
+          steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
         };
 
       apps = {

@@ -527,6 +527,94 @@
     macosDylib = "^(@executable_path|@loader_path/libsteam_api\\.dylib$|@rpath|/usr/lib/|/System/Library/)";
   };
 
+  # Cargo bootstrap script intended to run *inside* a Steam Runtime sniper
+  # SDK container (or invoked via steam-runtime-exec). Provisions a hermetic
+  # rustup install under STEAM_RUNTIME_BUILD_ROOT, then runs cargo build for
+  # a single target. The caller stages outputs from CARGO_TARGET_DIR.
+  steamRuntimeCargoBootstrap = pkgs.writeShellApplication {
+    name = "steam-runtime-cargo-bootstrap";
+    runtimeInputs = with pkgs; [coreutils curl];
+    text = ''
+      runtime_root="''${STEAM_RUNTIME_BUILD_ROOT:-$PWD/target/steam-runtime}"
+      toolchain="''${STEAM_RUNTIME_RUST_TOOLCHAIN:-stable}"
+      target="''${STEAM_RUNTIME_TARGET:-x86_64-unknown-linux-gnu}"
+      features=""
+      profile="release"
+      cargo_args=()
+
+      usage() {
+        cat <<'USAGE'
+      Usage: steam-runtime-cargo-bootstrap [options]
+
+      Provisions a per-runtime rustup toolchain under STEAM_RUNTIME_BUILD_ROOT
+      and runs `cargo build`. Designed to execute inside the Steam Runtime
+      sniper SDK container (intentionally avoids touching the user's host
+      cargo/rustup state).
+
+      Environment:
+        STEAM_RUNTIME_BUILD_ROOT     Root for HOME/CARGO_HOME/RUSTUP_HOME
+                                     (default: $PWD/target/steam-runtime)
+        STEAM_RUNTIME_RUST_TOOLCHAIN Rust toolchain channel (default: stable)
+        STEAM_RUNTIME_TARGET         Cargo target triple
+                                     (default: x86_64-unknown-linux-gnu)
+        LIBCLANG_PATH                Optional, defaults to
+                                     /usr/lib/x86_64-linux-gnu
+        CARGO_PROFILE_RELEASE_DEBUG  Forwarded; defaults to 1
+
+      Options:
+        --features LIST     Cargo --features value
+        --profile NAME      Cargo profile (default: release)
+        --                  Forward remaining args to cargo build
+        -h, --help          Show this help
+      USAGE
+      }
+
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          --features) features="$2"; shift 2 ;;
+          --profile) profile="$2"; shift 2 ;;
+          --) shift; cargo_args+=("$@"); break ;;
+          -h|--help) usage; exit 0 ;;
+          *) echo "steam-runtime-cargo-bootstrap: unknown option: $1" >&2; usage >&2; exit 2 ;;
+        esac
+      done
+
+      export HOME="$runtime_root/home"
+      export CARGO_HOME="$runtime_root/cargo"
+      export RUSTUP_HOME="$runtime_root/rustup"
+      export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-$runtime_root/target}"
+      export LIBCLANG_PATH="''${LIBCLANG_PATH:-/usr/lib/x86_64-linux-gnu}"
+      export CARGO_PROFILE_RELEASE_DEBUG="''${CARGO_PROFILE_RELEASE_DEBUG:-1}"
+
+      mkdir -p "$HOME" "$CARGO_HOME" "$RUSTUP_HOME" "$CARGO_TARGET_DIR"
+
+      for tool in curl git gcc g++ pkg-config clang; do
+        if ! command -v "$tool" >/dev/null 2>&1; then
+          echo "steam-runtime-cargo-bootstrap: missing required tool in sniper SDK: $tool" >&2
+          exit 127
+        fi
+      done
+
+      export PATH="$CARGO_HOME/bin:$PATH"
+
+      if ! command -v rustup >/dev/null 2>&1; then
+        rustup_init="$runtime_root/rustup-init.sh"
+        curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs -o "$rustup_init"
+        sh "$rustup_init" -y --no-modify-path --profile minimal --default-toolchain "$toolchain"
+      fi
+
+      rustup toolchain install "$toolchain" --profile minimal
+
+      build_args=(+"$toolchain" build "--profile=$profile" "--target" "$target")
+      if [ -n "$features" ]; then
+        build_args+=(--features "$features")
+      fi
+      build_args+=("''${cargo_args[@]}")
+
+      exec cargo "''${build_args[@]}"
+    '';
+  };
+
   # Shell hook fragment that locates the Steamworks SDK shared libraries
   # vendored inside a `steamworks-rs` cargo git checkout and prepends
   # the matching arch subdirectory (linux64 / linux32 / osx) to
@@ -543,9 +631,9 @@
 in {
   inherit runtimes selectedRuntime image containerCommandText;
   inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;
-  inherit defaultAllowRegexes steamworksRsCargoLibraryHook;
+  inherit defaultAllowRegexes steamworksRsCargoLibraryHook steamRuntimeCargoBootstrap;
 
   packages = {
-    inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;
+    inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps steamRuntimeCargoBootstrap;
   };
 }

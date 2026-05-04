@@ -7,6 +7,8 @@ in {
   mkCross = import ./cross.nix {inherit osxcross;};
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;
+  mkOsxcrossHooks = import ./osxcross-hooks.nix;
+  mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
   inherit (devShellLib) mkDevShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   mkAtticPush = import ./attic-push.nix;
