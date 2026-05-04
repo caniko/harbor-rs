@@ -1,13 +1,17 @@
-# mkSteamRuntimeTools :: { pkgs, runtime?, customImage?, containerRuntime? } -> attrs
+# mkSteamRuntimeTools :: { pkgs, runtime?, customImage?, containerRuntime?, steamworksRsLibSubdir? } -> attrs
 #
 # Generic Steam Runtime helpers. Downstream projects own their release layout,
 # Steam app IDs, and build commands; this module only provides runtime metadata,
-# a container command wrapper, and portable dependency audit scripts.
+# a container command wrapper, portable dependency audit scripts, default
+# DT_NEEDED/DLL/dylib allowlists for sniper-targeted builds, and a shellHook
+# that exposes the Steamworks SDK redistributable libs from a `steamworks-rs`
+# cargo git checkout.
 {
   pkgs,
   runtime ? "sniper",
   customImage ? null,
   containerRuntime ? "podman",
+  steamworksRsLibSubdir ? "linux64",
 }: let
   inherit (pkgs) lib;
 
@@ -510,9 +514,36 @@
       echo "audit-darwin-runtime-deps: checked $checked Mach-O file(s)"
     '';
   };
+  # Allowlist regexes for binaries shipped to Steam alongside the sniper
+  # runtime. They cover the system libraries that ship in sniper, the
+  # standard Win32 DLLs supplied by the Windows runtime/loader, and the
+  # macOS framework search roots permitted for redistributable bundles.
+  # `libsteam_api`, `steam_api64.dll`, and `libsteam_api.dylib` are the
+  # canonical Steamworks SDK shared libraries and are included so projects
+  # that link against `steamworks-rs` pass without further configuration.
+  defaultAllowRegexes = {
+    linuxNeeded = "^(ld-linux.*|lib(c|m|dl|rt|pthread|gcc_s|stdc\\+\\+|steam_api|vulkan|X11|Xi|Xcursor|Xrandr|Xinerama|Xfixes|xcb|wayland-client|xkbcommon|asound|udev|GL|EGL|drm|gbm|expat|z|bz2|fontconfig|freetype|png16|zstd|graphite2|harfbuzz|brotli.*|dbus-1|systemd|cap|resolv|util|nss_.*|nsl|anl).*)\\.so(\\..*)?$";
+    windowsDll = "^(ADVAPI32|BCRYPT|bcryptprimitives|combase|CRYPT32|DBGHELP|DNSAPI|dwmapi|GDI32|imm32|IPHLPAPI|KERNEL32|MSVCP140|NTDLL|OLE32|OLEAUT32|POWRPROF|secur32|SHELL32|uiautomationcore|USER32|USERENV|uxtheme|VCRUNTIME140|VCRUNTIME140_1|VERSION|WINHTTP|WINMM|WS2_32|api-ms-win-.*|steam_api64)\\.dll$";
+    macosDylib = "^(@executable_path|@loader_path/libsteam_api\\.dylib$|@rpath|/usr/lib/|/System/Library/)";
+  };
+
+  # Shell hook fragment that locates the Steamworks SDK shared libraries
+  # vendored inside a `steamworks-rs` cargo git checkout and prepends
+  # the matching arch subdirectory (linux64 / linux32 / osx) to
+  # LD_LIBRARY_PATH so cargo-built binaries can dlopen libsteam_api.
+  steamworksRsCargoLibraryHook = ''
+    # Steamworks native library (from cargo git checkout)
+    for dir in "$HOME"/.cargo/git/checkouts/steamworks-rs-*/*/steamworks-sys/lib/steam/redistributable_bin/${steamworksRsLibSubdir}; do
+      if [ -d "$dir" ]; then
+        export LD_LIBRARY_PATH="$dir:$LD_LIBRARY_PATH"
+        break
+      fi
+    done
+  '';
 in {
   inherit runtimes selectedRuntime image containerCommandText;
   inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;
+  inherit defaultAllowRegexes steamworksRsCargoLibraryHook;
 
   packages = {
     inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;

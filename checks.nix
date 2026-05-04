@@ -435,7 +435,31 @@ in {
     assert s.packages ? auditElfRuntimeDeps;
     assert s.selectedRuntime.name == "Steam Linux Runtime 3.0 (sniper)";
     assert s.image == "registry.gitlab.steamos.cloud/steamrt/sniper/sdk";
+    assert s ? defaultAllowRegexes;
+    assert s.defaultAllowRegexes ? linuxNeeded;
+    assert s.defaultAllowRegexes ? windowsDll;
+    assert s.defaultAllowRegexes ? macosDylib;
+    assert builtins.match s.defaultAllowRegexes.linuxNeeded "libsteam_api.so" != null;
+    assert builtins.match s.defaultAllowRegexes.linuxNeeded "libc.so.6" != null;
+    assert builtins.match s.defaultAllowRegexes.linuxNeeded "libsketchy.so" == null;
+    assert builtins.match s.defaultAllowRegexes.windowsDll "steam_api64.dll" != null;
+    assert builtins.match s.defaultAllowRegexes.windowsDll "KERNEL32.dll" != null;
+    assert builtins.match "${s.defaultAllowRegexes.macosDylib}.*" "@rpath/libfoo.dylib" != null;
+    assert builtins.match "${s.defaultAllowRegexes.macosDylib}.*" "/usr/local/lib/libfoo.dylib" == null;
+    assert s ? steamworksRsCargoLibraryHook;
+    assert pkgs.lib.hasInfix "redistributable_bin/linux64" s.steamworksRsCargoLibraryHook;
+    assert pkgs.lib.hasInfix "LD_LIBRARY_PATH" s.steamworksRsCargoLibraryHook;
     pkgs.runCommand "check-mkSteamRuntimeTools-shape" {} "touch $out";
+
+  # mkSteamRuntimeTools threads steamworksRsLibSubdir through the cargo hook
+  mkSteamRuntimeTools-steamworks-subdir = let
+    s = self.lib.mkSteamRuntimeTools {
+      inherit pkgs;
+      steamworksRsLibSubdir = "osx";
+    };
+  in
+    assert pkgs.lib.hasInfix "redistributable_bin/osx" s.steamworksRsCargoLibraryHook;
+    pkgs.runCommand "check-mkSteamRuntimeTools-steamworks-subdir" {} "touch $out";
 
   # mkSteamRuntimeTools supports custom images without changing downstream policy
   mkSteamRuntimeTools-custom-image = let
