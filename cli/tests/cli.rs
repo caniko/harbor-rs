@@ -128,6 +128,76 @@ fn steam_runtime_exec_fails_when_runner_missing() {
     );
 }
 
+/// The dev-built `rs-harbor` binary itself is a real ELF DYN with real
+/// DT_NEEDED entries, so we can use it as a fixture to exercise goblin
+/// parsing + regex matching + Report semantics end-to-end.
+fn rs_harbor_path() -> String {
+    env!("CARGO_BIN_EXE_rs-harbor").to_string()
+}
+
+#[test]
+fn audit_elf_passes_with_permissive_allowlist() {
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "elf",
+            "--skip-ldd",
+            "--allow-needed-regex",
+            ".*",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches-this-path",
+            &rs_harbor_path(),
+        ])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("checked 1 file(s)"),
+        "expected checked-count line: {stdout}"
+    );
+}
+
+#[test]
+fn audit_elf_fails_when_needed_lib_does_not_match_allowlist() {
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "elf",
+            "--skip-ldd",
+            "--allow-needed-regex",
+            "^libxyz_definitely_not_a_real_dependency\\.so$",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+            &rs_harbor_path(),
+        ])
+        .assert()
+        .failure();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(
+        stderr.contains("disallowed DT_NEEDED"),
+        "expected DT_NEEDED rejection: {stderr}"
+    );
+}
+
+#[test]
+fn audit_elf_skip_ldd_does_not_invoke_resolver() {
+    // Use a permissive allowlist with --skip-ldd; should pass regardless
+    // of whether ldd is on PATH or how it would resolve libraries.
+    rs_harbor()
+        .args([
+            "audit",
+            "elf",
+            "--skip-ldd",
+            "--allow-needed-regex",
+            ".*",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+            &rs_harbor_path(),
+        ])
+        .assert()
+        .success();
+}
+
 #[test]
 fn steam_runtime_exec_requires_command() {
     let assert = rs_harbor()
