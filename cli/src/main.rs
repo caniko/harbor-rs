@@ -26,6 +26,12 @@ enum TopCommand {
         #[command(subcommand)]
         command: StageCommand,
     },
+    /// Steam Linux Runtime container helpers.
+    #[command(name = "steam-runtime")]
+    SteamRuntime {
+        #[command(subcommand)]
+        command: commands::steam_runtime::SteamRuntimeCommand,
+    },
 }
 
 #[derive(Subcommand)]
@@ -41,5 +47,6 @@ fn main() -> anyhow::Result<()> {
         TopCommand::Stage { command } => match command {
             StageCommand::Macos(args) => commands::stage_macos::run(args),
         },
+        TopCommand::SteamRuntime { command } => commands::steam_runtime::run(command),
     }
 }

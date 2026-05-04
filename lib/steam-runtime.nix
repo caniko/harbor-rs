@@ -1,22 +1,20 @@
-# mkSteamRuntimeTools :: { pkgs, runtime?, customImage?, containerRuntime?, steamworksRsLibSubdir? } -> attrs
+# mkSteamRuntimeTools :: { pkgs, rsHarborCli, runtime?, customImage?, containerRuntime?, steamworksRsLibSubdir? } -> attrs
 #
-# Generic Steam Runtime helpers. Downstream projects own their release layout,
-# Steam app IDs, and build commands; this module only provides runtime metadata,
-# a container command wrapper, portable dependency audit scripts, default
-# DT_NEEDED/DLL/dylib allowlists for sniper-targeted builds, and a shellHook
+# Steam Linux Runtime helpers. Returns runtime metadata, default
+# DT_NEEDED/DLL/dylib allowlists for sniper-targeted builds, a shellHook
 # that exposes the Steamworks SDK redistributable libs from a `steamworks-rs`
-# cargo git checkout.
+# cargo git checkout, and writeShellApplication shims around the rs-harbor
+# Rust CLI that bake in the selected runtime/image.
+#
+# `rsHarborCli` (the rs-harbor CLI derivation, e.g.
+# `rs-harbor.packages.${system}.rs-harbor`) is required.
 {
   pkgs,
+  rsHarborCli,
   runtime ? "sniper",
   customImage ? null,
   containerRuntime ? "podman",
   steamworksRsLibSubdir ? "linux64",
-  # Optional: rs-harbor Rust CLI derivation. When provided, the audit
-  # helpers become thin shims around `rs-harbor audit elf|pe|macho`
-  # (goblin-based parsing, real arg parser, unit tests). When null,
-  # the legacy writeShellApplication implementations are used.
-  rsHarborCli ? null,
 }: let
   inherit (pkgs) lib;
 
@@ -59,466 +57,22 @@
       ${image} -- <command>
   '';
 
+  # Shell shim wrapping `rs-harbor steam-runtime exec` with the selected
+  # runtime / image / container runtime baked in. The shim still accepts
+  # the old `--runtime`, `--image`, `--container-runtime` overrides since
+  # clap re-parses everything passed after the baked defaults.
   steamRuntimeExec = pkgs.writeShellApplication {
     name = "steam-runtime-exec";
-    runtimeInputs = with pkgs; [coreutils];
+    runtimeInputs = [rsHarborCli];
     text = ''
-      runtime="${runtime}"
-      image="${image}"
-      runner="${containerRuntime}"
-      interactive=0
-      mount_nix_store=0
-
-      usage() {
-        cat <<'USAGE'
-      Usage: steam-runtime-exec [options] -- command [args...]
-
-      Options:
-        --runtime NAME             Runtime label for diagnostics (default from Nix)
-        --image IMAGE              OCI image to execute in
-        --container-runtime CMD    Container runner, usually podman or docker
-        --interactive              Allocate a TTY
-        --mount-nix-store          Mount /nix/store read-only for Nix-built tools
-        -h, --help                 Show this help
-
-      The wrapper mounts the current working directory at the same path and runs
-      the command as the current uid/gid. It does not install project toolchains
-      or assume a Cargo/Nix layout.
-      USAGE
-      }
-
-      while [ "$#" -gt 0 ]; do
-        case "$1" in
-          --runtime)
-            runtime="$2"
-            shift 2
-            ;;
-          --image)
-            image="$2"
-            shift 2
-            ;;
-          --container-runtime)
-            runner="$2"
-            shift 2
-            ;;
-          --interactive)
-            interactive=1
-            shift
-            ;;
-          --mount-nix-store)
-            mount_nix_store=1
-            shift
-            ;;
-          --)
-            shift
-            break
-            ;;
-          -h|--help)
-            usage
-            exit 0
-            ;;
-          *)
-            echo "steam-runtime-exec: unknown option: $1" >&2
-            usage >&2
-            exit 2
-            ;;
-        esac
-      done
-
-      if [ "$#" -eq 0 ]; then
-        echo "steam-runtime-exec: missing command after --" >&2
-        usage >&2
-        exit 2
-      fi
-
-      if ! command -v "$runner" >/dev/null 2>&1; then
-        echo "steam-runtime-exec: container runtime not found: $runner" >&2
-        exit 127
-      fi
-
-      tty_args=()
-      if [ "$interactive" -eq 1 ]; then
-        tty_args=(-it)
-      fi
-
-      nix_store_args=()
-      if [ "$mount_nix_store" -eq 1 ]; then
-        if [ ! -d /nix/store ]; then
-          echo "steam-runtime-exec: --mount-nix-store requested but /nix/store does not exist" >&2
-          exit 1
-        fi
-        nix_store_args=(--volume /nix/store:/nix/store:ro)
-      fi
-
-      userns_args=()
-      case "$(basename "$runner")" in
-        podman)
-          userns_args=(--userns=keep-id)
-          ;;
-      esac
-
-      echo "steam-runtime-exec: runtime=$runtime image=$image runner=$runner" >&2
-      exec "$runner" run --rm "''${tty_args[@]}" \
-        "''${userns_args[@]}" \
-        "''${nix_store_args[@]}" \
-        --volume "$PWD:$PWD" \
-        --workdir "$PWD" \
-        --user "$(id -u):$(id -g)" \
-        "$image" "$@"
+      exec rs-harbor steam-runtime exec \
+        --runtime ${runtime} \
+        --image ${image} \
+        --container-runtime ${containerRuntime} \
+        "$@"
     '';
   };
 
-  auditElfRuntimeDeps = pkgs.writeShellApplication {
-    name = "audit-elf-runtime-deps";
-    runtimeInputs = with pkgs; [binutils coreutils file findutils gnugrep patchelf];
-    text = ''
-      allow_needed_regex='.*'
-      forbid_path_regex='(/nix/store|/usr/local|/home/)'
-      require_origin_rpath=0
-
-      usage() {
-        cat <<'USAGE'
-      Usage: audit-elf-runtime-deps [options] FILE_OR_DIR
-
-      Options:
-        --allow-needed-regex REGEX  Every ELF DT_NEEDED soname must match REGEX
-        --forbid-path-regex REGEX   RPATH/RUNPATH and ldd output must not match REGEX
-        --require-origin-rpath      Require $ORIGIN in RPATH/RUNPATH
-        -h, --help                  Show this help
-      USAGE
-      }
-
-      while [ "$#" -gt 0 ]; do
-        case "$1" in
-          --allow-needed-regex)
-            allow_needed_regex="$2"
-            shift 2
-            ;;
-          --forbid-path-regex)
-            forbid_path_regex="$2"
-            shift 2
-            ;;
-          --require-origin-rpath)
-            require_origin_rpath=1
-            shift
-            ;;
-          -h|--help)
-            usage
-            exit 0
-            ;;
-          --)
-            shift
-            break
-            ;;
-          -*)
-            echo "audit-elf-runtime-deps: unknown option: $1" >&2
-            usage >&2
-            exit 2
-            ;;
-          *)
-            break
-            ;;
-        esac
-      done
-
-      if [ "$#" -ne 1 ]; then
-        echo "audit-elf-runtime-deps: expected exactly one FILE_OR_DIR" >&2
-        usage >&2
-        exit 2
-      fi
-
-      input="$1"
-      if [ ! -e "$input" ]; then
-        echo "audit-elf-runtime-deps: missing path: $input" >&2
-        exit 1
-      fi
-
-      failed=0
-      checked=0
-
-      check_file() {
-        candidate="$1"
-        if ! file "$candidate" | grep -Eq 'ELF .* (executable|shared object|pie executable)'; then
-          return 0
-        fi
-
-        checked=$((checked + 1))
-        echo "audit-elf-runtime-deps: checking $candidate"
-
-        rpath="$(patchelf --print-rpath "$candidate" 2>/dev/null || true)"
-        if [ -n "$rpath" ] && echo "$rpath" | grep -Eq "$forbid_path_regex"; then
-          echo "audit-elf-runtime-deps: forbidden path in RPATH/RUNPATH for $candidate: $rpath" >&2
-          failed=1
-        fi
-        if [ "$require_origin_rpath" -eq 1 ] && ! echo "$rpath" | grep -Fq "\$ORIGIN"; then
-          echo "audit-elf-runtime-deps: missing \$ORIGIN RPATH/RUNPATH in $candidate" >&2
-          failed=1
-        fi
-
-        while IFS= read -r needed; do
-          [ -n "$needed" ] || continue
-          if ! echo "$needed" | grep -Eq "$allow_needed_regex"; then
-            echo "audit-elf-runtime-deps: disallowed DT_NEEDED in $candidate: $needed" >&2
-            failed=1
-          fi
-        done < <(patchelf --print-needed "$candidate" 2>/dev/null || true)
-
-        ldd_cmd="ldd"
-        if [ -x /usr/bin/ldd ]; then
-          ldd_cmd="/usr/bin/ldd"
-        fi
-        ldd_output="$("$ldd_cmd" "$candidate" 2>&1 || true)"
-        if echo "$ldd_output" | grep -Fq 'not found'; then
-          echo "audit-elf-runtime-deps: missing library for $candidate" >&2
-          echo "$ldd_output" >&2
-          failed=1
-        fi
-        if echo "$ldd_output" | grep -Eq "$forbid_path_regex"; then
-          echo "audit-elf-runtime-deps: forbidden resolved path for $candidate" >&2
-          echo "$ldd_output" >&2
-          failed=1
-        fi
-      }
-
-      if [ -d "$input" ]; then
-        while IFS= read -r -d "" path; do
-          check_file "$path"
-        done < <(find "$input" -type f -print0)
-      else
-        check_file "$input"
-      fi
-
-      if [ "$checked" -eq 0 ]; then
-        echo "audit-elf-runtime-deps: no ELF executables or shared objects found under $input" >&2
-        exit 1
-      fi
-
-      if [ "$failed" -ne 0 ]; then
-        exit 1
-      fi
-      echo "audit-elf-runtime-deps: checked $checked ELF file(s)"
-    '';
-  };
-
-  auditWindowsRuntimeDeps = pkgs.writeShellApplication {
-    name = "audit-windows-runtime-deps";
-    runtimeInputs = with pkgs; [coreutils file findutils gnugrep gnused llvmPackages.llvm];
-    text = ''
-      allow_dll_regex='.*'
-      forbid_path_regex='(/nix/store|/usr/local|/home/)'
-
-      usage() {
-        cat <<'USAGE'
-      Usage: audit-windows-runtime-deps [options] FILE_OR_DIR
-
-      Options:
-        --allow-dll-regex REGEX     Every imported DLL name must match REGEX
-        --forbid-path-regex REGEX   Binary strings must not match REGEX
-        -h, --help                  Show this help
-      USAGE
-      }
-
-      while [ "$#" -gt 0 ]; do
-        case "$1" in
-          --allow-dll-regex)
-            allow_dll_regex="$2"
-            shift 2
-            ;;
-          --forbid-path-regex)
-            forbid_path_regex="$2"
-            shift 2
-            ;;
-          -h|--help)
-            usage
-            exit 0
-            ;;
-          --)
-            shift
-            break
-            ;;
-          -*)
-            echo "audit-windows-runtime-deps: unknown option: $1" >&2
-            usage >&2
-            exit 2
-            ;;
-          *)
-            break
-            ;;
-        esac
-      done
-
-      if [ "$#" -ne 1 ]; then
-        echo "audit-windows-runtime-deps: expected exactly one FILE_OR_DIR" >&2
-        usage >&2
-        exit 2
-      fi
-
-      input="$1"
-      if [ ! -e "$input" ]; then
-        echo "audit-windows-runtime-deps: missing path: $input" >&2
-        exit 1
-      fi
-
-      failed=0
-      checked=0
-
-      check_file() {
-        candidate="$1"
-        if ! file "$candidate" | grep -Eq 'PE32'; then
-          return 0
-        fi
-
-        checked=$((checked + 1))
-        echo "audit-windows-runtime-deps: checking $candidate"
-
-        while IFS= read -r dll; do
-          [ -n "$dll" ] || continue
-          if ! echo "$dll" | grep -Eiq "$allow_dll_regex"; then
-            echo "audit-windows-runtime-deps: disallowed DLL import in $candidate: $dll" >&2
-            failed=1
-          fi
-        done < <(llvm-objdump -p "$candidate" 2>/dev/null | sed -n 's/^[[:space:]]*DLL Name: //p')
-
-        if strings "$candidate" | grep -Eq "$forbid_path_regex"; then
-          echo "audit-windows-runtime-deps: forbidden path string in $candidate" >&2
-          failed=1
-        fi
-      }
-
-      if [ -d "$input" ]; then
-        while IFS= read -r -d "" path; do
-          check_file "$path"
-        done < <(find "$input" -type f -print0)
-      else
-        check_file "$input"
-      fi
-
-      if [ "$checked" -eq 0 ]; then
-        echo "audit-windows-runtime-deps: no PE files found under $input" >&2
-        exit 1
-      fi
-
-      if [ "$failed" -ne 0 ]; then
-        exit 1
-      fi
-      echo "audit-windows-runtime-deps: checked $checked PE file(s)"
-    '';
-  };
-
-  auditDarwinRuntimeDeps = pkgs.writeShellApplication {
-    name = "audit-darwin-runtime-deps";
-    runtimeInputs = with pkgs; [coreutils file findutils gawk gnugrep gnused llvmPackages.llvm];
-    text = ''
-      allow_dylib_regex='^(@executable_path|@rpath|/usr/lib/|/System/Library/)'
-      forbid_path_regex='(/nix/store|/usr/local|/home/)'
-
-      usage() {
-        cat <<'USAGE'
-      Usage: audit-darwin-runtime-deps [options] FILE_OR_DIR
-
-      Options:
-        --allow-dylib-regex REGEX   Every Mach-O dependency path must match REGEX
-        --forbid-path-regex REGEX   Dependency paths must not match REGEX
-        -h, --help                  Show this help
-      USAGE
-      }
-
-      while [ "$#" -gt 0 ]; do
-        case "$1" in
-          --allow-dylib-regex)
-            allow_dylib_regex="$2"
-            shift 2
-            ;;
-          --forbid-path-regex)
-            forbid_path_regex="$2"
-            shift 2
-            ;;
-          -h|--help)
-            usage
-            exit 0
-            ;;
-          --)
-            shift
-            break
-            ;;
-          -*)
-            echo "audit-darwin-runtime-deps: unknown option: $1" >&2
-            usage >&2
-            exit 2
-            ;;
-          *)
-            break
-            ;;
-        esac
-      done
-
-      if [ "$#" -ne 1 ]; then
-        echo "audit-darwin-runtime-deps: expected exactly one FILE_OR_DIR" >&2
-        usage >&2
-        exit 2
-      fi
-
-      input="$1"
-      if [ ! -e "$input" ]; then
-        echo "audit-darwin-runtime-deps: missing path: $input" >&2
-        exit 1
-      fi
-
-      otool_cmd=""
-      if command -v otool >/dev/null 2>&1; then
-        otool_cmd="otool"
-      elif command -v llvm-otool >/dev/null 2>&1; then
-        otool_cmd="llvm-otool"
-      else
-        echo "audit-darwin-runtime-deps: neither otool nor llvm-otool is available" >&2
-        exit 127
-      fi
-
-      failed=0
-      checked=0
-
-      check_file() {
-        candidate="$1"
-        if ! file "$candidate" | grep -Eq 'Mach-O'; then
-          return 0
-        fi
-
-        checked=$((checked + 1))
-        echo "audit-darwin-runtime-deps: checking $candidate"
-
-        "$otool_cmd" -L "$candidate" 2>/dev/null | tail -n +2 | while IFS= read -r line; do
-          dep="$(echo "$line" | awk '{print $1}')"
-          [ -n "$dep" ] || continue
-          if echo "$dep" | grep -Eq "$forbid_path_regex"; then
-            echo "audit-darwin-runtime-deps: forbidden dependency path in $candidate: $dep" >&2
-            exit 10
-          fi
-          if ! echo "$dep" | grep -Eq "$allow_dylib_regex"; then
-            echo "audit-darwin-runtime-deps: disallowed dependency in $candidate: $dep" >&2
-            exit 11
-          fi
-        done || failed=1
-      }
-
-      if [ -d "$input" ]; then
-        while IFS= read -r -d "" path; do
-          check_file "$path"
-        done < <(find "$input" -type f -print0)
-      else
-        check_file "$input"
-      fi
-
-      if [ "$checked" -eq 0 ]; then
-        echo "audit-darwin-runtime-deps: no Mach-O files found under $input" >&2
-        exit 1
-      fi
-
-      if [ "$failed" -ne 0 ]; then
-        exit 1
-      fi
-      echo "audit-darwin-runtime-deps: checked $checked Mach-O file(s)"
-    '';
-  };
   # Allowlist regexes for binaries shipped to Steam alongside the sniper
   # runtime. They cover the system libraries that ship in sniper, the
   # standard Win32 DLLs supplied by the Windows runtime/loader, and the
@@ -535,7 +89,9 @@
   # Cargo bootstrap script intended to run *inside* a Steam Runtime sniper
   # SDK container (or invoked via steam-runtime-exec). Provisions a hermetic
   # rustup install under STEAM_RUNTIME_BUILD_ROOT, then runs cargo build for
-  # a single target. The caller stages outputs from CARGO_TARGET_DIR.
+  # a single target. Kept as a portable shell script because the sniper
+  # Debian-based container has no Rust toolchain to invoke a Rust binary
+  # against.
   steamRuntimeCargoBootstrap = pkgs.writeShellApplication {
     name = "steam-runtime-cargo-bootstrap";
     runtimeInputs = with pkgs; [coreutils curl];
@@ -633,11 +189,10 @@
       fi
     done
   '';
-  # When rsHarborCli is wired in, replace the writeShellApplication audit
-  # helpers with thin shims that exec `rs-harbor audit elf|pe|macho`. The
-  # rust implementation parses ELF/PE/Mach-O via goblin, has unit tests,
-  # and uses clap for argument parsing. The legacy shell helpers stay
-  # available for downstream projects that haven't wired the CLI yet.
+
+  # Audit helpers: thin shims around `rs-harbor audit elf|pe|macho`. The
+  # rust implementation parses ELF/PE/Mach-O via goblin, has unit and
+  # integration tests, and uses clap for argument parsing.
   rustAuditShim = {
     name,
     subcommand,
@@ -649,42 +204,31 @@
         exec rs-harbor audit ${subcommand} "$@"
       '';
     };
-  effectiveAuditElfRuntimeDeps =
-    if rsHarborCli == null
-    then auditElfRuntimeDeps
-    else
-      rustAuditShim {
-        name = "audit-elf-runtime-deps";
-        subcommand = "elf";
-      };
-  effectiveAuditWindowsRuntimeDeps =
-    if rsHarborCli == null
-    then auditWindowsRuntimeDeps
-    else
-      rustAuditShim {
-        name = "audit-windows-runtime-deps";
-        subcommand = "pe";
-      };
-  effectiveAuditDarwinRuntimeDeps =
-    if rsHarborCli == null
-    then auditDarwinRuntimeDeps
-    else
-      rustAuditShim {
-        name = "audit-darwin-runtime-deps";
-        subcommand = "macho";
-      };
+
+  auditElfRuntimeDeps = rustAuditShim {
+    name = "audit-elf-runtime-deps";
+    subcommand = "elf";
+  };
+  auditWindowsRuntimeDeps = rustAuditShim {
+    name = "audit-windows-runtime-deps";
+    subcommand = "pe";
+  };
+  auditDarwinRuntimeDeps = rustAuditShim {
+    name = "audit-darwin-runtime-deps";
+    subcommand = "macho";
+  };
 in {
   inherit runtimes selectedRuntime image containerCommandText;
-  inherit steamRuntimeExec;
-  auditElfRuntimeDeps = effectiveAuditElfRuntimeDeps;
-  auditWindowsRuntimeDeps = effectiveAuditWindowsRuntimeDeps;
-  auditDarwinRuntimeDeps = effectiveAuditDarwinRuntimeDeps;
+  inherit steamRuntimeExec auditElfRuntimeDeps auditWindowsRuntimeDeps auditDarwinRuntimeDeps;
   inherit defaultAllowRegexes steamworksRsCargoLibraryHook steamRuntimeCargoBootstrap;
 
   packages = {
-    inherit steamRuntimeExec steamRuntimeCargoBootstrap;
-    auditElfRuntimeDeps = effectiveAuditElfRuntimeDeps;
-    auditWindowsRuntimeDeps = effectiveAuditWindowsRuntimeDeps;
-    auditDarwinRuntimeDeps = effectiveAuditDarwinRuntimeDeps;
+    inherit
+      steamRuntimeExec
+      auditElfRuntimeDeps
+      auditWindowsRuntimeDeps
+      auditDarwinRuntimeDeps
+      steamRuntimeCargoBootstrap
+      ;
   };
 }

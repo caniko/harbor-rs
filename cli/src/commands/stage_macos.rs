@@ -48,8 +48,6 @@ pub struct StageMacosArgs {
 
 pub fn run(args: StageMacosArgs) -> Result<()> {
     let archs = parse_archs(&args.archs)?;
-    let lipo = which_lipo()?;
-
     verify_inputs(&args, &archs)?;
     fs::create_dir_all(&args.dist_dir).with_context(|| {
         format!("creating dist dir {}", args.dist_dir.display())
@@ -60,6 +58,9 @@ pub fn run(args: StageMacosArgs) -> Result<()> {
     }
 
     if !args.skip_universal {
+        // lipo is only needed for the universal slice; resolve it lazily
+        // so callers using --skip-universal don't need it on PATH.
+        let lipo = which_lipo()?;
         stage_universal(&args, &archs, &lipo)?;
     }
 

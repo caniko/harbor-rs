@@ -419,9 +419,13 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
-  # mkSteamRuntimeTools returns expected metadata and packages
+  # mkSteamRuntimeTools returns expected metadata and packages.
+  # rsHarborCli is now required, so we pass the flake-built CLI here.
   mkSteamRuntimeTools-shape = let
-    s = self.lib.mkSteamRuntimeTools {inherit pkgs;};
+    s = self.lib.mkSteamRuntimeTools {
+      inherit pkgs;
+      rsHarborCli = self.packages.${system}.rs-harbor;
+    };
   in
     assert s ? runtimes;
     assert s ? selectedRuntime;
@@ -539,6 +543,12 @@ in {
       grep -- '--allow-dll-regex' pe-help
       "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit macho --help > macho-help
       grep -- '--allow-dylib-regex' macho-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" steam-runtime --help > sr-help
+      grep 'exec' sr-help
+      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" steam-runtime exec --help > sr-exec-help
+      grep -- '--image' sr-exec-help
+      grep -- '--container-runtime' sr-exec-help
+      grep -- '--mount-nix-store' sr-exec-help
       touch "$out"
     '';
 
@@ -565,6 +575,7 @@ in {
   mkSteamRuntimeTools-steamworks-subdir = let
     s = self.lib.mkSteamRuntimeTools {
       inherit pkgs;
+      rsHarborCli = self.packages.${system}.rs-harbor;
       steamworksRsLibSubdir = "osx";
     };
   in
@@ -575,6 +586,7 @@ in {
   mkSteamRuntimeTools-custom-image = let
     s = self.lib.mkSteamRuntimeTools {
       inherit pkgs;
+      rsHarborCli = self.packages.${system}.rs-harbor;
       runtime = "custom";
       customImage = "registry.example.com/custom/steam-sdk:latest";
       containerRuntime = "docker";
