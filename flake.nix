@@ -57,12 +57,14 @@
       cross = self.lib.mkCross {inherit pkgs system;};
       cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
       sitePackages = import ./nix/site.nix {inherit pkgs;};
+      macosStaging = self.lib.mkMacosUniversalStager {inherit pkgs;};
     in {
       packages =
         sitePackages
         // {
           init-macos-sdk = initMacosSdk;
           validate-macos-sdk = validateMacosSdk;
+          stage-macos-universal = macosStaging.stager;
         };
 
       apps = {
@@ -73,6 +75,10 @@
         validate-macos-sdk = {
           type = "app";
           program = "${validateMacosSdk}/bin/validate-macos-sdk";
+        };
+        stage-macos-universal = {
+          type = "app";
+          program = "${macosStaging.stager}/bin/stage-macos-universal";
         };
       };
 

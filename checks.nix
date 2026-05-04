@@ -451,6 +451,22 @@ in {
     assert pkgs.lib.hasInfix "LD_LIBRARY_PATH" s.steamworksRsCargoLibraryHook;
     pkgs.runCommand "check-mkSteamRuntimeTools-shape" {} "touch $out";
 
+  # mkMacosUniversalStager exposes a stager package and the cargo profile snippet
+  mkMacosUniversalStager-shape = let
+    s = self.lib.mkMacosUniversalStager {inherit pkgs;};
+  in
+    assert s ? stager;
+    assert s ? cargoMacosPackedDebuginfoSnippet;
+    assert s.packages ? stageMacosUniversal;
+    assert pkgs.lib.hasInfix "split-debuginfo = \"packed\"" s.cargoMacosPackedDebuginfoSnippet;
+    pkgs.runCommand "check-mkMacosUniversalStager-shape" {} ''
+      "${s.stager}/bin/stage-macos-universal" --help > help
+      grep -- '--binary NAME' help
+      grep -- '--dylib NAME' help
+      grep -- '--archs LIST' help
+      touch "$out"
+    '';
+
   # mkSteamRuntimeTools threads steamworksRsLibSubdir through the cargo hook
   mkSteamRuntimeTools-steamworks-subdir = let
     s = self.lib.mkSteamRuntimeTools {

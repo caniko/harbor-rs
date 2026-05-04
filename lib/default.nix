@@ -6,6 +6,7 @@ in {
   mkCargoConfig = import ./cargo-config.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkSteamRuntimeTools = import ./steam-runtime.nix;
+  mkMacosUniversalStager = import ./macos-staging.nix;
   inherit (devShellLib) mkDevShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   mkAtticPush = import ./attic-push.nix;
