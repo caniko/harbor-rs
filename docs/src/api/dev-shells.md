@@ -1,6 +1,6 @@
 # mkDevShell and mkDevShells
 
-`mkDevShell` builds one development shell. `mkDevShells` builds the default four-shell layout used by most downstream workspaces.
+`mkDevShell` builds one development shell. `mkDevShells` builds the default four-shell layout used by most downstream workspaces. All generated shells include `cargo-sweep` and the shared native build tools before project-specific packages are appended.
 
 ## mkDevShell
 

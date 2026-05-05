@@ -21,6 +21,7 @@ rec {
     inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
 
     basePackages = with pkgs; [
+      cargo-sweep
       cmake
       gcc
       clang

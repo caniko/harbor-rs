@@ -16,6 +16,7 @@ Provides composable functions:
 - [Nix](https://nixos.org/) with flakes enabled
 - The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
 - macOS cross-compilation via osxcross prefers a stable SDK store path produced by `init-macos-sdk`; `MACOS_SDK` is an rs-harbor discovery input for local, impure workflows
+- Development shells include common native build tools plus `cargo-sweep` for pruning stale Cargo build artifacts
 
 ## One-Time macOS SDK Init
 
@@ -148,7 +149,7 @@ Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`
 | `enableWindowsEnv` | `true` | Include Windows cross-compilation env vars |
 | `enableOsxcrossEnv` | `true` | Include osxcross toolchain and shell hook |
 | `pkgConfigDeps` | `[]` | Packages whose `dev/lib/pkgconfig` entries should populate `PKG_CONFIG_PATH` |
-| `packages` | `[]` | Extra packages |
+| `packages` | `[]` | Extra packages; `cargo-sweep` and native build tools are included automatically |
 | `extraEnv` | `{}` | Extra environment variables |
 | `extraShellHook` | `""` | Additional shell hook |
 | `checks` | `{}` | Flake checks |
@@ -166,7 +167,7 @@ Builds four devShells from a single config — ideal for workspaces where not al
 | `cross` | required | From `mkCross` |
 | `enableOsxcrossEnv` | `true` | Enable osxcross in the macos/cross shells |
 | `pkgConfigDeps` | `[]` | Packages whose `dev/lib/pkgconfig` entries should populate `PKG_CONFIG_PATH` |
-| `packages` | `[]` | Extra packages |
+| `packages` | `[]` | Extra packages; `cargo-sweep` and native build tools are included automatically |
 | `extraEnv` | `{}` | Extra environment variables |
 | `extraShellHook` | `""` | Additional shell hook |
 | `checks` | `{}` | Flake checks |
