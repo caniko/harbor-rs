@@ -20,7 +20,7 @@ pkgs.writeShellApplication {
     Realizes and validates a local macOS SDK archive into a stable Nix store output.
 
     Output includes:
-      Store path      Commit this as macosSdkStorePath in project flakes
+      Store path      Host-specific store path for host/module configuration
       SDK root        Direct MacOSX<version>.sdk path
       Recursive hash  Fixed-output hash for cache/debugging
     USAGE
@@ -57,13 +57,10 @@ pkgs.writeShellApplication {
     Recursive hash:
     $RECURSIVE_HASH
 
-    Commit this in rs-harbor projects:
+    Commit this in host configuration, not reusable project flakes:
 
-    cross = rs-harbor.lib.mkCross {
-      inherit pkgs system;
-      macosSdkStorePath = "$STORE_PATH";
-      osxSdkVersion = "$SDK_VERSION";
-    };
+    canix.development.macosSdk.storePath = "$STORE_PATH";
+    canix.development.macosSdk.sdkVersion = "$SDK_VERSION";
     EOF
   '';
 }

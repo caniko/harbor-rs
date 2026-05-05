@@ -371,7 +371,7 @@ in {
       "${self.packages.${system}.init-macos-sdk}/bin/init-macos-sdk" --help > help
       grep 'nix run rs-harbor#init-macos-sdk' help
       grep 'validates' help
-      grep 'macosSdkStorePath' help
+      grep 'Host-specific store path' help
       grep 'Recursive hash' help
       touch "$out"
     '';

@@ -1,4 +1,4 @@
-# mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableOsxcross?, osxSdkVersion? }
+# mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableImpureMacosSdkEnv?, enableOsxcross?, osxSdkVersion? }
 #         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv,
 #              macosSdk, osxcrossToolchain, osxcrossRustHelpers }
 #
@@ -10,14 +10,30 @@
   sdkArchive ? null,
   macosSdk ? null,
   macosSdkOutputHash ? null,
-  macosSdkEnvPath ? builtins.getEnv "MACOS_SDK",
+  enableImpureMacosSdkEnv ? false,
+  macosSdkEnvPath ?
+    if enableImpureMacosSdkEnv
+    then builtins.getEnv "MACOS_SDK"
+    else "",
   enableOsxcross ? (macosSdkStorePath != null || sdkArchive != null || macosSdk != null || macosSdkEnvPath != ""),
   osxSdkVersion ? "26.1",
 }:
 if
-  (if macosSdk != null then 1 else 0)
-  + (if macosSdkStorePath != null then 1 else 0)
-  + (if sdkArchive != null then 1 else 0)
+  (
+    if macosSdk != null
+    then 1
+    else 0
+  )
+  + (
+    if macosSdkStorePath != null
+    then 1
+    else 0
+  )
+  + (
+    if sdkArchive != null
+    then 1
+    else 0
+  )
   > 1
 then throw "rs-harbor.mkCross: pass only one of macosSdk, macosSdkStorePath, or sdkArchive"
 else let
@@ -106,11 +122,11 @@ else let
       sdkPath = /. + path;
     in
       assert checkedSdkRoot != "";
-      osxcross.lib.${system}.mkMacosSdkRef {
-        sdk = sdkPath;
-        sdkRoot = sdkPath;
-        sdkVersion = osxSdkVersion;
-      }
+        osxcross.lib.${system}.mkMacosSdkRef {
+          sdk = sdkPath;
+          sdkRoot = sdkPath;
+          sdkVersion = osxSdkVersion;
+        }
     else if pathExistsAbs parentRoot
     then let
       checkedSdkRoot = validateVisibleSdkRoot "MACOS_SDK parent directory" parentRoot;
@@ -118,11 +134,11 @@ else let
       sdkRoot = "${sdkParent}/MacOSX${osxSdkVersion}.sdk";
     in
       assert checkedSdkRoot != "";
-      osxcross.lib.${system}.mkMacosSdkRef {
-        sdk = sdkParent;
-        inherit sdkRoot;
-        sdkVersion = osxSdkVersion;
-      }
+        osxcross.lib.${system}.mkMacosSdkRef {
+          sdk = sdkParent;
+          inherit sdkRoot;
+          sdkVersion = osxSdkVersion;
+        }
     else if pathExistsAbs path && hasArchiveSuffix path
     then
       osxcross.lib.${system}.mkMacosSdk {
@@ -167,8 +183,7 @@ else let
 
   osxcrossToolchain =
     if enableOsxcross && supportsOsxcross
-    then
-      osxcross.lib.${system}.mkOsxcross osxcrossArgs
+    then osxcross.lib.${system}.mkOsxcross osxcrossArgs
     else null;
 
   osxcrossRustHelpers =

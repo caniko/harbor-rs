@@ -15,7 +15,7 @@ Provides composable functions:
 
 - [Nix](https://nixos.org/) with flakes enabled
 - The `pkgs` passed to `mkToolchain` must have [rust-overlay](https://github.com/oxalica/rust-overlay) applied
-- macOS cross-compilation via osxcross prefers a stable SDK store path produced by `init-macos-sdk`; `MACOS_SDK` is an rs-harbor discovery input for local, impure workflows
+- macOS cross-compilation via osxcross accepts an explicit SDK store path produced by `init-macos-sdk`; `MACOS_SDK` discovery is opt-in for local, impure workflows
 - Development shells include common native build tools plus `cargo-sweep` for pruning stale Cargo build artifacts
 
 ## One-Time macOS SDK Init
@@ -26,17 +26,14 @@ Do not commit a host-local SDK archive path to project flakes. Each host should 
 nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
 ```
 
-The command realizes the archive, validates that it contains a complete Apple SDK, and then prints the stable SDK store path to commit:
+The command realizes the archive, validates that it contains a complete Apple SDK, and then prints the host-specific SDK store path for host configuration:
 
 ```nix
-cross = rs-harbor.lib.mkCross {
-  inherit pkgs system;
-  macosSdkStorePath = "/nix/store/<stable-hash>-macosx-sdk-26.1";
-  osxSdkVersion = "26.1";
-};
+canix.development.macosSdk.storePath = "/nix/store/<host-sdk>-macosx-sdk-26.1";
+canix.development.macosSdk.sdkVersion = "26.1";
 ```
 
-On another host, either run the same init command with that host's local archive path or copy the printed store path from a binary cache:
+Reusable project flakes should accept this value from a host wrapper instead of committing it. On another host, either run the same init command with that host's local archive path or copy the printed store path from a binary cache:
 
 ```bash
 nix copy --from <cache> /nix/store/<stable-hash>-macosx-sdk-26.1
@@ -66,8 +63,6 @@ nix copy --from <cache> /nix/store/<stable-hash>-macosx-sdk-26.1
       toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
       cross = rs-harbor.lib.mkCross {
         inherit pkgs system;
-        macosSdkStorePath = "/nix/store/<stable-hash>-macosx-sdk-26.1";
-        osxSdkVersion = "26.1";
       };
     in {
       # Returns: { default, windows, macos, cross }
@@ -119,11 +114,12 @@ Returns: `{ rustToolchain, craneLib, crossTargets }`
 |-------|---------|-------------|
 | `pkgs` | required | nixpkgs |
 | `system` | required | Host system string |
-| `macosSdkStorePath` | `null` | Stable SDK store path from `init-macos-sdk`; preferred for VCS-compatible project flakes |
+| `macosSdkStorePath` | `null` | Explicit SDK store path from `init-macos-sdk`; host-specific values should be injected by host configuration |
 | `sdkArchive` | `null` | Lower-level local/archive input; useful for experiments but host-specific if committed directly |
 | `macosSdk` | `null` | Existing pure macOS SDK ref from `osxcross.lib.<system>.mkMacosSdk` or `mkMacosSdkRef`; cannot be combined with `macosSdkStorePath` or `sdkArchive` |
 | `macosSdkOutputHash` | `null` | Optional fixed-output hash passed to `mkMacosSdk` when using `sdkArchive` |
-| `macosSdkEnvPath` | `builtins.getEnv "MACOS_SDK"` | Local SDK path fallback. Accepts a direct `.sdk` directory, a parent containing `MacOSX<version>.sdk`, or a supported SDK archive |
+| `enableImpureMacosSdkEnv` | `false` | Opt into reading `MACOS_SDK` during evaluation |
+| `macosSdkEnvPath` | `""` or `builtins.getEnv "MACOS_SDK"` when `enableImpureMacosSdkEnv = true` | Local SDK path fallback. Accepts a direct `.sdk` directory, a parent containing `MacOSX<version>.sdk`, or a supported SDK archive |
 | `enableOsxcross` | `macosSdkStorePath != null || sdkArchive != null || macosSdk != null || macosSdkEnvPath != ""` | Enable macOS cross-compilation when a pure SDK input or local env SDK is available |
 | `osxSdkVersion` | `"26.1"` | macOS SDK version |
 
@@ -137,7 +133,7 @@ cross = rs-harbor.lib.mkCross {
 };
 ```
 
-Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`, then `MACOS_SDK`. Directory SDK inputs are checked for `SDKSettings.json`, `usr/include/TargetConditionals.h`, `System/Library/Frameworks`, `SystemConfiguration.framework`, and `CoreFoundation.framework` before rs-harbor passes them to osxcross.
+Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`, then `macosSdkEnvPath`. `MACOS_SDK` is read only when `enableImpureMacosSdkEnv = true`. Directory SDK inputs are checked for `SDKSettings.json`, `usr/include/TargetConditionals.h`, `System/Library/Frameworks`, `SystemConfiguration.framework`, and `CoreFoundation.framework` before rs-harbor passes them to osxcross.
 
 ### `mkDevShell`
 
