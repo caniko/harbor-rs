@@ -8,6 +8,7 @@ The library exposes:
 - `mkCargoConfig` for generated `.cargo/config.toml`
 - `mkCross` for MinGW and optional osxcross environments
 - `mkDevShell` and `mkDevShells` for consistent development shells
+- `mkGpuRenderPin` for GPU/driver identity checks in visual snapshot tests
 - `mkAppImage` and `mkFlatpakManifest` for packaging outputs
 - `mkAdapter` and `mkAtticPush` for binary cache integration
 

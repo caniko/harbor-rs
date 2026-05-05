@@ -6,6 +6,7 @@ in {
   mkCargoConfig = import ./cargo-config.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkSteamRuntimeTools = import ./steam-runtime.nix;
+  mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;
   mkOsxcrossHooks = import ./osxcross-hooks.nix;
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;

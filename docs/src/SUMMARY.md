@@ -13,6 +13,7 @@
 - [mkCargoConfig](./api/cargo-config.md)
 - [mkCross](./api/cross.md)
 - [mkDevShell and mkDevShells](./api/dev-shells.md)
+- [mkGpuRenderPin](./api/gpu-render-pin.md)
 
 # Packaging
 

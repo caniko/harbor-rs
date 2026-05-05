@@ -8,6 +8,7 @@ Provides composable functions:
 - **`mkCross`** — MinGW (Windows) and osxcross (macOS) cross-compilation toolchains
 - **`mkDevShell`** — Single devShell with configurable cross-compilation env vars
 - **`mkDevShells`** — Multiple devShells (default, windows, macos, cross) from one config
+- **`mkGpuRenderPin`** — DevShell-ready GPU/driver pinning for visual snapshot test baselines
 - **`mkAppImage`** — Bundle a built executable as a self-contained AppImage (opt-in, Linux only)
 - **`mkFlatpakManifest`** — Generate a Flatpak manifest for packaging with flatpak-builder (opt-in, Linux only)
 
@@ -176,6 +177,20 @@ Returns: `{ default, windows, macos, cross }` — assign directly to `devShells`
 | `windows` | `nix develop .#windows` | yes | no |
 | `macos` | `nix develop .#macos` | no | yes |
 | `cross` | `nix develop .#cross` | yes | yes |
+
+### `mkGpuRenderPin`
+
+Returns a named GPU render profile as `{ env, packages }` so downstream
+devShells can export the renderer identity expected by visual snapshot tests.
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `pkgs` | required | nixpkgs package set |
+| `profile` | `"mesa-radv"` | Named render profile |
+| `expected` | `{}` | Extra or overriding expected identity env vars |
+
+The initial `mesa-radv` profile exports Vulkan/RADV expectations and pins
+`VK_DRIVER_FILES` to the Mesa RADV ICD from `pkgs.mesa`.
 
 ### `mkAppImage`
 

@@ -42,6 +42,10 @@ title = "Shells for Real Work"
 body = "Expose native, Windows, macOS, and combined cross shells from one shared configuration."
 
 [[extra.features]]
+title = "Visual Snapshot Pins"
+body = "Export GPU and driver identity contracts for image-baseline test suites that need stable rendering."
+
+[[extra.features]]
 title = "Packaging Hooks"
 body = "Wrap Linux outputs as AppImages or generate Flatpak manifests without forking your build graph."
 
