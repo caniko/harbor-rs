@@ -889,4 +889,37 @@ in {
   in
     assert !result.success;
     pkgs.runCommand "check-mkAndroidApk-rejects-missing-toolchain" {} "touch $out";
+
+  mkAndroidApkDevBuilder-shape = let
+    script = self.lib.mkAndroidApkDevBuilder {
+      inherit pkgs;
+      defaultFlavor = "test-peer";
+      cargoNoDefaultFeatures = true;
+      cargoFeatures = ["tutorial"];
+      flavors = {
+        app = {
+          cargoPkg = "game";
+          gradleModule = ":app";
+          jniLibsDir = "android/app/src/main/jniLibs";
+          apkOutPath = "android/app/build/outputs/apk/debug/app-debug.apk";
+        };
+        test-peer = {
+          cargoPkg = "game-android-test-peer";
+          gradleModule = ":test-peer";
+          jniLibsDir = "android/test-peer/src/main/jniLibs";
+          apkOutPath = "android/test-peer/build/outputs/apk/debug/test-peer-debug.apk";
+        };
+      };
+    };
+  in
+    pkgs.runCommand "check-mkAndroidApkDevBuilder-shape" {} ''
+      cp ${script} script
+      grep 'cargo ndk -t "$abi" -o "$jni_libs_dir" build' script
+      grep 'game-android-test-peer' script
+      grep 'gradle_module=:test-peer' script
+      grep 'gradle "$gradle_module:assemble$mode_cap"' script
+      grep -- '--no-default-features' script
+      grep -- '--features tutorial' script
+      touch $out
+    '';
 }

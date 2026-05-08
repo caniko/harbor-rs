@@ -15,5 +15,6 @@ in {
   mkAtticPush = import ./attic-push.nix;
   mkAppImage = import ./appimage.nix;
   mkAndroidApk = import ./android-apk.nix;
+  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
 }
