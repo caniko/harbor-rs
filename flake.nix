@@ -33,6 +33,8 @@
     {
       inherit lib;
 
+      nixosModules.macosSdk = import ./nix/nixos-module.nix self;
+
       templates = {
         bevy = {
           path = ./templates/bevy;
@@ -116,7 +118,7 @@
         };
       };
 
-      devShells = import ./nix/dev-shell.nix {
+      devShells = import ./nix/dev-shells.nix {
         harbor = self.lib;
         inherit pkgs toolchain cross cargoConfig;
       };

@@ -78,7 +78,7 @@
         inherit (build) default clippy fmt;
       };
 
-      devShells = import ./nix/dev-shell.nix {
+      devShells = import ./nix/dev-shells.nix {
         inherit pkgs rs-harbor toolchain cross cargoConfig bevyDeps;
         checks = self.checks.${system};
       };

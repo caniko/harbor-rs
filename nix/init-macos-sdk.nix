@@ -59,8 +59,8 @@ pkgs.writeShellApplication {
 
     Commit this in host configuration, not reusable project flakes:
 
-    canix.development.macosSdk.storePath = "$STORE_PATH";
-    canix.development.macosSdk.sdkVersion = "$SDK_VERSION";
+    programs.rsHarbor.macosSdk.storePath = "$STORE_PATH";
+    programs.rsHarbor.macosSdk.sdkVersion = "$SDK_VERSION";
     EOF
   '';
 }

@@ -19,6 +19,21 @@ Important parameters:
 - `extraShellHook`
 - `checks`
 - `cargoConfig`
+- `sccache`
+
+The `sccache` option is disabled by default:
+
+```nix
+sccache = {
+  enable = true;
+  cacheDir = "/data/nvme0/shared/sccache";
+  cacheSize = "100G";
+  # Leave null for interactive shells unless you explicitly want CI-like builds.
+  cargoIncremental = null;
+};
+```
+
+When enabled, rs-harbor adds `pkgs.sccache`, sets `RUSTC_WRAPPER`, and exports only the configured optional cache variables.
 
 ## mkDevShells
 
@@ -39,6 +54,11 @@ devShells = rs-harbor.lib.mkDevShells {
   inherit (toolchain) craneLib;
   packages = with pkgs; [ just vulkan-loader ];
   pkgConfigDeps = with pkgs; [ wayland libxkbcommon udev alsa-lib ];
+  sccache = {
+    enable = true;
+    cacheDir = "/data/nvme0/shared/sccache";
+    cacheSize = "100G";
+  };
   extraEnv = {
     LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.vulkan-loader ];
   };
