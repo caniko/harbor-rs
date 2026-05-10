@@ -17,17 +17,8 @@ rec {
     extraShellHook ? "",
     checks ? {},
     cargoConfig ? null,
-    sccache ? {},
   }: let
     inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
-    sccacheCfg =
-      {
-        enable = false;
-        cacheDir = null;
-        cacheSize = null;
-        cargoIncremental = null;
-      }
-      // sccache;
 
     basePackages = with pkgs; [
       cargo-sweep
@@ -45,10 +36,6 @@ rec {
 
     osxPackages = pkgs.lib.optionals (enableOsxcrossEnv && osxcrossToolchain != null) [
       osxcrossToolchain
-    ];
-
-    sccachePackages = pkgs.lib.optionals sccacheCfg.enable [
-      pkgs.sccache
     ];
 
     osxShellHook =
@@ -87,29 +74,13 @@ rec {
       PKG_CONFIG_PATH = pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" pkgConfigDeps;
     };
 
-    sccacheEnv =
-      pkgs.lib.optionalAttrs sccacheCfg.enable (
-        {
-          RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
-        }
-        // pkgs.lib.optionalAttrs (sccacheCfg.cacheDir != null) {
-          SCCACHE_DIR = sccacheCfg.cacheDir;
-        }
-        // pkgs.lib.optionalAttrs (sccacheCfg.cacheSize != null) {
-          SCCACHE_CACHE_SIZE = sccacheCfg.cacheSize;
-        }
-        // pkgs.lib.optionalAttrs (sccacheCfg.cargoIncremental != null) {
-          CARGO_INCREMENTAL = sccacheCfg.cargoIncremental;
-        }
-      );
-
-    mergedEnv = baseEnv // crossEnv // pkgConfigEnv // sccacheEnv // extraEnv;
+    mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;
   in
     craneLib.devShell (mergedEnv
       // {
         inherit checks;
 
-        packages = basePackages ++ windowsPackages ++ osxPackages ++ sccachePackages ++ packages;
+        packages = basePackages ++ windowsPackages ++ osxPackages ++ packages;
 
         shellHook = ''
           ${cargoConfigHook}
@@ -134,14 +105,13 @@ rec {
     extraShellHook ? "",
     checks ? {},
     cargoConfig ? null,
-    sccache ? {},
   }: let
     shell = {
       win ? false,
       osx ? false,
     }:
       mkDevShell {
-        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig sccache;
+        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig;
         enableWindowsEnv = win;
         enableOsxcrossEnv = osx && enableOsxcrossEnv;
       };

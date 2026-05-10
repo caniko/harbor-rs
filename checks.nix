@@ -419,59 +419,6 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
-  # mkDevShell keeps sccache disabled by default.
-  mkDevShell-sccache-default-off = let
-    s = self.lib.mkDevShell {
-      inherit pkgs cross;
-      inherit (toolchain) craneLib;
-    };
-  in
-    assert !(s ? RUSTC_WRAPPER);
-    assert !(s ? SCCACHE_DIR);
-    assert !(s ? SCCACHE_CACHE_SIZE);
-    assert !(s ? CARGO_INCREMENTAL);
-    pkgs.runCommand "check-mkDevShell-sccache-default-off" {} "touch $out";
-
-  # mkDevShell wires sccache env only when configured.
-  mkDevShell-sccache-enabled = let
-    s = self.lib.mkDevShell {
-      inherit pkgs cross;
-      inherit (toolchain) craneLib;
-      sccache = {
-        enable = true;
-        cacheDir = "/tmp/rs-harbor-sccache";
-        cacheSize = "5G";
-        cargoIncremental = "0";
-      };
-    };
-  in
-    assert s.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
-    assert s.SCCACHE_DIR == "/tmp/rs-harbor-sccache";
-    assert s.SCCACHE_CACHE_SIZE == "5G";
-    assert s.CARGO_INCREMENTAL == "0";
-    pkgs.runCommand "check-mkDevShell-sccache-enabled" {} "touch $out";
-
-  # mkDevShells passes the sccache config to every generated shell.
-  mkDevShells-sccache-enabled = let
-    s = self.lib.mkDevShells {
-      inherit pkgs cross;
-      inherit (toolchain) craneLib;
-      sccache = {
-        enable = true;
-        cacheDir = "/tmp/rs-harbor-sccache";
-        cacheSize = "5G";
-      };
-    };
-  in
-    assert s.default.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
-    assert s.windows.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
-    assert s.macos.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
-    assert s.cross.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
-    assert s.default.SCCACHE_DIR == "/tmp/rs-harbor-sccache";
-    assert s.default.SCCACHE_CACHE_SIZE == "5G";
-    assert !(s.default ? CARGO_INCREMENTAL);
-    pkgs.runCommand "check-mkDevShells-sccache-enabled" {} "touch $out";
-
   # mkSteamRuntimeTools returns expected metadata and packages.
   # rsHarborCli is now required, so we pass the flake-built CLI here.
   mkSteamRuntimeTools-shape = let
