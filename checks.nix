@@ -365,17 +365,6 @@ in {
     assert storeConflict.success == false;
     pkgs.runCommand "check-mkCross-osxcross-sdk-input-conflict" {} "touch $out";
 
-  # init-macos-sdk documents the VCS-compatible store-path flow.
-  init-macos-sdk-help =
-    pkgs.runCommand "check-init-macos-sdk-help" {} ''
-      "${self.packages.${system}.init-macos-sdk}/bin/init-macos-sdk" --help > help
-      grep 'nix run rs-harbor#init-macos-sdk' help
-      grep 'validates' help
-      grep 'Host-specific store path' help
-      grep 'Recursive hash' help
-      touch "$out"
-    '';
-
   validate-macos-sdk-fixtures =
     pkgs.runCommand "check-validate-macos-sdk-fixtures" {} ''
       "${self.packages.${system}.validate-macos-sdk}/bin/validate-macos-sdk" \

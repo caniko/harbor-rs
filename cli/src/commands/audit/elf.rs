@@ -1,13 +1,19 @@
 //! `rs-harbor audit elf` — Steam-Runtime / Linux ELF dependency auditor.
 
+#![allow(
+    clippy::doc_markdown,
+    clippy::needless_pass_by_value,
+    clippy::manual_let_else,
+    clippy::ref_binding_to_reference,
+    clippy::if_same_then_else
+)]
+
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use clap::Args;
-use goblin::elf::dynamic::{
-    DT_NEEDED, DT_RPATH, DT_RUNPATH,
-};
+use goblin::elf::dynamic::{DT_NEEDED, DT_RPATH, DT_RUNPATH};
 use goblin::elf::{Elf, dynamic::Dynamic};
 use regex::Regex;
 
@@ -64,7 +70,10 @@ fn check_file(
         Ok(e) => e,
         Err(_) => return Ok(()),
     };
-    if !elf.is_lib && elf.header.e_type != goblin::elf::header::ET_EXEC && !elf.is_64 && elf.header.e_type != goblin::elf::header::ET_DYN
+    if !elf.is_lib
+        && elf.header.e_type != goblin::elf::header::ET_EXEC
+        && !elf.is_64
+        && elf.header.e_type != goblin::elf::header::ET_DYN
     {
         // Filter out object files / relocatables (ET_REL etc).
     }
@@ -96,9 +105,7 @@ fn check_file(
     }
 
     if args.require_origin_rpath {
-        let has_origin = combined_paths
-            .iter()
-            .any(|entry| entry.contains("$ORIGIN"));
+        let has_origin = combined_paths.iter().any(|entry| entry.contains("$ORIGIN"));
         if !has_origin {
             report.fail(format!(
                 "missing $ORIGIN RPATH/RUNPATH in {}",

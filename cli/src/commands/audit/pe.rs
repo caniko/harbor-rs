@@ -1,5 +1,11 @@
 //! `rs-harbor audit pe` — Windows PE dependency auditor.
 
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_wraps,
+    clippy::manual_let_else
+)]
+
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -27,10 +33,7 @@ pub struct AuditPeArgs {
 }
 
 pub fn run(args: AuditPeArgs) -> Result<()> {
-    let allow_dll = compile_regex(
-        "allow-dll",
-        &format!("(?i){}", args.allow_dll_regex),
-    )?;
+    let allow_dll = compile_regex("allow-dll", &format!("(?i){}", args.allow_dll_regex))?;
     let forbid_path = compile_regex("forbid-path", &args.forbid_path_regex)?;
 
     let mut report = Report::default();

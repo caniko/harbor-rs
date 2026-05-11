@@ -1,5 +1,11 @@
 //! `rs-harbor audit macho` — macOS Mach-O dependency auditor.
 
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::unnecessary_wraps,
+    clippy::manual_let_else
+)]
+
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -10,8 +16,7 @@ use regex::Regex;
 
 use super::common::{Report, collect_files, compile_regex, require_match};
 
-const DEFAULT_ALLOW_DYLIB_REGEX: &str =
-    "^(@executable_path|@rpath|/usr/lib/|/System/Library/)";
+const DEFAULT_ALLOW_DYLIB_REGEX: &str = "^(@executable_path|@rpath|/usr/lib/|/System/Library/)";
 const DEFAULT_FORBID_PATH_REGEX: &str = "(/nix/store|/usr/local|/home/)";
 
 #[derive(Args, Debug)]

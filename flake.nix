@@ -33,7 +33,7 @@
     {
       inherit lib;
 
-      nixosModules.macosSdk = import ./nix/nixos-module.nix self;
+      nixosModules.macosSdk = import ./nix/nixos-module.nix;
 
       templates = {
         bevy = {
@@ -47,12 +47,8 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
-      realizeMacosSdk = osxcross.packages.${system}.realize-macos-sdk;
       validateMacosSdk = import ./nix/validate-macos-sdk.nix {
         inherit pkgs;
-      };
-      initMacosSdk = import ./nix/init-macos-sdk.nix {
-        inherit pkgs realizeMacosSdk validateMacosSdk;
       };
 
       toolchain = self.lib.mkToolchain {inherit pkgs;};
@@ -87,6 +83,20 @@
         inherit pkgs;
         rsHarborCli = rsHarborCli;
       };
+      realizeMacosSdk = pkgs.writeShellApplication {
+        name = "realize-macos-sdk";
+        runtimeInputs = [rsHarborCli];
+        text = ''
+          exec rs-harbor sdk realize "$@"
+        '';
+      };
+      publishMacosSdk = pkgs.writeShellApplication {
+        name = "publish-macos-sdk";
+        runtimeInputs = [rsHarborCli];
+        text = ''
+          exec rs-harbor sdk publish-macos "$@"
+        '';
+      };
       steamRuntimeTools = self.lib.mkSteamRuntimeTools {
         inherit pkgs;
         rsHarborCli = rsHarborCli;
@@ -95,7 +105,6 @@
       packages =
         sitePackages
         // {
-          init-macos-sdk = initMacosSdk;
           validate-macos-sdk = validateMacosSdk;
           stage-macos-universal = macosStaging.stager;
           bootstrap-cmds-mig = bootstrapCmdsMig;
@@ -104,9 +113,13 @@
         };
 
       apps = {
-        init-macos-sdk = {
+        publish-macos-sdk = {
           type = "app";
-          program = "${initMacosSdk}/bin/init-macos-sdk";
+          program = "${publishMacosSdk}/bin/publish-macos-sdk";
+        };
+        realize-macos-sdk = {
+          type = "app";
+          program = "${realizeMacosSdk}/bin/realize-macos-sdk";
         };
         validate-macos-sdk = {
           type = "app";

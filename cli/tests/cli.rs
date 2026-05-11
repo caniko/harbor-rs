@@ -25,8 +25,59 @@ fn top_level_help_lists_subcommands() {
     let assert = rs_harbor().arg("--help").assert().success();
     let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
     assert!(stdout.contains("audit"), "missing audit: {stdout}");
+    assert!(stdout.contains("cache"), "missing cache: {stdout}");
     assert!(stdout.contains("stage"), "missing stage: {stdout}");
-    assert!(stdout.contains("steam-runtime"), "missing steam-runtime: {stdout}");
+    assert!(
+        stdout.contains("steam-runtime"),
+        "missing steam-runtime: {stdout}"
+    );
+}
+
+#[test]
+fn cache_help_lists_nested_verbs() {
+    let assert = rs_harbor().args(["cache", "--help"]).assert().success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(stdout.contains("push"), "missing push: {stdout}");
+    assert!(stdout.contains("token"), "missing token: {stdout}");
+}
+
+#[test]
+fn cache_push_help_lists_required_and_optional_flags() {
+    let assert = rs_harbor()
+        .args(["cache", "push", "--help"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("<store-path>"),
+        "missing store-path: {stdout}"
+    );
+    assert!(stdout.contains("--cache"), "missing cache: {stdout}");
+    assert!(stdout.contains("--server"), "missing server: {stdout}");
+    assert!(
+        stdout.contains("--token-file"),
+        "missing token-file: {stdout}"
+    );
+}
+
+#[test]
+fn cache_token_issue_help_lists_flags_and_defaults() {
+    let assert = rs_harbor()
+        .args(["cache", "token", "issue", "--help"])
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(stdout.contains("--project"), "missing project: {stdout}");
+    assert!(stdout.contains("--ssh-host"), "missing ssh-host: {stdout}");
+    assert!(stdout.contains("--validity"), "missing validity: {stdout}");
+    assert!(
+        stdout.contains("--subject-prefix"),
+        "missing subject-prefix: {stdout}"
+    );
+    assert!(
+        stdout.contains("rs-harbor-"),
+        "missing rs-harbor- default: {stdout}"
+    );
 }
 
 #[test]
@@ -110,8 +161,29 @@ fn stage_macos_rejects_empty_target_dir() {
         .assert()
         .failure();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
+    assert!(stderr.contains("missing"), "unexpected stderr: {stderr}");
+}
+
+#[test]
+fn cache_push_rejects_half_configured_temp_login() {
+    let dir = tempdir().unwrap();
+    let store_path = dir.path().join("example-store-path");
+
+    let assert = rs_harbor()
+        .args([
+            "cache",
+            "push",
+            "--cache",
+            "canix",
+            "--server",
+            "https://attic.example.invalid",
+        ])
+        .arg(&store_path)
+        .assert()
+        .failure();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).unwrap();
     assert!(
-        stderr.contains("missing"),
+        stderr.contains("server and token_file must be provided together"),
         "unexpected stderr: {stderr}"
     );
 }

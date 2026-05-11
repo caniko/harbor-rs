@@ -4,6 +4,8 @@
 //! Three flavours match the three native binary formats: `elf` (Linux,
 //! e.g. Steam Runtime sniper), `pe` (Windows), `macho` (macOS).
 
+#![allow(clippy::doc_markdown)]
+
 use clap::Subcommand;
 
 pub mod common;

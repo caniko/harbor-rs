@@ -4,6 +4,8 @@
 //! Assumes the consumer compiled with `split-debuginfo = "packed"` so each
 //! per-target build dir has a `<binary>.dSYM` next to the binary.
 
+#![allow(clippy::needless_pass_by_value, clippy::unnecessary_trailing_comma)]
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -49,9 +51,8 @@ pub struct StageMacosArgs {
 pub fn run(args: StageMacosArgs) -> Result<()> {
     let archs = parse_archs(&args.archs)?;
     verify_inputs(&args, &archs)?;
-    fs::create_dir_all(&args.dist_dir).with_context(|| {
-        format!("creating dist dir {}", args.dist_dir.display())
-    })?;
+    fs::create_dir_all(&args.dist_dir)
+        .with_context(|| format!("creating dist dir {}", args.dist_dir.display()))?;
 
     if !args.skip_per_arch {
         stage_per_arch(&args, &archs)?;
@@ -126,10 +127,7 @@ fn stage_per_arch(args: &StageMacosArgs, archs: &[String]) -> Result<()> {
                 copy_file(&candidate, &out.join(dylib))?;
             }
         }
-        let sym_out = args
-            .dist_dir
-            .join(&args.symbols_subdir)
-            .join(arch);
+        let sym_out = args.dist_dir.join(&args.symbols_subdir).join(arch);
         fs::create_dir_all(&sym_out)?;
         copy_dir_recursive(
             &src.join(dsym_name(&args.binary)),
@@ -172,8 +170,7 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
         .dist_dir
         .join(&args.symbols_subdir)
         .join(dsym_name(&args.binary));
-    let first_src =
-        src_for(&args.target_dir, &archs[0]).join(dsym_name(&args.binary));
+    let first_src = src_for(&args.target_dir, &archs[0]).join(dsym_name(&args.binary));
     if sym_dst.exists() {
         fs::remove_dir_all(&sym_dst)?;
     }
@@ -192,9 +189,7 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
                     .join(&args.binary)
             })
             .collect();
-        let dwarf_out = sym_dst
-            .join("Contents/Resources/DWARF")
-            .join(&args.binary);
+        let dwarf_out = sym_dst.join("Contents/Resources/DWARF").join(&args.binary);
         run_lipo_create(lipo, &dwarf_inputs, &dwarf_out)?;
     }
 
@@ -224,11 +219,7 @@ fn run_lipo_create(lipo: &Path, inputs: &[PathBuf], output: &Path) -> Result<()>
         .status()
         .with_context(|| format!("running {}", lipo.display()))?;
     if !status.success() {
-        bail!(
-            "{} -create failed for {}",
-            lipo.display(),
-            output.display(),
-        );
+        bail!("{} -create failed for {}", lipo.display(), output.display(),);
     }
     Ok(())
 }
@@ -237,9 +228,8 @@ fn copy_file(src: &Path, dst: &Path) -> Result<()> {
     if let Some(parent) = dst.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::copy(src, dst).with_context(|| {
-        format!("copying {} -> {}", src.display(), dst.display())
-    })?;
+    fs::copy(src, dst)
+        .with_context(|| format!("copying {} -> {}", src.display(), dst.display()))?;
     Ok(())
 }
 
@@ -287,12 +277,7 @@ mod tests {
 
     #[test]
     fn parses_minimal_args() {
-        let cli = TestCli::try_parse_from([
-            "stage-macos",
-            "--binary",
-            "myapp",
-        ])
-        .expect("parses");
+        let cli = TestCli::try_parse_from(["stage-macos", "--binary", "myapp"]).expect("parses");
         assert_eq!(cli.args.binary, "myapp");
         assert_eq!(cli.args.archs, "x86_64,aarch64");
         assert!(cli.args.dylib.is_empty());

@@ -6,6 +6,8 @@
 //! shim that calls into this subcommand, so callers don't need to know
 //! the registry URL.
 
+#![allow(clippy::needless_pass_by_value, clippy::map_unwrap_or)]
+
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -61,12 +63,8 @@ pub struct SteamRuntimeExecArgs {
 }
 
 pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
-    let runner = which::which(&args.container_runtime).with_context(|| {
-        format!(
-            "container runtime not found: {}",
-            args.container_runtime
-        )
-    })?;
+    let runner = which::which(&args.container_runtime)
+        .with_context(|| format!("container runtime not found: {}", args.container_runtime))?;
 
     let cwd = std::env::current_dir().context("reading current working directory")?;
     let workdir = args.workdir.clone().unwrap_or_else(|| cwd.clone());
@@ -77,10 +75,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
         cmd.arg("-it");
     }
 
-    let runner_basename = runner
-        .file_name()
-        .and_then(|n| n.to_str())
-        .unwrap_or("");
+    let runner_basename = runner.file_name().and_then(|n| n.to_str()).unwrap_or("");
     if runner_basename == "podman" {
         cmd.arg("--userns=keep-id");
     }

@@ -21,6 +21,16 @@ enum TopCommand {
         #[command(subcommand)]
         command: commands::audit::AuditCommand,
     },
+    /// Cache helpers for Attic-backed store paths and tokens.
+    Cache {
+        #[command(subcommand)]
+        command: commands::cache::CacheCommand,
+    },
+    /// Realize and publish macOS SDK archives for osxcross consumers.
+    Sdk {
+        #[command(subcommand)]
+        command: commands::sdk::SdkCommand,
+    },
     /// Stage cargo build outputs for release distribution.
     Stage {
         #[command(subcommand)]
@@ -44,6 +54,8 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         TopCommand::Audit { command } => commands::audit::run(command),
+        TopCommand::Cache { command } => commands::cache::run(command),
+        TopCommand::Sdk { command } => commands::sdk::run(command),
         TopCommand::Stage { command } => match command {
             StageCommand::Macos(args) => commands::stage_macos::run(args),
         },

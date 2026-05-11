@@ -1,5 +1,7 @@
 //! Shared helpers for the audit subcommands.
 
+#![allow(clippy::explicit_into_iter_loop, clippy::match_same_arms)]
+
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
