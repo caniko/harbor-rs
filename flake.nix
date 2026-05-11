@@ -71,28 +71,38 @@
           || (builtins.match ".*/tests/fixtures/.*" path != null);
         name = "rs-harbor-source";
       };
+      # .cargo/config.toml pins `linker = "clang"` + `-fuse-ld=mold` for
+      # x86_64-linux. Crane's default build sandbox has neither — expose
+      # both as nativeBuildInputs so the linker invocation succeeds.
       rsHarborCli = craneLib.buildPackage {
         pname = "rs-harbor";
         version = "0.1.0";
         src = rsHarborSrc;
         strictDeps = true;
         doCheck = true;
+        nativeBuildInputs = [
+          pkgs.clang
+          pkgs.mold
+        ];
       };
 
       macosStaging = self.lib.mkMacosUniversalStager {
         inherit pkgs;
         rsHarborCli = rsHarborCli;
       };
-      realizeMacosSdk = pkgs.writeShellApplication {
-        name = "realize-macos-sdk";
-        runtimeInputs = [rsHarborCli];
-        text = ''
-          exec rs-harbor sdk realize "$@"
-        '';
-      };
+      # The osxcross binary literally named `realize-macos-sdk`. The Rust
+      # CLI's `harbor-sdk::realize_macos_sdk` does `which::which("realize-macos-sdk")`
+      # at runtime, so we must NOT export a shell wrapper of the same name —
+      # it would shadow the osxcross binary and cause infinite self-recursion.
+      realizeMacosSdkBin = osxcross.packages.${system}.realize-macos-sdk;
       publishMacosSdk = pkgs.writeShellApplication {
         name = "publish-macos-sdk";
-        runtimeInputs = [rsHarborCli];
+        runtimeInputs = [
+          rsHarborCli
+          realizeMacosSdkBin
+          validateMacosSdk
+          pkgs.attic-client
+        ];
         text = ''
           exec rs-harbor sdk publish-macos "$@"
         '';
@@ -117,9 +127,13 @@
           type = "app";
           program = "${publishMacosSdk}/bin/publish-macos-sdk";
         };
+        # Bare osxcross realize step. Operators who want the Rust CLI's
+        # structured trailer should use `rs-harbor sdk realize` (no app
+        # alias — it would collide with this binary's name and break
+        # `which::which("realize-macos-sdk")` inside harbor-sdk).
         realize-macos-sdk = {
           type = "app";
-          program = "${realizeMacosSdk}/bin/realize-macos-sdk";
+          program = "${realizeMacosSdkBin}/bin/realize-macos-sdk";
         };
         validate-macos-sdk = {
           type = "app";
