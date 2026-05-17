@@ -12,6 +12,9 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 use clap::Args;
+use goblin::Object;
+use goblin::mach::{Mach, SingleArch};
+use goblin::mach::constants::cputype::{CPU_TYPE_ARM64, CPU_TYPE_X86, CPU_TYPE_X86_64, CpuType};
 
 #[derive(Args, Debug)]
 pub struct StageMacosArgs {
@@ -145,11 +148,7 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
         .iter()
         .map(|a| src_for(&args.target_dir, a).join(&args.binary))
         .collect();
-    if bin_inputs.len() == 1 {
-        copy_file(&bin_inputs[0], &out.join(&args.binary))?;
-    } else {
-        run_lipo_create(lipo, &bin_inputs, &out.join(&args.binary))?;
-    }
+    lipo_or_copy(&bin_inputs, archs, lipo, &out.join(&args.binary))?;
 
     for dylib in &args.dylib {
         let dy_inputs: Vec<PathBuf> = archs
@@ -157,13 +156,10 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
             .map(|a| src_for(&args.target_dir, a).join(dylib))
             .filter(|p| p.is_file())
             .collect();
-        match dy_inputs.len() {
-            0 => {}
-            1 => {
-                copy_file(&dy_inputs[0], &out.join(dylib))?;
-            }
-            _ => run_lipo_create(lipo, &dy_inputs, &out.join(dylib))?,
+        if dy_inputs.is_empty() {
+            continue;
         }
+        lipo_or_copy(&dy_inputs, archs, lipo, &out.join(dylib))?;
     }
 
     let sym_dst = args
@@ -190,10 +186,72 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
             })
             .collect();
         let dwarf_out = sym_dst.join("Contents/Resources/DWARF").join(&args.binary);
-        run_lipo_create(lipo, &dwarf_inputs, &dwarf_out)?;
+        lipo_or_copy(&dwarf_inputs, archs, lipo, &dwarf_out)?;
     }
 
     Ok(())
+}
+
+/// Combine per-arch Mach-O inputs into a universal output.
+///
+/// If any single input already contains every requested arch (i.e. it is a
+/// universal binary covering the whole target set), it is copied verbatim
+/// rather than fed to lipo. This is required for SDK-provided fat dylibs
+/// (e.g. Steamworks' `libsteam_api.dylib`), which `steamworks-sys` blindly
+/// copies into every per-target build dir — lipo refuses to merge two
+/// universal inputs that carry the same arch slices.
+fn lipo_or_copy(
+    inputs: &[PathBuf],
+    requested_archs: &[String],
+    lipo: &Path,
+    output: &Path,
+) -> Result<()> {
+    if inputs.len() == 1 {
+        copy_file(&inputs[0], output)?;
+        return Ok(());
+    }
+
+    if let Some(needed) = requested_archs
+        .iter()
+        .map(|a| cargo_arch_to_cputype(a))
+        .collect::<Option<Vec<CpuType>>>()
+    {
+        for input in inputs {
+            if let Ok(archs) = read_cputypes(input)
+                && needed.iter().all(|n| archs.contains(n))
+            {
+                copy_file(input, output)?;
+                return Ok(());
+            }
+        }
+    }
+
+    run_lipo_create(lipo, inputs, output)
+}
+
+fn cargo_arch_to_cputype(arch: &str) -> Option<CpuType> {
+    match arch {
+        "x86_64" => Some(CPU_TYPE_X86_64),
+        "aarch64" | "arm64" => Some(CPU_TYPE_ARM64),
+        "i386" | "x86" => Some(CPU_TYPE_X86),
+        _ => None,
+    }
+}
+
+fn read_cputypes(path: &Path) -> Result<Vec<CpuType>> {
+    let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
+    match Object::parse(&bytes) {
+        Ok(Object::Mach(Mach::Binary(macho))) => Ok(vec![macho.header.cputype]),
+        Ok(Object::Mach(Mach::Fat(fat))) => Ok(fat
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter_map(|slice| match slice {
+                SingleArch::MachO(m) => Some(m.header.cputype),
+                SingleArch::Archive(_) => None,
+            })
+            .collect()),
+        _ => bail!("not a Mach-O file: {}", path.display()),
+    }
 }
 
 fn which_lipo() -> Result<PathBuf> {
@@ -319,5 +377,103 @@ mod tests {
     #[test]
     fn parse_archs_rejects_empty_list() {
         assert!(parse_archs(",,").is_err());
+    }
+
+    #[test]
+    fn cargo_arch_to_cputype_known() {
+        assert_eq!(cargo_arch_to_cputype("x86_64"), Some(CPU_TYPE_X86_64));
+        assert_eq!(cargo_arch_to_cputype("aarch64"), Some(CPU_TYPE_ARM64));
+        assert_eq!(cargo_arch_to_cputype("arm64"), Some(CPU_TYPE_ARM64));
+        assert_eq!(cargo_arch_to_cputype("i386"), Some(CPU_TYPE_X86));
+        assert_eq!(cargo_arch_to_cputype("powerpc"), None);
+    }
+
+    #[test]
+    fn lipo_or_copy_uses_universal_input_verbatim() {
+        // Fabricate a fat Mach-O with one x86_64 and one arm64 slice and
+        // place it under both per-arch input paths. lipo_or_copy must pick
+        // it up via cputype detection and copy verbatim — calling lipo on
+        // two universal inputs that share an arch would error.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let fat_bytes = fabricate_fat_macho(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64]);
+        let x86 = tmp.path().join("x86.dylib");
+        let arm = tmp.path().join("arm.dylib");
+        let out = tmp.path().join("universal.dylib");
+        fs::write(&x86, &fat_bytes).unwrap();
+        fs::write(&arm, &fat_bytes).unwrap();
+
+        let bogus_lipo = PathBuf::from("/does-not-exist/lipo");
+        lipo_or_copy(
+            &[x86.clone(), arm.clone()],
+            &["x86_64".into(), "aarch64".into()],
+            &bogus_lipo,
+            &out,
+        )
+        .expect("verbatim copy path must not invoke lipo");
+        assert_eq!(fs::read(&out).unwrap(), fat_bytes);
+    }
+
+    #[test]
+    fn read_cputypes_reads_thin_macho() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let p = tmp.path().join("thin.dylib");
+        fs::write(&p, fabricate_thin_macho(CPU_TYPE_X86_64)).unwrap();
+        let archs = read_cputypes(&p).expect("parse");
+        assert_eq!(archs, vec![CPU_TYPE_X86_64]);
+    }
+
+    #[test]
+    fn read_cputypes_reads_fat_macho() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let p = tmp.path().join("fat.dylib");
+        fs::write(
+            &p,
+            fabricate_fat_macho(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64]),
+        )
+        .unwrap();
+        let archs = read_cputypes(&p).expect("parse");
+        assert!(archs.contains(&CPU_TYPE_X86_64));
+        assert!(archs.contains(&CPU_TYPE_ARM64));
+    }
+
+    /// Build a minimal 64-bit thin Mach-O header (28 bytes) sufficient for
+    /// goblin to identify the file and report its `cputype`.
+    fn fabricate_thin_macho(cputype: CpuType) -> Vec<u8> {
+        let mut v = Vec::new();
+        v.extend_from_slice(&0xFEED_FACF_u32.to_le_bytes()); // MH_MAGIC_64
+        v.extend_from_slice(&cputype.to_le_bytes());
+        v.extend_from_slice(&0u32.to_le_bytes()); // cpusubtype
+        v.extend_from_slice(&0u32.to_le_bytes()); // filetype (MH_OBJECT=1, 0 also accepted)
+        v.extend_from_slice(&0u32.to_le_bytes()); // ncmds
+        v.extend_from_slice(&0u32.to_le_bytes()); // sizeofcmds
+        v.extend_from_slice(&0u32.to_le_bytes()); // flags
+        v.extend_from_slice(&0u32.to_le_bytes()); // reserved (64-bit only)
+        v
+    }
+
+    /// Build a minimal big-endian `FAT_MAGIC` Mach-O wrapping thin slices for
+    /// each requested `cputype`. Layout: 8-byte fat header, then `nfat_arch`
+    /// 20-byte `fat_arch` entries (big-endian), then the thin slices at the
+    /// declared offsets.
+    fn fabricate_fat_macho(cputypes: &[CpuType]) -> Vec<u8> {
+        let header_size = 8 + cputypes.len() * 20;
+        let slice = fabricate_thin_macho(CPU_TYPE_X86_64); // arch-agnostic shape
+        let slice_size = slice.len();
+
+        let mut v = Vec::new();
+        v.extend_from_slice(&0xCAFE_BABE_u32.to_be_bytes()); // FAT_MAGIC
+        v.extend_from_slice(&u32::try_from(cputypes.len()).unwrap().to_be_bytes());
+        for (i, cpu) in cputypes.iter().enumerate() {
+            let offset = u32::try_from(header_size + i * slice_size).unwrap();
+            v.extend_from_slice(&cpu.to_be_bytes()); // cputype
+            v.extend_from_slice(&0u32.to_be_bytes()); // cpusubtype
+            v.extend_from_slice(&offset.to_be_bytes()); // offset
+            v.extend_from_slice(&u32::try_from(slice_size).unwrap().to_be_bytes()); // size
+            v.extend_from_slice(&0u32.to_be_bytes()); // align
+        }
+        for cpu in cputypes {
+            v.extend_from_slice(&fabricate_thin_macho(*cpu));
+        }
+        v
     }
 }
