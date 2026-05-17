@@ -10,6 +10,7 @@ use std::io::Write;
 const MH_MAGIC_64: u32 = 0xFEED_FACF;
 const CPU_TYPE_X86_64: i32 = 0x0100_0007;
 const CPU_SUBTYPE_X86_64_ALL: i32 = 3;
+const MH_EXECUTE: u32 = 2;
 const MH_DYLIB: u32 = 6;
 
 const LC_ID_DYLIB: u32 = 0xD;
@@ -52,8 +53,23 @@ pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
     for lib in loads {
         commands.extend(dylib_command(LC_LOAD_DYLIB, lib));
     }
+    build_with(MH_DYLIB, &commands, 1 + loads.len())
+}
 
-    let ncmds = (1 + loads.len()) as u32;
+/// Build a minimal Mach-O 64-bit thin executable with `loads` as the
+/// LC_LOAD_DYLIB dependencies. Executables carry no LC_ID_DYLIB, so
+/// goblin leaves `libs[0]` as the literal placeholder `"self"`.
+pub fn build_thin_executable(loads: &[&str]) -> Vec<u8> {
+    let mut commands = Vec::new();
+    for lib in loads {
+        commands.extend(dylib_command(LC_LOAD_DYLIB, lib));
+    }
+    build_with(MH_EXECUTE, &commands, loads.len())
+}
+
+fn build_with(filetype: u32, commands: &[u8], ncmds: usize) -> Vec<u8> {
+    #[allow(clippy::cast_possible_truncation)]
+    let ncmds_u32 = ncmds as u32;
     #[allow(clippy::cast_possible_truncation)]
     let sizeofcmds = commands.len() as u32;
 
@@ -61,11 +77,11 @@ pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
     out.extend(MH_MAGIC_64.to_le_bytes());
     out.extend(CPU_TYPE_X86_64.to_le_bytes());
     out.extend(CPU_SUBTYPE_X86_64_ALL.to_le_bytes());
-    out.extend(MH_DYLIB.to_le_bytes());
-    out.extend(ncmds.to_le_bytes());
+    out.extend(filetype.to_le_bytes());
+    out.extend(ncmds_u32.to_le_bytes());
     out.extend(sizeofcmds.to_le_bytes());
     out.extend(0u32.to_le_bytes()); // flags
     out.extend(0u32.to_le_bytes()); // reserved
-    out.write_all(&commands).unwrap();
+    out.write_all(commands).unwrap();
     out
 }

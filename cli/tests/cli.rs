@@ -358,6 +358,38 @@ fn audit_macho_passes_on_built_thin_dylib() {
 }
 
 #[test]
+fn audit_macho_passes_on_built_thin_executable() {
+    // Regression: goblin seeds libs[0] with the literal placeholder "self"
+    // for any Mach-O without LC_ID_DYLIB (i.e. every executable). audit
+    // macho must skip it rather than reporting "disallowed dependency: self".
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("chessbender");
+    fs::write(
+        &path,
+        macho_fixture::build_thin_executable(&["/usr/lib/libSystem.B.dylib"]),
+    )
+    .unwrap();
+
+    let assert = rs_harbor()
+        .args([
+            "audit",
+            "macho",
+            "--allow-dylib-regex",
+            "^(@rpath|/usr/lib/)",
+            "--forbid-path-regex",
+            "rs-harbor-never-matches",
+        ])
+        .arg(&path)
+        .assert()
+        .success();
+    let stdout = String::from_utf8(assert.get_output().stdout.clone()).unwrap();
+    assert!(
+        stdout.contains("checked 1 file(s)"),
+        "expected checked-count line: {stdout}"
+    );
+}
+
+#[test]
 fn audit_macho_fails_on_disallowed_dependency() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("libbad.dylib");

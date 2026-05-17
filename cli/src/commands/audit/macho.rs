@@ -84,9 +84,10 @@ fn audit_macho(
     report: &mut Report,
 ) {
     for dep in &macho.libs {
-        // libs[0] is typically the install_name of the binary itself; skip
-        // empty strings defensively but otherwise audit every import.
-        if dep.is_empty() {
+        // goblin seeds `libs[0]` with the literal `"self"` placeholder for
+        // every Mach-O — it is not a real dependency. Empty entries are also
+        // skipped defensively.
+        if dep.is_empty() || *dep == "self" {
             continue;
         }
         if forbid_path.is_match(dep) {
