@@ -82,7 +82,7 @@
   # that link against `steamworks-rs` pass without further configuration.
   defaultAllowRegexes = {
     linuxNeeded = "^(ld-linux.*|lib(c|m|dl|rt|pthread|gcc_s|stdc\\+\\+|steam_api|vulkan|X11|Xi|Xcursor|Xrandr|Xinerama|Xfixes|xcb|wayland-client|xkbcommon|asound|udev|GL|EGL|drm|gbm|expat|z|bz2|fontconfig|freetype|png16|zstd|graphite2|harfbuzz|brotli.*|dbus-1|systemd|cap|resolv|util|nss_.*|nsl|anl).*)\\.so(\\..*)?$";
-    windowsDll = "^(ADVAPI32|BCRYPT|bcryptprimitives|combase|CRYPT32|DBGHELP|DNSAPI|dwmapi|GDI32|imm32|IPHLPAPI|KERNEL32|MSVCP140|NTDLL|OLE32|OLEAUT32|POWRPROF|secur32|SHELL32|uiautomationcore|USER32|USERENV|uxtheme|VCRUNTIME140|VCRUNTIME140_1|VERSION|WINHTTP|WINMM|WS2_32|api-ms-win-.*|steam_api64)\\.dll$";
+    windowsDll = "^(ADVAPI32|BCRYPT|bcryptprimitives|combase|CRYPT32|DBGHELP|DNSAPI|dwmapi|GDI32|imm32|IPHLPAPI|KERNEL32|MSVCP140|NTDLL|OLE32|OLEAUT32|OPENGL32|POWRPROF|secur32|SHELL32|uiautomationcore|USER32|USERENV|uxtheme|VCRUNTIME140|VCRUNTIME140_1|VERSION|WINHTTP|WINMM|WS2_32|api-ms-win-.*|steam_api64)\\.dll$";
     macosDylib = "^(@executable_path|@loader_path/libsteam_api\\.dylib$|@rpath|/usr/lib/|/System/Library/)";
   };
 

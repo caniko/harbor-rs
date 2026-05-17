@@ -437,6 +437,7 @@ in {
     assert builtins.match s.defaultAllowRegexes.linuxNeeded "libsketchy.so" == null;
     assert builtins.match s.defaultAllowRegexes.windowsDll "steam_api64.dll" != null;
     assert builtins.match s.defaultAllowRegexes.windowsDll "KERNEL32.dll" != null;
+    assert builtins.match s.defaultAllowRegexes.windowsDll "OPENGL32.dll" != null;
     assert builtins.match "${s.defaultAllowRegexes.macosDylib}.*" "@rpath/libfoo.dylib" != null;
     assert builtins.match "${s.defaultAllowRegexes.macosDylib}.*" "/usr/local/lib/libfoo.dylib" == null;
     assert s ? steamworksRsCargoLibraryHook;
