@@ -179,17 +179,62 @@ fn stage_universal(args: &StageMacosArgs, archs: &[String], lipo: &Path) -> Resu
         let dwarf_inputs: Vec<PathBuf> = archs
             .iter()
             .map(|a| {
-                src_for(&args.target_dir, a)
-                    .join(dsym_name(&args.binary))
-                    .join("Contents/Resources/DWARF")
-                    .join(&args.binary)
+                let dsym = src_for(&args.target_dir, a).join(dsym_name(&args.binary));
+                find_dwarf_file(&dsym, &args.binary)
             })
-            .collect();
-        let dwarf_out = sym_dst.join("Contents/Resources/DWARF").join(&args.binary);
-        lipo_or_copy(&dwarf_inputs, archs, lipo, &dwarf_out)?;
+            .collect::<Result<Vec<_>>>()?;
+
+        // Drop the per-arch DWARF file copied in from arch[0]'s dSYM and
+        // emit the merged DWARF under the canonical unhashed name. Cargo
+        // with split-debuginfo=packed names the per-arch DWARF
+        // `{binary}-{rustc_metadata_hash}`, so the previous hardcoded
+        // `{binary}` path would never have matched.
+        let dwarf_subdir = sym_dst.join("Contents/Resources/DWARF");
+        if dwarf_subdir.exists() {
+            for entry in fs::read_dir(&dwarf_subdir)? {
+                let entry = entry?;
+                if entry.file_type()?.is_file() {
+                    fs::remove_file(entry.path())?;
+                }
+            }
+        }
+        lipo_or_copy(&dwarf_inputs, archs, lipo, &dwarf_subdir.join(&args.binary))?;
     }
 
     Ok(())
+}
+
+fn find_dwarf_file(dsym_dir: &Path, binary: &str) -> Result<PathBuf> {
+    let dwarf_dir = dsym_dir.join("Contents/Resources/DWARF");
+    let canonical = dwarf_dir.join(binary);
+    if canonical.is_file() {
+        return Ok(canonical);
+    }
+    let prefix = format!("{binary}-");
+    let mut matches: Vec<PathBuf> = Vec::new();
+    for entry in fs::read_dir(&dwarf_dir)
+        .with_context(|| format!("reading {}", dwarf_dir.display()))?
+    {
+        let entry = entry?;
+        let name = entry.file_name();
+        if name.to_string_lossy().starts_with(&prefix) && entry.file_type()?.is_file() {
+            matches.push(entry.path());
+        }
+    }
+    match matches.len() {
+        0 => bail!(
+            "no DWARF file for binary {} under {}",
+            binary,
+            dwarf_dir.display()
+        ),
+        1 => Ok(matches.pop().unwrap()),
+        n => bail!(
+            "expected one DWARF file for binary {} under {}, found {}",
+            binary,
+            dwarf_dir.display(),
+            n,
+        ),
+    }
 }
 
 /// Combine per-arch Mach-O inputs into a universal output.
@@ -420,6 +465,47 @@ mod tests {
         fs::write(&p, fabricate_thin_macho(CPU_TYPE_X86_64)).unwrap();
         let archs = read_cputypes(&p).expect("parse");
         assert_eq!(archs, vec![CPU_TYPE_X86_64]);
+    }
+
+    #[test]
+    fn find_dwarf_file_prefers_canonical_name() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dwarf_dir = tmp.path().join("foo.dSYM/Contents/Resources/DWARF");
+        fs::create_dir_all(&dwarf_dir).unwrap();
+        fs::write(dwarf_dir.join("foo"), b"x").unwrap();
+        fs::write(dwarf_dir.join("foo-abcdef"), b"x").unwrap();
+        let found = find_dwarf_file(&tmp.path().join("foo.dSYM"), "foo").unwrap();
+        assert_eq!(found.file_name().unwrap(), "foo");
+    }
+
+    #[test]
+    fn find_dwarf_file_falls_back_to_hashed_name() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dwarf_dir = tmp.path().join("foo.dSYM/Contents/Resources/DWARF");
+        fs::create_dir_all(&dwarf_dir).unwrap();
+        fs::write(dwarf_dir.join("foo-deadbeef"), b"x").unwrap();
+        let found = find_dwarf_file(&tmp.path().join("foo.dSYM"), "foo").unwrap();
+        assert_eq!(found.file_name().unwrap(), "foo-deadbeef");
+    }
+
+    #[test]
+    fn find_dwarf_file_errors_when_missing() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dwarf_dir = tmp.path().join("foo.dSYM/Contents/Resources/DWARF");
+        fs::create_dir_all(&dwarf_dir).unwrap();
+        let err = find_dwarf_file(&tmp.path().join("foo.dSYM"), "foo").unwrap_err();
+        assert!(err.to_string().contains("no DWARF file"));
+    }
+
+    #[test]
+    fn find_dwarf_file_errors_on_ambiguous_match() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dwarf_dir = tmp.path().join("foo.dSYM/Contents/Resources/DWARF");
+        fs::create_dir_all(&dwarf_dir).unwrap();
+        fs::write(dwarf_dir.join("foo-aaa"), b"x").unwrap();
+        fs::write(dwarf_dir.join("foo-bbb"), b"x").unwrap();
+        let err = find_dwarf_file(&tmp.path().join("foo.dSYM"), "foo").unwrap_err();
+        assert!(err.to_string().contains("expected one DWARF file"));
     }
 
     #[test]
