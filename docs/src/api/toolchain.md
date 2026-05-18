@@ -7,7 +7,7 @@
 - `pkgs` (required): nixpkgs with `rust-overlay` applied
 - `channel`: `"nightly"` or `"stable"`; defaults to `"nightly"`
 - `date`: `"latest"` or a pinned date such as `"2025-12-01"`
-- `extensions`: extra Rust components to install
+- `extensions`: extra Rust components to install. Defaults to `["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"]`. `llvm-tools-preview` provides `llvm-cov`/`llvm-profdata`, which `cargo-llvm-cov`-based coverage CI requires.
 - `crossTargets`: list of target triples to include in the toolchain
 
 ## Returns
