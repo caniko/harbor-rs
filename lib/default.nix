@@ -17,4 +17,5 @@ in {
   mkAndroidApk = import ./android-apk.nix;
   mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
+  mkCoprSpec = import ./copr-spec.nix;
 }

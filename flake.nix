@@ -57,59 +57,28 @@
       sitePackages = import ./nix/site.nix {inherit pkgs;};
       bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {inherit pkgs;};
 
-      # rs-harbor's own type-safe CLI, used to back the helper packages
-      # (e.g. stage-macos-universal). Built with crane against the
-      # workspace at the repo root.
-      craneLib = toolchain.craneLib;
-      # Custom source filter: keep cleanCargoSource defaults plus the
-      # binary fixtures used by the integration test suite (PE/Mach-O
-      # samples for `rs-harbor audit`).
-      rsHarborSrc = pkgs.lib.cleanSourceWith {
+      # rs-harbor's own type-safe CLI, built from the workspace at the
+      # repo root. Backs the helper packages (e.g. stage-macos-universal).
+      rsHarborCli = import ./nix/rs-harbor-cli.nix {
+        inherit pkgs;
+        inherit (toolchain) craneLib;
         src = ./.;
-        filter = path: type:
-          (craneLib.filterCargoSources path type)
-          || (builtins.match ".*/tests/fixtures/.*" path != null);
-        name = "rs-harbor-source";
-      };
-      # .cargo/config.toml pins `linker = "clang"` + `-fuse-ld=mold` for
-      # x86_64-linux. Crane's default build sandbox has neither — expose
-      # both as nativeBuildInputs so the linker invocation succeeds.
-      rsHarborCli = craneLib.buildPackage {
-        pname = "rs-harbor";
-        version = "0.1.0";
-        src = rsHarborSrc;
-        strictDeps = true;
-        doCheck = true;
-        nativeBuildInputs = [
-          pkgs.clang
-          pkgs.mold
-        ];
       };
 
       macosStaging = self.lib.mkMacosUniversalStager {
-        inherit pkgs;
-        rsHarborCli = rsHarborCli;
+        inherit pkgs rsHarborCli;
       };
-      # The osxcross binary literally named `realize-macos-sdk`. The Rust
-      # CLI's `harbor-sdk::realize_macos_sdk` does `which::which("realize-macos-sdk")`
-      # at runtime, so we must NOT export a shell wrapper of the same name —
-      # it would shadow the osxcross binary and cause infinite self-recursion.
-      realizeMacosSdkBin = osxcross.packages.${system}.realize-macos-sdk;
-      publishMacosSdk = pkgs.writeShellApplication {
-        name = "publish-macos-sdk";
-        runtimeInputs = [
-          rsHarborCli
-          realizeMacosSdkBin
-          validateMacosSdk
-          pkgs.attic-client
-        ];
-        text = ''
-          exec rs-harbor sdk publish-macos "$@"
-        '';
+      # `realizeMacosSdkBin` is the osxcross binary literally named
+      # `realize-macos-sdk`. The Rust CLI's `harbor-sdk::realize_macos_sdk`
+      # does `which::which("realize-macos-sdk")` at runtime, so we must NOT
+      # export a shell wrapper of the same name — it would shadow the
+      # osxcross binary and cause infinite self-recursion.
+      macosSdkTools = import ./nix/macos-sdk-tools.nix {
+        inherit pkgs rsHarborCli validateMacosSdk;
+        realizeMacosSdkBin = osxcross.packages.${system}.realize-macos-sdk;
       };
       steamRuntimeTools = self.lib.mkSteamRuntimeTools {
-        inherit pkgs;
-        rsHarborCli = rsHarborCli;
+        inherit pkgs rsHarborCli;
       };
     in {
       packages =
@@ -125,7 +94,7 @@
       apps = {
         publish-macos-sdk = {
           type = "app";
-          program = "${publishMacosSdk}/bin/publish-macos-sdk";
+          program = "${macosSdkTools.publishMacosSdk}/bin/publish-macos-sdk";
         };
         # Bare osxcross realize step. Operators who want the Rust CLI's
         # structured trailer should use `rs-harbor sdk realize` (no app
@@ -133,7 +102,7 @@
         # `which::which("realize-macos-sdk")` inside harbor-sdk).
         realize-macos-sdk = {
           type = "app";
-          program = "${realizeMacosSdkBin}/bin/realize-macos-sdk";
+          program = "${macosSdkTools.realizeMacosSdkBin}/bin/realize-macos-sdk";
         };
         validate-macos-sdk = {
           type = "app";

@@ -9,7 +9,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCross` for MinGW and optional osxcross environments
 - `mkDevShell` and `mkDevShells` for consistent development shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
-- `mkAppImage` and `mkFlatpakManifest` for packaging outputs
+- `mkAppImage`, `mkFlatpakManifest`, and `mkCoprSpec` for packaging outputs
 
 ## Prerequisites
 
@@ -65,5 +65,6 @@ Then pass the realized store path to `mkCross` from host configuration rather th
 - [mkCross](docs/src/api/cross.md)
 - [mkDevShell and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
+- [COPR spec](docs/src/packaging/copr.md)
 
 Source repository: <https://codeberg.org/caniko/rs-harbor>

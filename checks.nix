@@ -709,6 +709,116 @@ in {
     assert builtins.isString app.program;
     pkgs.runCommand "check-mkAtticPush-shape" {} "touch $out";
 
+  # mkCoprSpec returns expected attributes with default binary-shipping layout
+  mkCoprSpec-shape = let
+    s = self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "test-app";
+      version = "1.0.0";
+      summary = "Test summary";
+      license = "MIT";
+    };
+  in
+    assert s ? specText;
+    assert s ? specPath;
+    assert !(s ? coprMakefilePath);
+    assert builtins.isString s.specText;
+    assert pkgs.lib.hasInfix "Name:    test-app" s.specText;
+    assert pkgs.lib.hasInfix "Version: 1.0.0" s.specText;
+    assert pkgs.lib.hasInfix "License: MIT" s.specText;
+    assert pkgs.lib.hasInfix "Source0: %{name}-%{version}.tar.gz" s.specText;
+    assert pkgs.lib.hasInfix "%{_bindir}/%{name}" s.specText;
+    assert pkgs.lib.hasInfix "%description\nTest summary" s.specText;
+    pkgs.runCommand "check-mkCoprSpec-shape" {} "touch $out";
+
+  # mkCoprSpec includes desktop + icon install rules when provided
+  mkCoprSpec-desktop-icon = let
+    s = self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "myapp";
+      version = "2.3";
+      summary = "Demo";
+      license = "Apache-2.0";
+      appId = "com.example.MyApp";
+      desktopFile = "[Desktop Entry]\nType=Application";
+      icon = "/some/path/myapp.png";
+    };
+  in
+    assert pkgs.lib.hasInfix "com.example.MyApp.desktop" s.specText;
+    assert pkgs.lib.hasInfix "hicolor/256x256/apps/com.example.MyApp.png" s.specText;
+    assert pkgs.lib.hasInfix "install -Dm644 myapp.png" s.specText;
+    pkgs.runCommand "check-mkCoprSpec-desktop-icon" {} "touch $out";
+
+  # mkCoprSpec emits a custom-build Makefile when requested
+  mkCoprSpec-copr-makefile = let
+    s = self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "withmake";
+      version = "0.1";
+      summary = "x";
+      license = "MIT";
+      coprMakefile = true;
+    };
+  in
+    assert s ? coprMakefilePath;
+    pkgs.runCommand "check-mkCoprSpec-copr-makefile" {} ''
+      grep 'SPEC := withmake.spec' ${s.coprMakefilePath}
+      grep '^srpm:' ${s.coprMakefilePath}
+      grep 'rpmbuild -bs' ${s.coprMakefilePath}
+      touch $out
+    '';
+
+  # mkCoprSpec renders changelog entries in RPM format
+  mkCoprSpec-changelog = let
+    s = self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "cl";
+      version = "1.2";
+      summary = "x";
+      license = "MIT";
+      changelog = [
+        {
+          date = "Tue May 19 2026";
+          author = "Can <can@example.com>";
+          version = "1.2-1";
+          entries = ["Bump to 1.2" "Fix the bug"];
+        }
+      ];
+    };
+  in
+    assert pkgs.lib.hasInfix "%changelog" s.specText;
+    assert pkgs.lib.hasInfix "* Tue May 19 2026 Can <can@example.com> - 1.2-1" s.specText;
+    assert pkgs.lib.hasInfix "- Bump to 1.2" s.specText;
+    assert pkgs.lib.hasInfix "- Fix the bug" s.specText;
+    pkgs.runCommand "check-mkCoprSpec-changelog" {} "touch $out";
+
+  # mkCoprSpec rejects an RPM-illegal version (contains '-')
+  mkCoprSpec-rejects-bad-version = let
+    result = builtins.tryEval (self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "x";
+      version = "1.0-beta";
+      summary = "x";
+      license = "MIT";
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkCoprSpec-rejects-bad-version" {} "touch $out";
+
+  # mkCoprSpec rejects a non-reverse-DNS appId
+  mkCoprSpec-rejects-bad-appid = let
+    result = builtins.tryEval (self.lib.mkCoprSpec {
+      inherit pkgs;
+      name = "x";
+      version = "1";
+      summary = "x";
+      license = "MIT";
+      appId = "notReverseDns";
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkCoprSpec-rejects-bad-appid" {} "touch $out";
+
   # Validation logic works correctly
   validation-helpers = let
     dateRegex = "[0-9]{4}-[0-9]{2}-[0-9]{2}";

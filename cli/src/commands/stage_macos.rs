@@ -13,8 +13,8 @@ use std::process::Command;
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use goblin::Object;
-use goblin::mach::{Mach, SingleArch};
 use goblin::mach::constants::cputype::{CPU_TYPE_ARM64, CPU_TYPE_X86, CPU_TYPE_X86_64, CpuType};
+use goblin::mach::{Mach, SingleArch};
 
 #[derive(Args, Debug)]
 pub struct StageMacosArgs {
@@ -212,8 +212,8 @@ fn find_dwarf_file(dsym_dir: &Path, binary: &str) -> Result<PathBuf> {
     }
     let prefix = format!("{binary}-");
     let mut matches: Vec<PathBuf> = Vec::new();
-    for entry in fs::read_dir(&dwarf_dir)
-        .with_context(|| format!("reading {}", dwarf_dir.display()))?
+    for entry in
+        fs::read_dir(&dwarf_dir).with_context(|| format!("reading {}", dwarf_dir.display()))?
     {
         let entry = entry?;
         let name = entry.file_name();
@@ -512,11 +512,7 @@ mod tests {
     fn read_cputypes_reads_fat_macho() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let p = tmp.path().join("fat.dylib");
-        fs::write(
-            &p,
-            fabricate_fat_macho(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64]),
-        )
-        .unwrap();
+        fs::write(&p, fabricate_fat_macho(&[CPU_TYPE_X86_64, CPU_TYPE_ARM64])).unwrap();
         let archs = read_cputypes(&p).expect("parse");
         assert!(archs.contains(&CPU_TYPE_X86_64));
         assert!(archs.contains(&CPU_TYPE_ARM64));
