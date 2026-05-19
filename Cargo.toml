@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["cli", "crates/harbor-sdk", "crates/harbor-cache"]
+members = ["cli", "crates/harbor-sdk", "crates/harbor-cache", "crates/harbor-xtask"]
 
 [workspace.package]
 edition = "2024"
