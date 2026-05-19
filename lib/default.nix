@@ -12,10 +12,12 @@ in {
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
   inherit (devShellLib) mkDevShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
+  findLocalMavenCache = import ./android-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
-  mkAppImage = import ./appimage.nix;
   mkAndroidApk = import ./android-apk.nix;
   mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
+  mkAndroidFlavorTable = import ./android-flavor-table.nix;
+  mkAppImage = import ./appimage.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkCoprSpec = import ./copr-spec.nix;
 }

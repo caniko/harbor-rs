@@ -408,6 +408,76 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
+  # findLocalMavenCache returns null until both hash and host tarball exist.
+  findLocalMavenCache-missing-inputs = let
+    missingHash = self.lib.findLocalMavenCache {
+      sha256Path = ./tests/fixtures/android-maven-cache/missing.sha256;
+      hostPath = ./tests/fixtures/android-maven-cache/cache.tar;
+      name = "fixture-cache.tar";
+    };
+    missingTar = self.lib.findLocalMavenCache {
+      sha256Path = ./tests/fixtures/android-maven-cache/cache.sha256;
+      hostPath = ./tests/fixtures/android-maven-cache/missing.tar;
+      name = "fixture-cache.tar";
+    };
+  in
+    assert missingHash == null;
+    assert missingTar == null;
+    pkgs.runCommand "check-findLocalMavenCache-missing-inputs" {} "touch $out";
+
+  # findLocalMavenCache imports a flat-hashed tarball as a store path.
+  findLocalMavenCache-flat-hash = let
+    cache = self.lib.findLocalMavenCache {
+      sha256Path = ./tests/fixtures/android-maven-cache/cache.sha256;
+      hostPath = ./tests/fixtures/android-maven-cache/cache.tar;
+      name = "fixture-cache.tar";
+    };
+  in
+    assert cache != null;
+    assert pkgs.lib.hasSuffix "-fixture-cache.tar" (builtins.baseNameOf cache);
+    pkgs.runCommand "check-findLocalMavenCache-flat-hash" {} "touch $out";
+
+  # mkAndroidFlavorTable expands asymmetric flavor modes into packages, dev
+  # builders, and app wrappers while preserving caller-owned public names.
+  mkAndroidFlavorTable-shape = let
+    table = self.lib.mkAndroidFlavorTable {
+      inherit pkgs;
+      androidSdk = pkgs.emptyDirectory;
+      rustToolchain = pkgs.emptyDirectory;
+      workspaceSrc = pkgs.emptyDirectory;
+      commonCargoFeatures = ["tutorial"];
+      commonCargoNoDefaultFeatures = true;
+      flavors = {
+        app = {
+          cargoPkg = "game";
+          gradleModule = ":app";
+          packageModes = ["debug" "release"];
+          packageAttr = mode: "android-apk-${mode}";
+          devAppAttr = "android-apk";
+        };
+        test-peer = {
+          cargoPkg = "game-test-peer";
+          gradleModule = ":test-peer";
+          packageModes = ["debug"];
+          packageAttr = mode: "android-test-peer-apk";
+          devAppAttr = "android-test-peer-apk";
+        };
+      };
+    };
+  in
+    assert table ? packages;
+    assert table ? devBuilders;
+    assert table ? apps;
+    assert table.packages ? android-apk-debug;
+    assert table.packages ? android-apk-release;
+    assert table.packages ? android-test-peer-apk;
+    assert !(table.packages ? android-test-peer-apk-release);
+    assert table.devBuilders ? android-apk;
+    assert table.devBuilders ? android-test-peer-apk;
+    assert table.apps.android-apk.type == "app";
+    assert table.apps.android-test-peer-apk.type == "app";
+    pkgs.runCommand "check-mkAndroidFlavorTable-shape" {} "touch $out";
+
   # mkSteamRuntimeTools returns expected metadata and packages.
   # rsHarborCli is now required, so we pass the flake-built CLI here.
   mkSteamRuntimeTools-shape = let
