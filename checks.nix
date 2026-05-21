@@ -1082,6 +1082,437 @@ in {
   in
     assert !result.success;
     pkgs.runCommand "check-mkHomebrewFormula-rejects-bad-platform" {} "touch $out";
+
+  # mkChocoPackage returns expected attributes and package layout.
+  mkChocoPackage-shape = let
+    f = self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "modde";
+      version = "1.2.3";
+      description = "Cross-platform game mod manager for Windows";
+      homepage = "https://modde.tartanoglu.com";
+      license = "MIT";
+      licenseUrl = "https://codeberg.org/caniko/modde/raw/branch/main/LICENSE";
+      authors = ["Can Tartanoglu"];
+      architectures.x64 = {
+        url = "https://codeberg.org/caniko/modde/releases/download/1.2.3/modde-1.2.3-x86_64-pc-windows-msvc.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["modde"];
+    };
+  in
+    assert f ? nuspecText;
+    assert f ? installScriptText;
+    assert f ? packageDir;
+    assert builtins.isString f.nuspecText;
+    assert builtins.isString f.installScriptText;
+    assert pkgs.lib.hasInfix "<id>modde</id>" f.nuspecText;
+    assert pkgs.lib.hasInfix "<version>1.2.3</version>" f.nuspecText;
+    assert pkgs.lib.hasInfix "url64bit" f.installScriptText;
+    assert pkgs.lib.hasInfix "checksum64" f.installScriptText;
+    pkgs.runCommand "check-mkChocoPackage-shape" {
+      nativeBuildInputs = [pkgs.libxml2];
+    } ''
+      test -f ${f.packageDir}/modde.nuspec
+      test -f ${f.packageDir}/tools/chocolateyInstall.ps1
+      grep '<id>modde</id>' ${f.packageDir}/modde.nuspec
+      grep "url64bit = 'https://codeberg.org/caniko/modde/releases/download/1.2.3/modde-1.2.3-x86_64-pc-windows-msvc.zip'" \
+        ${f.packageDir}/tools/chocolateyInstall.ps1
+      xmllint --noout ${f.packageDir}/modde.nuspec
+      touch $out
+    '';
+
+  # mkChocoPackage emits the expected PowerShell keys for multiple Windows architectures.
+  mkChocoPackage-multi-arch = let
+    f = self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "multi-app";
+      version = "2.0.0";
+      description = "Windows CLI package";
+      homepage = "https://example.com";
+      license = "Apache-2.0";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures = {
+        x64 = {
+          url = "https://example.com/multi-app-2.0.0-x86_64-pc-windows-msvc.zip";
+          sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        };
+        arm64 = {
+          url = "https://example.com/multi-app-2.0.0-aarch64-pc-windows-msvc.zip";
+          sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+        };
+      };
+      binaries = ["multi-app"];
+    };
+  in
+    assert pkgs.lib.hasInfix "url64bit" f.installScriptText;
+    assert pkgs.lib.hasInfix "urlArm64" f.installScriptText;
+    assert pkgs.lib.hasInfix "checksumType64 = 'sha256'" f.installScriptText;
+    assert pkgs.lib.hasInfix "checksumTypeArm64 = 'sha256'" f.installScriptText;
+    pkgs.runCommand "check-mkChocoPackage-multi-arch" {} "touch $out";
+
+  # mkChocoPackage omits checksum args when the caller uses :no_check placeholders.
+  mkChocoPackage-no-check-placeholder = let
+    f = self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "placeholder-app";
+      version = "1.0.0";
+      description = "Placeholder checksum package";
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x64 = {
+        url = "https://example.com/placeholder-app-1.0.0-x86_64-pc-windows-msvc.zip";
+        sha256 = ":no_check";
+      };
+      binaries = ["placeholder-app"];
+    };
+  in
+    assert pkgs.lib.hasInfix "url64bit" f.installScriptText;
+    assert !(pkgs.lib.hasInfix "checksum64" f.installScriptText);
+    assert !(pkgs.lib.hasInfix "checksumType64" f.installScriptText);
+    pkgs.runCommand "check-mkChocoPackage-no-check-placeholder" {
+      nativeBuildInputs = [pkgs.libxml2];
+    } ''
+      test -f ${f.packageDir}/placeholder-app.nuspec
+      grep "url64bit = 'https://example.com/placeholder-app-1.0.0-x86_64-pc-windows-msvc.zip'" \
+        ${f.packageDir}/tools/chocolateyInstall.ps1
+      if grep -q "checksum64" ${f.packageDir}/tools/chocolateyInstall.ps1; then
+        echo "checksum64 should be omitted for :no_check" >&2
+        exit 1
+      fi
+      xmllint --noout ${f.packageDir}/placeholder-app.nuspec
+      touch $out
+    '';
+
+  # mkChocoPackage XML-escapes metadata content before writing the nuspec.
+  mkChocoPackage-xml-escaping = let
+    f = self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "xml-app";
+      version = "1.0.0";
+      description = ''Needs <escaping> & "quotes" in XML'';
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x86 = {
+        url = "https://example.com/xml-app-1.0.0-i686-pc-windows-msvc.zip";
+        sha256 = "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
+      };
+      binaries = ["xml-app"];
+    };
+  in
+    assert pkgs.lib.hasInfix "&lt;escaping&gt;" f.nuspecText;
+    assert pkgs.lib.hasInfix "&amp;" f.nuspecText;
+    assert pkgs.lib.hasInfix "&quot;quotes&quot;" f.nuspecText;
+    pkgs.runCommand "check-mkChocoPackage-xml-escaping" {
+      nativeBuildInputs = [pkgs.libxml2];
+    } ''
+      xmllint --noout ${f.packageDir}/xml-app.nuspec
+      touch $out
+    '';
+
+  # mkChocoPackage rejects a Chocolatey-illegal package id.
+  mkChocoPackage-rejects-bad-id = let
+    result = builtins.tryEval (self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "Bad_Id";
+      version = "1.0.0";
+      description = "Bad id package";
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x64 = {
+        url = "https://example.com/bad-id.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["bad-id"];
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkChocoPackage-rejects-bad-id" {} "touch $out";
+
+  # mkChocoPackage rejects versions with a leading v.
+  mkChocoPackage-rejects-bad-version = let
+    result = builtins.tryEval (self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "bad-version";
+      version = "v1.0.0";
+      description = "Bad version package";
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x64 = {
+        url = "https://example.com/bad-version.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["bad-version"];
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkChocoPackage-rejects-bad-version" {} "touch $out";
+
+  # mkChocoPackage rejects descriptions longer than Chocolatey's nuspec limit.
+  mkChocoPackage-rejects-long-description = let
+    result = builtins.tryEval (self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "long-description";
+      version = "1.0.0";
+      description = builtins.concatStringsSep "" (builtins.genList (_: "a") 4001);
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x64 = {
+        url = "https://example.com/long-description.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["long-description"];
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkChocoPackage-rejects-long-description" {} "touch $out";
+
+  # mkChocoPackage rejects non-HTTPS homepages.
+  mkChocoPackage-rejects-http-homepage = let
+    result = builtins.tryEval (self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "http-homepage";
+      version = "1.0.0";
+      description = "HTTP homepage package";
+      homepage = "http://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.x64 = {
+        url = "https://example.com/http-homepage.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["http-homepage"];
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkChocoPackage-rejects-http-homepage" {} "touch $out";
+
+  # mkChocoPackage rejects unsupported Windows architecture keys.
+  mkChocoPackage-rejects-bad-arch-key = let
+    result = builtins.tryEval (self.lib.mkChocoPackage {
+      inherit pkgs;
+      id = "bad-arch";
+      version = "1.0.0";
+      description = "Bad architecture package";
+      homepage = "https://example.com";
+      license = "MIT";
+      licenseUrl = "https://example.com/LICENSE";
+      authors = ["Example Author"];
+      architectures.ppc64 = {
+        url = "https://example.com/bad-arch.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["bad-arch"];
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkChocoPackage-rejects-bad-arch-key" {} "touch $out";
+
+  # mkScoopManifest returns expected attributes and a bin list.
+  mkScoopManifest-shape = let
+    m = self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "modde";
+      version = "1.2.3";
+      description = "Cross-platform game mod manager";
+      homepage = "https://modde.tartanoglu.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/modde-1.2.3-x86_64-pc-windows-msvc.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      binaries = ["modde.exe" "modde-ui.exe"];
+    };
+    parsed = builtins.fromJSON m.manifestText;
+  in
+    assert m ? manifestText;
+    assert m ? manifestPath;
+    assert builtins.isString m.manifestText;
+    assert parsed.architecture."64bit".url == "https://example.com/modde-1.2.3-x86_64-pc-windows-msvc.zip";
+    assert parsed.bin == ["modde.exe" "modde-ui.exe"];
+    pkgs.runCommand "check-mkScoopManifest-shape" {
+      nativeBuildInputs = [pkgs.jq];
+    } ''
+      jq -e '.architecture["64bit"].url == "https://example.com/modde-1.2.3-x86_64-pc-windows-msvc.zip"' ${m.manifestPath}
+      jq -e '.bin == ["modde.exe", "modde-ui.exe"]' ${m.manifestPath}
+      touch $out
+    '';
+
+  # mkScoopManifest emits the requested architecture blocks.
+  mkScoopManifest-multi-arch = let
+    both = self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "multi-app";
+      version = "1.0.0";
+      description = "Multi arch app";
+      homepage = "https://example.com";
+      license = "Apache-2.0";
+      architectures = {
+        "64bit" = {
+          url = "https://example.com/multi-app-1.0.0-x86_64-pc-windows-msvc.zip";
+          sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        };
+        arm64 = {
+          url = "https://example.com/multi-app-1.0.0-aarch64-pc-windows-msvc.zip";
+          sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        };
+      };
+    };
+    armOnly = self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "arm-app";
+      version = "1.0.0";
+      description = "Arm app";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures.arm64 = {
+        url = "https://example.com/arm-app-1.0.0-aarch64-pc-windows-msvc.zip";
+        sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+      };
+    };
+    bothParsed = builtins.fromJSON both.manifestText;
+    armOnlyParsed = builtins.fromJSON armOnly.manifestText;
+  in
+    assert bothParsed.architecture ? "64bit";
+    assert bothParsed.architecture ? arm64;
+    assert armOnlyParsed.architecture ? arm64;
+    assert !(armOnlyParsed.architecture ? "64bit");
+    pkgs.runCommand "check-mkScoopManifest-multi-arch" {
+      nativeBuildInputs = [pkgs.jq];
+    } ''
+      jq -e '.architecture["64bit"].hash == "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' ${both.manifestPath}
+      jq -e '.architecture.arm64.hash == "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"' ${both.manifestPath}
+      jq -e '.architecture.arm64.url == "https://example.com/arm-app-1.0.0-aarch64-pc-windows-msvc.zip"' ${armOnly.manifestPath}
+      touch $out
+    '';
+
+  # mkScoopManifest omits hash entries for :no_check placeholders.
+  mkScoopManifest-no-check-placeholder = let
+    m = self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "placeholder-app";
+      version = "1.0.0";
+      description = "Placeholder checksum app";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/placeholder-app-1.0.0-x86_64-pc-windows-msvc.zip";
+        sha256 = ":no_check";
+      };
+    };
+    parsed = builtins.fromJSON m.manifestText;
+  in
+    assert parsed ? _comment;
+    assert !(parsed.architecture."64bit" ? hash);
+    pkgs.runCommand "check-mkScoopManifest-no-check-placeholder" {
+      nativeBuildInputs = [pkgs.jq];
+    } ''
+      jq -e '._comment | contains(":no_check")' ${m.manifestPath}
+      jq -e 'has("architecture") and (.architecture["64bit"] | has("hash") | not)' ${m.manifestPath}
+      touch $out
+    '';
+
+  # mkScoopManifest rejects a Scoop-illegal manifest name.
+  mkScoopManifest-rejects-bad-name = let
+    result = builtins.tryEval (self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "Bad_Name";
+      version = "1.0.0";
+      description = "Bad name app";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/bad-name.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkScoopManifest-rejects-bad-name" {} "touch $out";
+
+  # mkScoopManifest rejects versions with a leading v.
+  mkScoopManifest-rejects-bad-version = let
+    result = builtins.tryEval (self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "bad-version";
+      version = "v1.0.0";
+      description = "Bad version app";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/bad-version.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkScoopManifest-rejects-bad-version" {} "touch $out";
+
+  # mkScoopManifest rejects descriptions longer than the helper allows.
+  mkScoopManifest-rejects-long-desc = let
+    result = builtins.tryEval (self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "long-desc";
+      version = "1.0.0";
+      description = "This description is deliberately longer than eighty characters so validation rejects it.";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/long-desc.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkScoopManifest-rejects-long-desc" {} "touch $out";
+
+  # mkScoopManifest rejects non-HTTPS homepages.
+  mkScoopManifest-rejects-http-homepage = let
+    result = builtins.tryEval (self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "http-homepage";
+      version = "1.0.0";
+      description = "HTTP homepage app";
+      homepage = "http://example.com";
+      license = "MIT";
+      architectures."64bit" = {
+        url = "https://example.com/http-homepage.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkScoopManifest-rejects-http-homepage" {} "touch $out";
+
+  # mkScoopManifest rejects unsupported architecture keys.
+  mkScoopManifest-rejects-bad-arch-key = let
+    result = builtins.tryEval (self.lib.mkScoopManifest {
+      inherit pkgs;
+      name = "bad-arch";
+      version = "1.0.0";
+      description = "Bad architecture app";
+      homepage = "https://example.com";
+      license = "MIT";
+      architectures.x86_64 = {
+        url = "https://example.com/bad-arch.zip";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkScoopManifest-rejects-bad-arch-key" {} "touch $out";
 }
 // pkgs.lib.optionalAttrs isLinux {
   # mkFlatpakManifest returns expected attributes

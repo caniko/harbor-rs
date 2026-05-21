@@ -18,6 +18,7 @@ in {
   mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
   mkAndroidFlavorTable = import ./android-flavor-table.nix;
   mkAppImage = import ./appimage.nix;
+  mkChocoPackage = import ./choco-package.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkCoprSpec = import ./copr-spec.nix;
   mkHomebrewFormula = import ./homebrew-formula.nix;
