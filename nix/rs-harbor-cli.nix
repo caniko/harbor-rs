@@ -21,4 +21,7 @@ in
       pkgs.clang
       pkgs.mold
     ];
+    nativeCheckInputs = [
+      pkgs.git
+    ];
   }
