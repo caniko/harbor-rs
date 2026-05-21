@@ -26,6 +26,11 @@ enum TopCommand {
         #[command(subcommand)]
         command: commands::cache::CacheCommand,
     },
+    /// Homebrew tap helpers for formula rendering and publishing.
+    Brew {
+        #[command(subcommand)]
+        command: commands::brew::BrewCommand,
+    },
     /// Realize and publish macOS SDK archives for osxcross consumers.
     Sdk {
         #[command(subcommand)]
@@ -54,6 +59,7 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         TopCommand::Audit { command } => commands::audit::run(command),
+        TopCommand::Brew { command } => commands::brew::run(command),
         TopCommand::Cache { command } => commands::cache::run(command),
         TopCommand::Sdk { command } => commands::sdk::run(command),
         TopCommand::Stage { command } => match command {

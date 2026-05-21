@@ -1,6 +1,6 @@
 # mkHomebrewFormula
 
-`mkHomebrewFormula` generates a Homebrew formula (`.rb`) for packaging pre-built binary release archives. rs-harbor only produces the formula; checksum calculation, placeholder replacement, and tap publishing stay in downstream release workflows.
+`mkHomebrewFormula` generates a Homebrew formula (`.rb`) for packaging pre-built binary release archives. At Nix evaluation time, use the `":no_check"` placeholder when the archives do not exist yet. After the release archives are built, use [`rs-harbor brew bump`](./homebrew-cli.md) to compute real sha256 sums and update the tap.
 
 The helper renders OS and CPU-specific downloads as nested Homebrew platform blocks, such as `on_macos do` with `on_arm do` or `on_intel do` inside it. A `sha256` value of `":no_check"` is emitted as Homebrew's `sha256 :no_check` symbol for workflows that fill checksums later.
 

@@ -21,6 +21,7 @@
 - [mkFlatpakManifest](./packaging/flatpak.md)
 - [mkCoprSpec](./packaging/copr.md)
 - [mkHomebrewFormula](./packaging/homebrew-formula.md)
+- [Homebrew CLI](./packaging/homebrew-cli.md)
 - [Steam Runtime Tools](./packaging/steam-runtime.md)
 
 # Integration

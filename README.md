@@ -57,6 +57,23 @@ nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
 
 Then pass the realized store path to `mkCross` from host configuration rather than committing host-local archive paths. Full setup details are in [docs/src/reference/macos-sdk.md](docs/src/reference/macos-sdk.md).
 
+## Homebrew Formula Bump
+
+After release archives exist on disk, `rs-harbor brew bump` renders a Homebrew formula with real sha256 sums:
+
+```bash
+rs-harbor brew bump \
+  --tap ../homebrew-tap \
+  --name my-app \
+  --version 1.0.0 \
+  --description "My example application" \
+  --homepage https://example.com/my-app \
+  --license MIT \
+  --archive linux_intel=https://example.com/releases/my-app-1.0.0-x86_64-linux.tar.gz,dist/my-app-linux.tar.gz
+```
+
+Use `--stdout` to print the formula for piping, or `--push` to commit and push the tap update after rs-harbor verifies the tap has no unrelated dirty files.
+
 ## Docs
 
 - [Getting started](docs/src/getting-started/installation.md)
@@ -65,6 +82,7 @@ Then pass the realized store path to `mkCross` from host configuration rather th
 - [mkCross](docs/src/api/cross.md)
 - [mkDevShell and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
+- [Homebrew formula](docs/src/packaging/homebrew-formula.md)
 - [COPR spec](docs/src/packaging/copr.md)
 
 Source repository: <https://codeberg.org/caniko/rs-harbor>
