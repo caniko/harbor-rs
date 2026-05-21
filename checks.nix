@@ -900,6 +900,188 @@ in {
     assert builtins.elem "stable" ["nightly" "stable"];
     assert !(builtins.elem "beta" ["nightly" "stable"]);
     pkgs.runCommand "check-validation-helpers" {} "touch $out";
+
+  # mkHomebrewFormula returns expected attributes and a binary install block.
+  mkHomebrewFormula-shape = let
+    f = self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "modde";
+      version = "1.2.3";
+      description = "Cross-platform game mod manager";
+      homepage = "https://modde.tartanoglu.com";
+      license = "MIT";
+      platforms.darwin_arm = {
+        url = "https://codeberg.org/caniko/modde/releases/download/1.2.3/modde-1.2.3-aarch64-darwin.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+      dependencies = ["openssl@3"];
+      binaries = ["modde" "modde-ui"];
+      testBlock = ''system "#{bin}/modde", "--version"'';
+    };
+  in
+    assert f ? formulaText;
+    assert f ? formulaPath;
+    assert builtins.isString f.formulaText;
+    assert pkgs.lib.hasInfix "class Modde < Formula" f.formulaText;
+    assert pkgs.lib.hasInfix "def install" f.formulaText;
+    assert pkgs.lib.hasInfix ''bin.install "modde"'' f.formulaText;
+    assert pkgs.lib.hasInfix ''bin.install "modde-ui"'' f.formulaText;
+    assert pkgs.lib.hasInfix ''depends_on "openssl@3"'' f.formulaText;
+    pkgs.runCommand "check-mkHomebrewFormula-shape" {} ''
+      grep 'class Modde < Formula' ${f.formulaPath}
+      grep 'def install' ${f.formulaPath}
+      touch $out
+    '';
+
+  # mkHomebrewFormula nests architecture stanzas under OS platform blocks.
+  mkHomebrewFormula-multi-platform = let
+    both = self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "multi-app";
+      version = "1.0.0";
+      description = "Multi platform app";
+      homepage = "https://example.com";
+      license = "Apache-2.0";
+      platforms = {
+        darwin_arm = {
+          url = "https://example.com/multi-app-1.0.0-aarch64-darwin.tar.gz";
+          sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        };
+        linux_intel = {
+          url = "https://example.com/multi-app-1.0.0-x86_64-linux.tar.gz";
+          sha256 = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        };
+      };
+    };
+    macOnly = self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "mac-app";
+      version = "1.0.0";
+      description = "Mac only app";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.darwin_intel = {
+        url = "https://example.com/mac-app-1.0.0-x86_64-darwin.tar.gz";
+        sha256 = "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc";
+      };
+    };
+  in
+    assert pkgs.lib.hasInfix "on_macos do" both.formulaText;
+    assert pkgs.lib.hasInfix "on_linux do" both.formulaText;
+    assert pkgs.lib.hasInfix "on_arm do" both.formulaText;
+    assert pkgs.lib.hasInfix "on_intel do" both.formulaText;
+    assert pkgs.lib.hasInfix "on_macos do" macOnly.formulaText;
+    assert !(pkgs.lib.hasInfix "on_linux do" macOnly.formulaText);
+    pkgs.runCommand "check-mkHomebrewFormula-multi-platform" {} "touch $out";
+
+  # mkHomebrewFormula emits Homebrew's checksum skip symbol for placeholders.
+  mkHomebrewFormula-no-check-placeholder = let
+    f = self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "placeholder-app";
+      version = "1.0.0";
+      description = "Placeholder checksum app";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.linux_intel = {
+        url = "https://example.com/placeholder-app-1.0.0-x86_64-linux.tar.gz";
+        sha256 = ":no_check";
+      };
+    };
+  in
+    assert pkgs.lib.hasInfix "sha256 :no_check" f.formulaText;
+    assert !(pkgs.lib.hasInfix ''sha256 ":no_check"'' f.formulaText);
+    pkgs.runCommand "check-mkHomebrewFormula-no-check-placeholder" {} "touch $out";
+
+  # mkHomebrewFormula rejects a Homebrew-illegal formula name.
+  mkHomebrewFormula-rejects-bad-name = let
+    result = builtins.tryEval (self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "Bad_Name";
+      version = "1.0.0";
+      description = "Bad name app";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.linux_intel = {
+        url = "https://example.com/bad-name.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkHomebrewFormula-rejects-bad-name" {} "touch $out";
+
+  # mkHomebrewFormula rejects versions with a leading v.
+  mkHomebrewFormula-rejects-bad-version = let
+    result = builtins.tryEval (self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "bad-version";
+      version = "v1.0.0";
+      description = "Bad version app";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.linux_intel = {
+        url = "https://example.com/bad-version.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkHomebrewFormula-rejects-bad-version" {} "touch $out";
+
+  # mkHomebrewFormula rejects descriptions longer than Homebrew audit allows.
+  mkHomebrewFormula-rejects-long-desc = let
+    result = builtins.tryEval (self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "long-desc";
+      version = "1.0.0";
+      description = "This description is deliberately longer than eighty characters so validation rejects it.";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.linux_intel = {
+        url = "https://example.com/long-desc.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkHomebrewFormula-rejects-long-desc" {} "touch $out";
+
+  # mkHomebrewFormula rejects non-HTTPS homepages.
+  mkHomebrewFormula-rejects-http-homepage = let
+    result = builtins.tryEval (self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "http-homepage";
+      version = "1.0.0";
+      description = "HTTP homepage app";
+      homepage = "http://example.com";
+      license = "MIT";
+      platforms.linux_intel = {
+        url = "https://example.com/http-homepage.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkHomebrewFormula-rejects-http-homepage" {} "touch $out";
+
+  # mkHomebrewFormula rejects unsupported platform keys.
+  mkHomebrewFormula-rejects-bad-platform = let
+    result = builtins.tryEval (self.lib.mkHomebrewFormula {
+      inherit pkgs;
+      name = "bad-platform";
+      version = "1.0.0";
+      description = "Bad platform app";
+      homepage = "https://example.com";
+      license = "MIT";
+      platforms.freebsd_intel = {
+        url = "https://example.com/bad-platform.tar.gz";
+        sha256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+      };
+    });
+  in
+    assert !result.success;
+    pkgs.runCommand "check-mkHomebrewFormula-rejects-bad-platform" {} "touch $out";
 }
 // pkgs.lib.optionalAttrs isLinux {
   # mkFlatpakManifest returns expected attributes

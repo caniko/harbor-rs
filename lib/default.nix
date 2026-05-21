@@ -20,4 +20,5 @@ in {
   mkAppImage = import ./appimage.nix;
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkCoprSpec = import ./copr-spec.nix;
+  mkHomebrewFormula = import ./homebrew-formula.nix;
 }

@@ -20,6 +20,7 @@
 - [mkAppImage](./packaging/appimage.md)
 - [mkFlatpakManifest](./packaging/flatpak.md)
 - [mkCoprSpec](./packaging/copr.md)
+- [mkHomebrewFormula](./packaging/homebrew-formula.md)
 - [Steam Runtime Tools](./packaging/steam-runtime.md)
 
 # Integration

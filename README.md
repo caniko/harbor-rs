@@ -9,7 +9,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCross` for MinGW and optional osxcross environments
 - `mkDevShell` and `mkDevShells` for consistent development shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
-- `mkAppImage`, `mkFlatpakManifest`, and `mkCoprSpec` for packaging outputs
+- `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 
 ## Prerequisites
 
