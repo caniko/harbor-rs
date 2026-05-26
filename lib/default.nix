@@ -1,4 +1,7 @@
-{crane, osxcross}: let
+{
+  crane,
+  osxcross,
+}: let
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
 in {
@@ -19,7 +22,9 @@ in {
   mkAndroidFlavorTable = import ./android-flavor-table.nix;
   mkAppImage = import ./appimage.nix;
   mkChocoPackage = import ./choco-package.nix;
-  mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkCoprSpec = import ./copr-spec.nix;
+  mkDebPackage = import ./deb-package.nix;
+  mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkHomebrewFormula = import ./homebrew-formula.nix;
+  mkScoopManifest = import ./scoop-manifest.nix;
 }
