@@ -691,6 +691,21 @@ in {
     assert pkgs.lib.hasInfix "threads" c.configText;
     pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
 
+  # mkCargoConfig enables memory-saving dev profile defaults by default
+  mkCargoConfig-dev-profile-opts = let
+    enabled = self.lib.mkCargoConfig {inherit pkgs;};
+    disabled = self.lib.mkCargoConfig {
+      inherit pkgs;
+      enableDevProfileOpts = false;
+    };
+  in
+    assert pkgs.lib.hasInfix "[profile.dev]" enabled.configText;
+    assert pkgs.lib.hasInfix ''debug = "line-tables-only"'' enabled.configText;
+    assert pkgs.lib.hasInfix ''[profile.dev.package."*"]'' enabled.configText;
+    assert !(pkgs.lib.hasInfix ''debug = "line-tables-only"'' disabled.configText);
+    assert !(pkgs.lib.hasInfix "debug = false" disabled.configText);
+    pkgs.runCommand "check-mkCargoConfig-dev-profile-opts" {} "touch $out";
+
   # mkCargoConfig respects enableMold = false
   mkCargoConfig-no-mold = let
     c = self.lib.mkCargoConfig {
