@@ -697,14 +697,29 @@ in {
     disabled = self.lib.mkCargoConfig {
       inherit pkgs;
       enableDevProfileOpts = false;
+      devCodegenUnits = null;
     };
   in
     assert pkgs.lib.hasInfix "[profile.dev]" enabled.configText;
     assert pkgs.lib.hasInfix ''debug = "line-tables-only"'' enabled.configText;
+    assert pkgs.lib.hasInfix ''split-debuginfo = "unpacked"'' enabled.configText;
     assert pkgs.lib.hasInfix ''[profile.dev.package."*"]'' enabled.configText;
+    assert !(pkgs.lib.hasInfix "codegen-units = " enabled.configText);
     assert !(pkgs.lib.hasInfix ''debug = "line-tables-only"'' disabled.configText);
+    assert !(pkgs.lib.hasInfix "split-debuginfo" disabled.configText);
+    assert !(pkgs.lib.hasInfix "codegen-units" disabled.configText);
     assert !(pkgs.lib.hasInfix "debug = false" disabled.configText);
     pkgs.runCommand "check-mkCargoConfig-dev-profile-opts" {} "touch $out";
+
+  # mkCargoConfig emits dev codegen-units only when explicitly requested
+  mkCargoConfig-dev-codegen-units = let
+    c = self.lib.mkCargoConfig {
+      inherit pkgs;
+      devCodegenUnits = 16;
+    };
+  in
+    assert pkgs.lib.hasInfix "codegen-units = 16" c.configText;
+    pkgs.runCommand "check-mkCargoConfig-dev-codegen-units" {} "touch $out";
 
   # mkCargoConfig respects enableMold = false
   mkCargoConfig-no-mold = let

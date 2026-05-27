@@ -20,20 +20,28 @@
 - `enableShareGenerics`
 - `enableParallelFrontend`
 - `enableDevProfileOpts`
+- `devCodegenUnits`
 - `extraConfig`: raw TOML appended to the generated file
 
 ### `enableDevProfileOpts` (default: `true`)
 
-When enabled, `mkCargoConfig` writes a `[profile.dev]` section that reduces peak codegen and link memory:
+When enabled, `mkCargoConfig` writes a `[profile.dev]` section that reduces peak codegen and link memory. These settings are intended as default wins:
 
 - `debug = "line-tables-only"` keeps line tables for backtraces while dropping full DWARF.
 - `split-debuginfo = "unpacked"` puts remaining debug info in side files on platforms that support it; Windows treats this as a no-op.
-- `codegen-units = 32` trades some dev-build wall-clock time for lower peak codegen memory.
 - `[profile.dev.package."*"] debug = false` drops dependency debuginfo; workspace crates keep line-table backtraces.
 
-Cargo profile precedence means keys in a project's `Cargo.toml [profile.dev]` override the same keys from this generated `.cargo/config.toml`. Set `enableDevProfileOpts = false` if a project needs Cargo's full default dev profile.
+This flag does not set `codegen-units`. That is a separate tradeoff controlled by `devCodegenUnits`.
 
-This flag does not add binaries to the build environment. It only changes generated Cargo configuration.
+### `devCodegenUnits` (default: `null`)
+
+Optional positive integer. When set to `N`, `mkCargoConfig` writes `codegen-units = <N>` under `[profile.dev]`. When `null`, no `codegen-units` line is emitted and Cargo's dev default (`256`) stands.
+
+This is a tradeoff, not a pure win. Lower codegen-units values such as `32` or `16` make each rustc invocation handle larger codegen units. That can improve wall-clock time for some workspace crates, but it can also increase per-process peak RSS. Set a value only after measuring the project that will consume the config.
+
+Cargo profile precedence means keys in a project's `Cargo.toml [profile.dev]` override the same keys from this generated `.cargo/config.toml`. Set `enableDevProfileOpts = false` and `devCodegenUnits = null` if a project needs Cargo's full default dev profile.
+
+Both parameters are pure `.cargo/config.toml` annotations. They do not add binaries to the build environment.
 
 ## Returns
 
