@@ -4,10 +4,12 @@
 }: let
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
-in {
   mkToolchain = import ./toolchain.nix {inherit crane;};
+in {
+  inherit mkToolchain;
   mkCargoConfig = import ./cargo-config.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
+  mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;

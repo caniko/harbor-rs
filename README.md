@@ -6,10 +6,22 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 
 - `mkToolchain` for Rust toolchains with `crane`
 - `mkCargoConfig` for generated `.cargo/config.toml`
-- `mkCross` for MinGW and optional osxcross environments
+- `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
+- `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets
 - `mkDevShell` and `mkDevShells` for consistent development shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
+
+### More helpers
+
+The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
+
+- `mkSteamRuntimeTools` — Steam Linux Runtime container exec + ELF/PE/Mach-O runtime-dependency auditing
+- `mkAdapter` / `isHarborAdapter` — typed adapter record (e.g. Attic config) consumed by other helpers
+- `mkAtticPush` — flake `app` that pushes store paths to an Attic cache via an adapter
+- `mkDebPackage` — Debian `.deb` package helper
+- `mkScoopManifest` — Scoop (Windows) manifest generator
+- `mkChocoPackage` — Chocolatey (Windows) `.nuspec` + install-script package helper
 
 ## Prerequisites
 
@@ -80,6 +92,7 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [Quick start](docs/src/getting-started/quick-start.md)
 - [API summary](docs/src/SUMMARY.md)
 - [mkCross](docs/src/api/cross.md)
+- [mkCrossPackages](docs/src/api/cross-packages.md)
 - [mkDevShell and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
 - [Homebrew formula](docs/src/packaging/homebrew-formula.md)

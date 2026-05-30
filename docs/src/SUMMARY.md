@@ -12,6 +12,7 @@
 - [mkToolchain](./api/toolchain.md)
 - [mkCargoConfig](./api/cargo-config.md)
 - [mkCross](./api/cross.md)
+- [mkCrossPackages](./api/cross-packages.md)
 - [mkDevShell and mkDevShells](./api/dev-shells.md)
 - [mkGpuRenderPin](./api/gpu-render-pin.md)
 

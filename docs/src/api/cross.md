@@ -6,6 +6,23 @@
 
 MinGW toolchain components are exposed through the returned environment and can be enabled in dev shells without extra project-specific setup.
 
+## aarch64 Linux support
+
+The returned `linuxAarch64` record lifts the `aarch64-unknown-linux-gnu` cross
+boilerplate out of consumer flakes:
+
+- `linuxAarch64.cc`: the `pkgsCross.aarch64-multiplatform` stdenv `cc`
+- `linuxAarch64.pkgsCross`: the full `pkgsCross.aarch64-multiplatform` package set
+  (handy for `buildInputs` such as cross `openssl`/`wayland`)
+- `linuxAarch64.env`: a ready-to-merge attrset with
+  `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER`,
+  `CC_aarch64_unknown_linux_gnu`, and `CXX_aarch64_unknown_linux_gnu`
+
+Merge `linuxAarch64.env` into a crane args set (along with
+`CARGO_BUILD_TARGET = "aarch64-unknown-linux-gnu"` and
+`PKG_CONFIG_ALLOW_CROSS = "1"`) to cross-build for ARM64 Linux, or let
+[`mkCrossPackages`](./cross-packages.md) wire it for you.
+
 ## macOS support
 
 osxcross is optional and turns on when one of these inputs is available:

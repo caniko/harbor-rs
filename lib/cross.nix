@@ -1,8 +1,9 @@
 # mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableImpureMacosSdkEnv?, enableOsxcross?, osxSdkVersion? }
 #         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv,
-#              macosSdk, osxcrossToolchain, osxcrossRustHelpers }
+#              linuxAarch64, macosSdk, osxcrossToolchain, osxcrossRustHelpers }
 #
-# Build cross-compilation toolchains (MinGW for Windows, osxcross for macOS).
+# Build cross-compilation toolchains (MinGW for Windows, aarch64 Linux GNU,
+# osxcross for macOS).
 {osxcross}: {
   pkgs,
   system,
@@ -41,6 +42,21 @@ else let
   mingwCC = pkgs.pkgsCross.mingwW64.stdenv.cc;
   mingwBinutils = pkgs.pkgsCross.mingwW64.stdenv.cc.bintools.bintools;
   winpthreads = pkgs.pkgsCross.mingwW64.windows.pthreads;
+
+  # aarch64-unknown-linux-gnu cross toolchain. Exposes the cross stdenv cc and
+  # a ready-to-merge env attrset so consumers can build for ARM64 Linux without
+  # hand-rolling the CC_/CXX_/linker env vars (see rs-modde flake.nix).
+  linuxAarch64Cross = pkgs.pkgsCross.aarch64-multiplatform;
+  linuxAarch64CC = linuxAarch64Cross.stdenv.cc;
+  linuxAarch64 = {
+    cc = linuxAarch64CC;
+    pkgsCross = linuxAarch64Cross;
+    env = {
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}cc";
+      CC_aarch64_unknown_linux_gnu = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}cc";
+      CXX_aarch64_unknown_linux_gnu = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}c++";
+    };
+  };
 
   supportsOsxcross = system == "x86_64-linux";
 
@@ -203,6 +219,7 @@ else let
   };
 in {
   inherit mingwCC mingwBinutils winpthreads;
+  inherit linuxAarch64;
   macosSdk = effectiveMacosSdk;
   inherit osxcrossToolchain osxcrossRustHelpers;
   inherit windowsEnv;

@@ -408,6 +408,94 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
+  # mkCrossPackages returns only the requested targets keyed by output attr
+  # name, and each derivation evaluates (we force drvPaths, not full builds).
+  # native + windows are buildable on x86_64-linux without a macOS SDK.
+  mkCrossPackages-shape = let
+    fixtureSrc = ./tests/fixtures/cross-package-fixture;
+    commonArgs = {
+      src = fixtureSrc;
+      version = "0.1.0";
+      doCheck = false;
+    };
+    out = self.lib.mkCrossPackages {
+      inherit pkgs cross commonArgs;
+      inherit (toolchain) craneLib;
+      pname = "fixture";
+      targets = ["native" "windows"];
+    };
+  in
+    assert out ? "fixture";
+    assert out ? "fixture-windows";
+    # Only the requested targets are present.
+    assert !(out ? "fixture-aarch64-linux");
+    assert !(out ? "fixture-darwin-x86_64");
+    assert !(out ? "fixture-darwin-aarch64");
+    assert pkgs.lib.isDerivation out."fixture";
+    assert pkgs.lib.isDerivation out."fixture-windows";
+    # Forcing drvPath proves the derivations evaluate without building Rust.
+    assert builtins.isString out."fixture".drvPath;
+    assert builtins.isString out."fixture-windows".drvPath;
+    pkgs.runCommand "check-mkCrossPackages-shape" {} "touch $out";
+
+  # mkCrossPackages rejects unsupported target names and commonArgs without src.
+  mkCrossPackages-validation = let
+    fixtureSrc = ./tests/fixtures/cross-package-fixture;
+    badTarget = builtins.tryEval (self.lib.mkCrossPackages {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      pname = "fixture";
+      commonArgs = {src = fixtureSrc;};
+      targets = ["native" "bogus"];
+    });
+    missingSrc = builtins.tryEval (self.lib.mkCrossPackages {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      pname = "fixture";
+      commonArgs = {version = "0.1.0";};
+      targets = ["native"];
+    });
+  in
+    assert badTarget.success == false;
+    assert missingSrc.success == false;
+    pkgs.runCommand "check-mkCrossPackages-validation" {} "touch $out";
+
+  # mkCrossPackages aarch64-linux + darwin targets. The aarch64 craneLib and the
+  # darwin osxcross path are only meaningful on x86_64-linux, mirroring the
+  # gating of the osxcross checks above. Darwin falls back to a runCommand that
+  # exits 1 when no realized macOS SDK is available, so it still evaluates.
+  mkCrossPackages-cross-targets =
+    if system == "x86_64-linux"
+    then let
+      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      commonArgs = {
+        src = fixtureSrc;
+        version = "0.1.0";
+        doCheck = false;
+      };
+      out = self.lib.mkCrossPackages {
+        inherit pkgs cross commonArgs;
+        inherit (toolchain) craneLib;
+        pname = "fixture";
+        targets = ["aarch64-linux" "darwin-x86_64" "darwin-aarch64"];
+      };
+    in
+      assert out ? "fixture-aarch64-linux";
+      assert out ? "fixture-darwin-x86_64";
+      assert out ? "fixture-darwin-aarch64";
+      assert !(out ? "fixture");
+      assert !(out ? "fixture-windows");
+      assert pkgs.lib.isDerivation out."fixture-aarch64-linux";
+      assert builtins.isString out."fixture-aarch64-linux".drvPath;
+      # Without a realized SDK in pure eval, darwin outputs are the
+      # mkDarwinUnavailable runCommand placeholders, which still evaluate.
+      assert pkgs.lib.isDerivation out."fixture-darwin-x86_64";
+      assert pkgs.lib.isDerivation out."fixture-darwin-aarch64";
+      assert builtins.isString out."fixture-darwin-x86_64".drvPath;
+      assert builtins.isString out."fixture-darwin-aarch64".drvPath;
+      pkgs.runCommand "check-mkCrossPackages-cross-targets" {} "touch $out"
+    else pkgs.runCommand "check-mkCrossPackages-cross-targets-skipped" {} "touch $out";
+
   # findLocalMavenCache returns null until both hash and host tarball exist.
   findLocalMavenCache-missing-inputs = let
     missingHash = self.lib.findLocalMavenCache {
