@@ -7,6 +7,9 @@ use anyhow::Result;
 use clap::Args;
 
 #[derive(Args, Debug)]
+// `--version` is a real SDK-version argument here, not a version flag; drop
+// clap's auto-generated `--version` so the two don't collide.
+#[command(disable_version_flag = true)]
 pub struct PublishMacosArgs {
     /// SDK archive path produced by the host-local Apple SDK download.
     #[arg(long)]
@@ -27,6 +30,12 @@ pub struct PublishMacosArgs {
     /// Path to the Attic token file.
     #[arg(long)]
     pub token_file: PathBuf,
+
+    /// Register a Nix GC root at this link pointing to the realized store
+    /// path on the publishing host, so it survives `nix-collect-garbage`.
+    /// Created with `nix-store --add-root --indirect`.
+    #[arg(long)]
+    pub gc_root: Option<PathBuf>,
 }
 
 pub fn run(
@@ -36,6 +45,7 @@ pub fn run(
         attic_server,
         cache,
         token_file,
+        gc_root,
     }: PublishMacosArgs,
 ) -> Result<()> {
     let realized = harbor_sdk::publish_macos_sdk(harbor_sdk::PublishOpts {
@@ -44,6 +54,7 @@ pub fn run(
         attic_server,
         cache_name: cache,
         token_file,
+        gc_root,
     })?;
     print_commit_block(&realized.store_path, &realized.version);
     Ok(())

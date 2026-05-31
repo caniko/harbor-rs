@@ -24,6 +24,9 @@ pub struct PublishOpts {
     pub attic_server: String,
     pub cache_name: String,
     pub token_file: PathBuf,
+    /// Optional GC-root link to register for the realized store path on the
+    /// publishing host so it survives `nix-collect-garbage`.
+    pub gc_root: Option<PathBuf>,
 }
 
 #[derive(Debug, Error)]
@@ -82,9 +85,15 @@ pub fn publish_macos_sdk(opts: PublishOpts) -> Result<RealizedSdk> {
         attic_server,
         cache_name,
         token_file,
+        gc_root,
     } = opts;
 
     let realized = realize_macos_sdk(&archive, &version)?;
+    // Pin the realized path locally before the push so a concurrent GC cannot
+    // evict it mid-upload, and so it stays put even if the push fails.
+    if let Some(link) = &gc_root {
+        create_gc_root(&realized.store_path, link)?;
+    }
     let attic = which::which("attic").with_context(|| "finding attic on PATH")?;
     let config_dir = TempDir::new().context("creating temporary attic config directory")?;
     let attic_config_dir = config_dir.path().join("attic");
@@ -113,6 +122,34 @@ pub fn publish_macos_sdk(opts: PublishOpts) -> Result<RealizedSdk> {
     ensure_success(&attic, &output)?;
 
     Ok(realized)
+}
+
+/// Register an indirect Nix GC root at `link` pointing to `store_path` so the
+/// realized SDK survives `nix-collect-garbage`.
+///
+/// Uses `nix-store --realise --add-root --indirect`, which registers the root
+/// without requiring elevated privileges (the link itself may live anywhere
+/// the caller can write). Parent directories of `link` are created if missing.
+///
+/// # Errors
+///
+/// Returns an error if `nix-store` cannot be found on `PATH`, if the parent of
+/// `link` cannot be created, or if `nix-store` exits unsuccessfully.
+pub fn create_gc_root(store_path: &Path, link: &Path) -> Result<()> {
+    let nix_store = which::which("nix-store").with_context(|| "finding nix-store on PATH")?;
+    if let Some(parent) = link.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("creating gc-root parent {}", parent.display()))?;
+    }
+    let output = Command::new(&nix_store)
+        .arg("--realise")
+        .arg(store_path)
+        .arg("--add-root")
+        .arg(link)
+        .arg("--indirect")
+        .output()
+        .with_context(|| format!("running {}", nix_store.display()))?;
+    ensure_success(&nix_store, &output)
 }
 
 fn parse_realize_env_output(output: &str) -> Result<RealizedSdk, EnvParseError> {
