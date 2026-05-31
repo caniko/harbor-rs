@@ -4,6 +4,7 @@
 }: let
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
+  minisignLib = import ./minisign.nix;
   mkToolchain = import ./toolchain.nix {inherit crane;};
 in {
   inherit mkToolchain;
@@ -17,6 +18,7 @@ in {
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
   inherit (devShellLib) mkDevShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
+  inherit (minisignLib) mkMinisignSign mkMinisignVerify;
   findLocalMavenCache = import ./android-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
   mkAndroidApk = import ./android-apk.nix;

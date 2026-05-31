@@ -1823,4 +1823,33 @@ in {
       grep -- '--features tutorial' script
       touch $out
     '';
+
+  mkMinisignSign-shape = let
+    app = self.lib.mkMinisignSign {
+      inherit pkgs;
+      files = ["release/SHA256SUMS.txt"];
+    };
+  in
+    assert app.type == "app";
+    pkgs.runCommand "check-mkMinisignSign-shape" {} ''
+      cp ${app.program} script
+      grep 'minisign -S -s "$keyfile"' script
+      grep 'MINISIGN_SECRET_KEY' script
+      grep 'release/SHA256SUMS.txt' script
+      touch $out
+    '';
+
+  mkMinisignVerify-shape = let
+    app = self.lib.mkMinisignVerify {
+      inherit pkgs;
+      files = ["release/SHA256SUMS.txt"];
+    };
+  in
+    assert app.type == "app";
+    pkgs.runCommand "check-mkMinisignVerify-shape" {} ''
+      cp ${app.program} script
+      grep 'minisign -V -p' script
+      grep 'keys/minisign.pub' script
+      touch $out
+    '';
 }
