@@ -51,6 +51,48 @@ outputs fall back to a `runCommand` that exits 1 at build time with a clear
 message, so the attribute still evaluates and the flake stays usable on hosts
 without an SDK.
 
+## System C libraries on darwin
+
+Unlike the `windows` and `aarch64-linux` targets — where nixpkgs offers a ready
+cross package set (`pkgs.pkgsCross.mingwW64`, `cross.linuxAarch64.pkgsCross`) to
+populate `buildInputs` — the osxcross darwin targets get **no system C libraries**
+by default, and there is no convenient `pkgsCross.*-darwin` set to pull a cross
+`openssl` (or similar) from. So any crate that links a system C library through a
+`-sys` build script fails on darwin:
+
+```
+warning: openssl-sys@…: Could not find directory of OpenSSL installation
+error: failed to run custom build command for `openssl-sys`
+  The system library `openssl` required by crate `openssl-sys` was not found.
+```
+
+The trap is **Cargo feature unification**: the offending `-sys` crate is usually
+pulled in transitively and only on `cfg(unix)` (which includes macOS), so the
+break shows up on darwin while native, Windows, and Linux builds stay green. For
+example, `git2`'s default `https` + `ssh` features pull `openssl-sys` and
+`libssh2-sys` — you may not use them, but if any workspace member or dependency
+enables them, the unified darwin build links them and fails. Diagnose with
+`cargo tree -i openssl-sys` against a darwin target
+(`--target aarch64-apple-darwin`) to see who pulls it.
+
+Pick the lightest mitigation that fits:
+
+1. **Drop the default feature that pulls it.** If you only need a subset (e.g.
+   `git2` for *local* repository operations), set
+   `git2 = { version = "…", default-features = false }` in the workspace-root
+   `Cargo.toml`. This removes `openssl-sys`/`libssh2-sys` from **every** target,
+   not just darwin, and is usually the cleanest fix. Watch for other deps
+   re-enabling the feature — unification will bring it back.
+2. **Vendor the C library.** Enable the crate's `vendored` feature (e.g.
+   `openssl`'s `vendored`, `libgit2-sys`'s `vendored-openssl`) so the library is
+   compiled from source with the cross toolchain instead of looked up as a system
+   library.
+3. **Provide a cross-built library.** Build the library for the darwin target and
+   hand it to the build via `targetArgs.darwin-*.buildInputs` plus the matching
+   `OPENSSL_DIR` / `PKG_CONFIG_*` env. This is the most work — osxcross is not a
+   nixpkgs `pkgsCross`, so there is no off-the-shelf cross package — and is rarely
+   worth it when (1) or (2) apply.
+
 ## Example
 
 ```nix
