@@ -117,13 +117,67 @@ else let
         Expected a real Apple SDK root such as MacOSX${osxSdkVersion}.sdk, not a fake/minimal fixture.
       '';
 
+  # A pinned macOS SDK store path (e.g. from rs-harbor-macos-sdk-pin) is just a
+  # string, so it carries no Nix string context and is therefore NOT a build
+  # input: under `sandbox = true` the daemon never bind-mounts it and
+  # osxcross-clang fails inside the build with "cannot find macOS SDK", even
+  # though the path is valid in the store. The SDK is a fixed-output derivation
+  # whose output path is fully determined by (name, outputHash, outputHashMode),
+  # so reconstructing that FOD here yields the identical store path *with*
+  # context. It then becomes a real dependency of consuming derivations and is
+  # mounted into the sandbox. When the path is already realized (pinned, or
+  # substituted from the harbor-macos-sdk cache) Nix uses it directly and never
+  # runs the builder; when it is missing and unsubstitutable the build fails
+  # early with the clear message below instead of a cryptic osxcross error.
+  #
+  # Requires the caller to pass `macosSdkOutputHash` (rs-harbor-macos-sdk-pin
+  # exposes it as `.outputHash`). Without it we fall back to the legacy
+  # context-free string, which is correct only outside the sandbox / on a build
+  # host where the SDK already lives on disk.
+  mkPinnedSdkFod = storePath: outputHash: let
+    fod = derivation {
+      inherit system;
+      name = "macosx-sdk-${osxSdkVersion}";
+      builder = "/bin/sh";
+      args = [
+        "-c"
+        "echo 'rs-harbor.mkCross: macOS SDK ${toString storePath} is not in the store and no sdkArchive was provided. Add the harbor-macos-sdk Attic cache as a (daemon) substituter so it can be fetched, or pass sdkArchive to mkCross.' >&2; exit 1"
+      ];
+      outputHashMode = "recursive";
+      outputHashAlgo = "sha256";
+      inherit outputHash;
+    };
+  in
+    if fod.outPath != toString storePath
+    then
+      throw ''
+        rs-harbor.mkCross: reconstructed macOS SDK FOD resolves to
+          ${fod.outPath}
+        but macosSdkStorePath is
+          ${toString storePath}
+        Ensure macosSdkOutputHash and osxSdkVersion match the
+        rs-harbor-macos-sdk-pin revision you locked.''
+    else fod;
+
   mkStorePathSdkRef = storePath: let
     path = toString storePath;
+    # Validate the realized SDK layout when it is present on disk (no-op when
+    # the path is not yet realized).
     root = validateVisibleSdkRoot "macosSdkStorePath" (sdkRootFor path);
+    sdkInput =
+      if macosSdkOutputHash != null
+      then mkPinnedSdkFod storePath macosSdkOutputHash
+      else storePath;
   in
     osxcross.lib.${system}.mkMacosSdkRef {
-      sdk = storePath;
-      sdkRoot = root;
+      sdk = sdkInput;
+      # Same path as `root`, but interpolated from `sdkInput` so it carries
+      # context (and thus becomes a sandbox-mounted input) when the FOD
+      # reconstruction is in play.
+      sdkRoot =
+        if macosSdkOutputHash != null
+        then "${sdkInput}/MacOSX${osxSdkVersion}.sdk"
+        else root;
       sdkVersion = osxSdkVersion;
     };
 
