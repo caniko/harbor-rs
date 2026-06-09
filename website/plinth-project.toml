@@ -1,0 +1,45 @@
+[site]
+title = "rs-harbor"
+description = "Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes."
+base_url = "/"
+footer_note = "Generated from repository metadata by the plinth-project FOSS sweep."
+
+[[nav]]
+label = "Overview"
+href = "#overview"
+
+[[nav]]
+label = "Source"
+href = "ssh://git@codeberg.org/caniko/rs-harbor.git"
+
+[[footer_links]]
+label = "Source"
+href = "ssh://git@codeberg.org/caniko/rs-harbor.git"
+
+[[pages]]
+slug = "index"
+title = "rs-harbor"
+description = "Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes."
+
+[[pages.sections]]
+type = "hero"
+title = "rs-harbor"
+tagline = "Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes."
+subtitle = "Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes."
+
+[[pages.sections.ctas]]
+label = "View source"
+href = "ssh://git@codeberg.org/caniko/rs-harbor.git"
+primary = true
+
+[[pages.sections]]
+type = "feature_grid"
+id = "overview"
+
+[[pages.sections.features]]
+title = "Rust"
+description = "Project technology detected from repository manifests."
+
+[[pages.sections.features]]
+title = "Nix"
+description = "Project technology detected from repository manifests."

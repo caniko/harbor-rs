@@ -17,6 +17,11 @@
       url = "github:caniko/osxcross/flake";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    plinth = {
+      url = "git+https://codeberg.org/caniko/plinth.git?ref=refs/heads/trunk";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = {
@@ -26,6 +31,7 @@
     flake-utils,
     rust-overlay,
     osxcross,
+    plinth,
     ...
   }: let
     lib = import ./lib {inherit crane osxcross;};
@@ -80,6 +86,11 @@
       steamRuntimeTools = self.lib.mkSteamRuntimeTools {
         inherit pkgs rsHarborCli;
       };
+      website = plinth.lib.${system}.mkProjectSite {
+        pname = "rs-harbor-website";
+        domain = "rs-harbor.tartanoglu.com";
+        configPath = ./website/plinth-project.toml;
+      };
     in {
       packages =
         sitePackages
@@ -89,6 +100,8 @@
           bootstrap-cmds-mig = bootstrapCmdsMig;
           steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
           rs-harbor = rsHarborCli;
+          website = website;
+          site = website;
         };
 
       apps = {
@@ -111,6 +124,9 @@
         stage-macos-universal = {
           type = "app";
           program = "${macosStaging.stager}/bin/stage-macos-universal";
+        };
+        deploy-pages = plinth.lib.${system}.mkDeployPagesApp {
+          domain = "rs-harbor.tartanoglu.com";
         };
       };
 
