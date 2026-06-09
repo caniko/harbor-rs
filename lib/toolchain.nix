@@ -1,4 +1,4 @@
-# mkToolchain :: { pkgs, channel?, date?, extensions?, crossTargets? }
+# mkToolchain :: { pkgs, channel?, date?, extensions?, withRustAnalyzer?, crossTargets? }
 #             -> { rustToolchain, craneLib, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
@@ -7,6 +7,7 @@
   channel ? "nightly",
   date ? "latest",
   extensions ? ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"],
+  withRustAnalyzer ? true,
   crossTargets ? [
     "x86_64-unknown-linux-gnu"
     "aarch64-unknown-linux-gnu"
@@ -22,6 +23,12 @@
   assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
     "rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${date}\"";
   let
+    extensions' = if withRustAnalyzer
+      then
+        if builtins.elem "rust-analyzer" extensions
+        then extensions
+        else extensions ++ ["rust-analyzer"]
+      else extensions;
     channelSet =
       if channel == "nightly"
       then pkgs.rust-bin.nightly
@@ -31,7 +38,7 @@
       then channelSet.latest
       else channelSet.${date};
     rustToolchain = dateSet.default.override {
-      inherit extensions;
+      extensions = extensions';
       targets = crossTargets;
     };
     craneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
