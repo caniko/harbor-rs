@@ -342,6 +342,35 @@ in {
       pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-store-path" {} "touch $out"
     else pkgs.runCommand "check-mkCross-osxcross-enabled-with-sdk-store-path-skipped" {} "touch $out";
 
+  # The NixOS module must pass both the SDK store path and recursive hash to
+  # mkCross so sandboxed builds receive the SDK as a real build input.
+  nixos-module-macos-sdk-mk-cross-args = let
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.macosSdk
+        {
+          options.systemd.tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+        }
+        {
+          programs.rsHarbor.macosSdk = {
+            enable = true;
+            sdkVersion = "26.1";
+            storePath = "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
+            outputHash = "sha256-fake";
+          };
+        }
+      ];
+    };
+    args = evaluated.config.programs.rsHarbor.macosSdk.mkCrossArgs;
+  in
+    assert args.osxSdkVersion == "26.1";
+    assert args.macosSdkStorePath == "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
+    assert args.macosSdkOutputHash == "sha256-fake";
+    pkgs.runCommand "check-nixos-module-macos-sdk-mk-cross-args" {} "touch $out";
+
   # mkCross rejects ambiguous SDK inputs.
   mkCross-osxcross-sdk-input-conflict = let
     fakeMacosSdk = {

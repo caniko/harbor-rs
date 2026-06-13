@@ -48,6 +48,16 @@ in {
       '';
     };
 
+    outputHash = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = ''
+        Recursive fixed-output hash for `storePath`. Set this alongside
+        `storePath` so `mkCrossArgs` can reconstruct the SDK as a
+        context-carrying build input for sandboxed osxcross builds.
+      '';
+    };
+
     keepRealized = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -69,11 +79,14 @@ in {
         {osxSdkVersion = cfg.sdkVersion;}
         // lib.optionalAttrs (cfg.storePath != null) {
           macosSdkStorePath = cfg.storePath;
+        }
+        // lib.optionalAttrs (cfg.storePath != null && cfg.outputHash != null) {
+          macosSdkOutputHash = cfg.outputHash;
         };
       defaultText = lib.literalExpression ''
         {
           osxSdkVersion = config.programs.rsHarbor.macosSdk.sdkVersion;
-        } // optional macosSdkStorePath
+        } // optional macosSdkStorePath and macosSdkOutputHash
       '';
       description = "Arguments to merge into rs-harbor.lib.mkCross from project wrappers.";
     };
