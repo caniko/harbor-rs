@@ -8,7 +8,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCargoConfig` for generated `.cargo/config.toml`
 - `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
 - `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets
-- `mkDevShell` and `mkDevShells` for consistent development shells
+- `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 
@@ -44,10 +44,17 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
       cross = rs-harbor.lib.mkCross { inherit pkgs system; };
       cargoConfig = rs-harbor.lib.mkCargoConfig { inherit pkgs; };
     in {
-      devShells = rs-harbor.lib.mkDevShells {
-        inherit pkgs cross cargoConfig;
-        inherit (toolchain) craneLib;
-      };
+      devShells =
+        (rs-harbor.lib.mkDevShells {
+          inherit pkgs cross cargoConfig;
+          inherit (toolchain) craneLib;
+        })
+        // {
+          docs = rs-harbor.lib.mkDocsShell {
+            inherit pkgs cross cargoConfig;
+            inherit (toolchain) craneLib;
+          };
+        };
     });
 }
 ```
@@ -55,6 +62,7 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 This produces:
 
 - `nix develop` for native work
+- `nix develop .#docs` for documentation and project-site tooling
 - `nix develop .#windows` for MinGW cross builds
 - `nix develop .#macos` for osxcross when a macOS SDK is configured
 - `nix develop .#cross` for both Windows and macOS helpers
@@ -93,7 +101,7 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [API summary](docs/src/SUMMARY.md)
 - [mkCross](docs/src/api/cross.md)
 - [mkCrossPackages](docs/src/api/cross-packages.md)
-- [mkDevShell and mkDevShells](docs/src/api/dev-shells.md)
+- [mkDevShell, mkDocsShell, and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
 - [Homebrew formula](docs/src/packaging/homebrew-formula.md)
 - [COPR spec](docs/src/packaging/copr.md)

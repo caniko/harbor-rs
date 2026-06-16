@@ -1,5 +1,6 @@
-# mkDevShell  :: { ... } -> devShell derivation
-# mkDevShells :: { ... } -> { default, windows, macos, cross }
+# mkDevShell   :: { ... } -> devShell derivation
+# mkDocsShell  :: { ... } -> devShell derivation
+# mkDevShells  :: { ... } -> { default, windows, macos, cross }
 #
 # Build devShells with Rust cross-compilation environment variables pre-configured.
 # mkDevShells calls mkDevShell internally, so both live in the same file.
@@ -21,6 +22,8 @@ rec {
     inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
 
     basePackages = with pkgs; [
+      cargo-audit
+      cargo-deny
       cargo-sweep
       cmake
       gcc
@@ -90,6 +93,19 @@ rec {
           ${osxShellHook}
           ${extraShellHook}
         '';
+      });
+
+  # Build a docs/tooling shell that starts from the same foundation as
+  # mkDevShell, but keeps cross-compilation environment variables disabled
+  # unless a downstream project explicitly opts back in.
+  mkDocsShell = args@{
+    enableWindowsEnv ? false,
+    enableOsxcrossEnv ? false,
+    ...
+  }:
+    mkDevShell (args
+      // {
+        inherit enableWindowsEnv enableOsxcrossEnv;
       });
 
   # Build multiple devShells for workspace ergonomics.

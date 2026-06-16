@@ -5,10 +5,6 @@
 linker = "clang"
 rustflags = ["-C", "link-arg=-fuse-ld=mold", "-Zshare-generics=y", "-Zthreads=0"]
 
-[target.aarch64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=mold", "-Zshare-generics=y", "-Zthreads=0"]
-
 [target.x86_64-pc-windows-gnu]
 rustflags = ["-Zthreads=0"]
 
@@ -23,9 +19,6 @@ codegen-backend = true
 
 [profile.dev]
 codegen-backend = "cranelift"
-debug = "line-tables-only"
-split-debuginfo = "unpacked"
 
 [profile.dev.package."*"]
 codegen-backend = "llvm"
-debug = false

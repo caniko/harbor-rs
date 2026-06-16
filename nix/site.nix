@@ -1,22 +1,9 @@
-{ pkgs }:
+{
+  pkgs,
+  lib,
+  projectSiteLib,
+}:
 let
-  website = pkgs.stdenv.mkDerivation {
-    pname = "rs-harbor-website";
-    version = "0.1.0";
-    src = ../website;
-    nativeBuildInputs = [pkgs.zola];
-    phases = ["buildPhase" "installPhase"];
-    buildPhase = ''
-      cp -r --no-preserve=mode $src site
-      chmod -R u+w site
-      cd site && zola build
-    '';
-    installPhase = ''
-      mkdir -p $out
-      cp -r public/. $out/
-    '';
-  };
-
   docs = pkgs.stdenv.mkDerivation {
     pname = "rs-harbor-docs";
     version = "0.1.0";
@@ -33,12 +20,21 @@ let
       cp -r docs/book/. $out/
     '';
   };
+
+  website = projectSiteLib.mkProjectSite {
+    pname = "rs-harbor-website";
+    domain = "rs-harbor.tartanoglu.com";
+    configPath = ../website/plinth-project.toml;
+    docsPackage = docs;
+    staticPaths = [
+      {
+        source = ../website/static/rs-harbor-mark.svg;
+        target = "website/static/rs-harbor-mark.svg";
+      }
+    ];
+  };
 in {
   inherit website docs;
 
-  site = pkgs.runCommand "rs-harbor-site" {} ''
-    mkdir -p $out $out/docs
-    cp -r ${website}/. $out/
-    cp -r ${docs}/. $out/docs/
-  '';
+  site = website;
 }

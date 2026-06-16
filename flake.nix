@@ -60,7 +60,15 @@
       toolchain = self.lib.mkToolchain {inherit pkgs;};
       cross = self.lib.mkCross {inherit pkgs system;};
       cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
-      sitePackages = import ./nix/site.nix {inherit pkgs;};
+      sitePackages = import ./nix/site.nix {
+        inherit pkgs;
+        lib = nixpkgs.lib;
+        projectSiteLib = import "${plinth}/nix/project-site.nix" {
+          inherit pkgs;
+          lib = nixpkgs.lib;
+          plinthProject = plinth.packages.${system}.plinth-project;
+        };
+      };
       bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {inherit pkgs;};
 
       # rs-harbor's own type-safe CLI, built from the workspace at the
@@ -86,11 +94,6 @@
       steamRuntimeTools = self.lib.mkSteamRuntimeTools {
         inherit pkgs rsHarborCli;
       };
-      website = plinth.lib.${system}.mkProjectSite {
-        pname = "rs-harbor-website";
-        domain = "rs-harbor.tartanoglu.com";
-        configPath = ./website/plinth-project.toml;
-      };
     in {
       packages =
         sitePackages
@@ -100,8 +103,6 @@
           bootstrap-cmds-mig = bootstrapCmdsMig;
           steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
           rs-harbor = rsHarborCli;
-          website = website;
-          site = website;
         };
 
       apps = {
@@ -133,6 +134,7 @@
       devShells = import ./nix/dev-shells.nix {
         harbor = self.lib;
         inherit pkgs toolchain cross cargoConfig;
+        plinthProject = plinth.packages.${system}.plinth-project;
       };
 
       checks = import ./checks.nix {inherit self pkgs system toolchain cross;};

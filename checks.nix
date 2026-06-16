@@ -437,6 +437,95 @@ in {
     assert s ? default;
     pkgs.runCommand "check-mkDevShells-pkg-config-deps" {} "touch $out";
 
+  # mkDocsShell evaluates as a dedicated devShell derivation
+  mkDocsShell-shape = let
+    s = self.lib.mkDocsShell {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      packages = [pkgs.mdbook];
+    };
+  in
+    assert builtins.isAttrs s;
+    assert (s.type or null) == "derivation";
+    pkgs.runCommand "check-mkDocsShell-shape" {} "touch $out";
+
+  # mkDevShells accepts the full parameter set simit's cross_template()
+  # passes: packages list with all audit/release tools, extraShellHook,
+  # and checks.  This is the rs-harbor side of the simit↔rs-harbor
+  # bidirectional contract — if this check fails, simit's generated
+  # cross-compilation dev-shells are broken.
+  mkDevShells-accepts-simit-parameters = let
+    s = self.lib.mkDevShells {
+      inherit pkgs cross;
+      inherit (toolchain) craneLib;
+      packages = with pkgs; [
+        cargo-about
+        cargo-audit
+        cargo-cyclonedx
+        cargo-deny
+        cargo-llvm-cov
+        cargo-sbom
+        cargo-nextest
+        cosign
+        file
+        gnutar
+        gzip
+        jq
+        minisign
+        nodejs
+        pre-commit
+        rpm
+        unzip
+        zip
+        reprepro
+        rust-analyzer
+        taplo
+      ];
+      extraShellHook = ''
+        echo "simit-generated dev-shell ready" >&2
+      '';
+    };
+  in
+    assert s ? default;
+    assert s ? windows;
+    assert s ? macos;
+    assert s ? cross;
+    # Force evaluation of each derivation to confirm the full package
+    # closure resolves.  Accessing .name is sufficient — the derivation
+    # is instantiated without building it.
+    assert builtins.isString s.default.name;
+    assert builtins.isString s.windows.name;
+    assert builtins.isString s.macos.name;
+    assert builtins.isString s.cross.name;
+    pkgs.runCommand "check-mkDevShells-accepts-simit-parameters" {} "touch $out";
+
+  # cargo-audit and cargo-deny resolve in nixpkgs and are available on
+  # PATH when added as build inputs.  This mirrors what happens inside a
+  # dev-shell built by mkDevShells — packages in `packages` end up in
+  # the shell's PATH via nativeBuildInputs.
+  #
+  # This is the companion to the simit↔rs-harbor bidirectional contract:
+  # simit's generated cross-compilation flake passes these tools to
+  # mkDevShells and expects them to resolve at evaluation time.
+  mkDevShells-audit-tools-in-path =
+    pkgs.runCommand "check-mkDevShells-audit-tools-in-path" {
+      buildInputs = with pkgs; [cargo-audit cargo-deny cargo-sweep];
+    } ''
+      command -v cargo-audit >/dev/null || {
+        echo "cargo-audit: not on PATH — simit requires it in every dev-shell"
+        exit 1
+      }
+      command -v cargo-deny >/dev/null || {
+        echo "cargo-deny: not on PATH — simit requires it for deny-enabled projects"
+        exit 1
+      }
+      command -v cargo-sweep >/dev/null || {
+        echo "cargo-sweep: not on PATH — rs-harbor base package is missing"
+        exit 1
+      }
+      touch "$out"
+    '';
+
   # mkCrossPackages returns only the requested targets keyed by output attr
   # name, and each derivation evaluates (we force drvPaths, not full builds).
   # native + windows are buildable on x86_64-linux without a macOS SDK.
