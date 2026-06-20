@@ -31,4 +31,5 @@ in {
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkHomebrewFormula = import ./homebrew-formula.nix;
   mkScoopManifest = import ./scoop-manifest.nix;
+  mkSccacheEnv = import ./sccache.nix {};
 }

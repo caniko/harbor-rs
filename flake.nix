@@ -40,6 +40,7 @@
       inherit lib;
 
       nixosModules.macosSdk = import ./nix/nixos-module.nix;
+      nixosModules.sccache = import ./nix/sccache-module.nix;
 
       templates = {
         bevy = {

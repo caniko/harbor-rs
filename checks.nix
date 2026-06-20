@@ -1970,4 +1970,42 @@ in {
       grep 'keys/minisign.pub' script
       touch $out
     '';
+
+  # mkSccacheEnv produces expected env vars
+  mkSccacheEnv-shape = let
+    env = self.lib.mkSccacheEnv.mkSccacheEnv {
+      bucket = "sccache";
+      endpoint = "http://127.0.0.1:3900";
+    };
+  in
+    assert env ? SCCACHE_BUCKET;
+    assert env ? SCCACHE_ENDPOINT;
+    assert env ? SCCACHE_REGION;
+    assert env ? SCCACHE_S3_USE_SSL;
+    assert env.SCCACHE_BUCKET == "sccache";
+    assert env.SCCACHE_ENDPOINT == "http://127.0.0.1:3900";
+    assert env.SCCACHE_S3_USE_SSL == "false";
+    pkgs.runCommand "check-mkSccacheEnv-shape" {} "touch $out";
+
+  # mkSccacheEnv with SSL sets SCCACHE_S3_USE_SSL=true
+  mkSccacheEnv-ssl = let
+    env = self.lib.mkSccacheEnv.mkSccacheEnv {
+      bucket = "sccache";
+      endpoint = "https://s3.example.com";
+      useSsl = true;
+    };
+  in
+    assert env.SCCACHE_S3_USE_SSL == "true";
+    pkgs.runCommand "check-mkSccacheEnv-ssl" {} "touch $out";
+
+  # mkSccacheEnv with keyPrefix sets SCCACHE_S3_KEY_PREFIX
+  mkSccacheEnv-prefix = let
+    env = self.lib.mkSccacheEnv.mkSccacheEnv {
+      bucket = "sccache";
+      endpoint = "http://127.0.0.1:3900";
+      keyPrefix = "atlas";
+    };
+  in
+    assert env.SCCACHE_S3_KEY_PREFIX == "atlas";
+    pkgs.runCommand "check-mkSccacheEnv-prefix" {} "touch $out";
 }
