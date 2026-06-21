@@ -6,8 +6,10 @@
   adapterLib = import ./adapter.nix;
   minisignLib = import ./minisign.nix;
   mkToolchain = import ./toolchain.nix {inherit crane;};
+  hardeningProfiles = import ./hardening-profiles.nix;
 in {
-  inherit mkToolchain;
+  inherit mkToolchain hardeningProfiles;
+
   mkCargoConfig = import ./cargo-config.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
@@ -19,6 +21,13 @@ in {
   inherit (devShellLib) mkDevShell mkDocsShell mkDevShells;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
+
+  mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
+  mkTrunkPackage = import ./trunk.nix {inherit crane;};
+  mkRustServiceModule = import ./nixos-rust-service.nix {
+    inherit hardeningProfiles;
+  };
+
   findLocalMavenCache = import ./android-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
   mkAndroidApk = import ./android-apk.nix;
