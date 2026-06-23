@@ -49,21 +49,12 @@ rec {
     cargoConfigHook =
       if cargoConfig != null
       then ''
-        if [ -f .cargo/config.toml ]; then
-          if ! diff -q .cargo/config.toml ${cargoConfig.configPath} >/dev/null 2>&1; then
-            rm -f .cargo/config.toml.bak
-            cp .cargo/config.toml .cargo/config.toml.bak
-            chmod u+w .cargo/config.toml.bak
-            echo "rs-harbor: backed up .cargo/config.toml → .cargo/config.toml.bak"
-            rm -f .cargo/config.toml
-            install -m 0644 ${cargoConfig.configPath} .cargo/config.toml
-            echo "rs-harbor: updated .cargo/config.toml"
-          fi
-        else
-          mkdir -p .cargo
-          install -m 0644 ${cargoConfig.configPath} .cargo/config.toml
-          echo "rs-harbor: wrote .cargo/config.toml"
-        fi
+        RS_HARBOR_CARGO_HOME="$(mktemp -d -t rs-harbor-cargo-XXXXXX)"
+        export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
+        mkdir -p "$RS_HARBOR_CARGO_HOME"
+        install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml"
+        trap 'rm -rf "$RS_HARBOR_CARGO_HOME"' EXIT
+        echo "rs-harbor: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
       ''
       else "";
 

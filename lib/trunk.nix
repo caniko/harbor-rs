@@ -130,9 +130,11 @@ let
     inherit src;
     filter = path: type:
       (effectiveCraneLib.filterCargoSources path type)
-      || (builtins.any (suffix: hasSuffix suffix (toString path)) [
-        ".html" ".css" ".js" "Trunk.toml"
-      ]);
+      || type == "regular" && pkgs.lib.any
+        (ext: pkgs.lib.hasSuffix ext (baseNameOf (toString path)))
+        [ ".html" ".css" ".js" ]
+      || baseNameOf (toString path) == "Trunk.toml"
+    ;
     name = "${pname}-wasm-src";
   };
 

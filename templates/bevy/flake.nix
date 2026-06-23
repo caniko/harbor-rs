@@ -39,7 +39,12 @@
 
       bevyDeps = import ./nix/bevy-deps.nix {inherit pkgs;};
 
-      src = craneLib.cleanCargoSource ./.;
+      src = pkgs.lib.cleanSourceWith {
+        src = ./.;
+        filter = path: type:
+          (!pkgs.lib.hasPrefix (toString ./.cargo) (toString path))
+          && craneLib.filterCargoSources path type;
+      };
       inherit (toolchain) craneLib;
 
       build = import ./nix/package.nix {inherit craneLib bevyDeps src;};

@@ -6,8 +6,11 @@
   rsHarborSrc = pkgs.lib.cleanSourceWith {
     inherit src;
     filter = path: type:
-      (craneLib.filterCargoSources path type)
-      || (builtins.match ".*/tests/fixtures/.*" path != null);
+      (!pkgs.lib.hasPrefix (toString (src + "/.cargo")) (toString path))
+      && (
+        (craneLib.filterCargoSources path type)
+        || (builtins.match ".*/tests/fixtures/.*" path != null)
+      );
     name = "rs-harbor-source";
   };
 in
