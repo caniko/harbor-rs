@@ -2008,4 +2008,92 @@ in {
   in
     assert env.SCCACHE_S3_KEY_PREFIX == "atlas";
     pkgs.runCommand "check-mkSccacheEnv-prefix" {} "touch $out";
+
+  # mkSccacheCraneEnv returns env vars when enabled with S3 params
+  sccache-crane-env-shape = let
+    env = self.lib.mkSccacheCraneEnv {
+      enable = true;
+      package = "/run/current-system/sw/bin/sccache";
+      bucket = "sccache";
+      endpoint = "http://127.0.0.1:3900";
+      accessKeyId = "GKsomekey";
+      secretAccessKey = "somesecret";
+    };
+  in
+    assert env ? RUSTC_WRAPPER;
+    assert env ? SCCACHE_BUCKET;
+    assert env ? AWS_ACCESS_KEY_ID;
+    assert env ? SCCACHE_CONNECT_TIMEOUT;
+    assert env.RUSTC_WRAPPER == "/run/current-system/sw/bin/sccache";
+    assert env.SCCACHE_BUCKET == "sccache";
+    assert env.AWS_ACCESS_KEY_ID == "GKsomekey";
+    assert env.SCCACHE_CONNECT_TIMEOUT == "2";
+    pkgs.runCommand "check-sccache-crane-env-shape" {} "touch $out";
+
+  # mkSccacheCraneEnv returns {} when disabled
+  sccache-crane-env-disabled = let
+    env = self.lib.mkSccacheCraneEnv { enable = false; };
+  in
+    assert env == {};
+    pkgs.runCommand "check-sccache-crane-env-disabled" {} "touch $out";
+
+  # mkSccacheCraneEnv returns {} when S3 params missing
+  sccache-crane-env-no-s3 = let
+    env = self.lib.mkSccacheCraneEnv {
+      enable = true;
+      package = "${pkgs.sccache}/bin/sccache";
+    };
+  in
+    assert env == {};
+    pkgs.runCommand "check-sccache-crane-env-no-s3" {} "touch $out";
+
+  # NixOS module exports envVars with credentials
+  sccache-module-env-vars = let
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.sccache
+        {
+          options.environment = {
+            systemPackages = pkgs.lib.mkOption {
+              type = pkgs.lib.types.listOf pkgs.lib.types.package;
+              default = [];
+            };
+            variables = pkgs.lib.mkOption {
+              type = pkgs.lib.types.attrsOf pkgs.lib.types.str;
+              default = {};
+            };
+          };
+          options.systemd.tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+          options.nix.settings = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        }
+        {
+          programs.rsHarbor.sccache = {
+            enable = true;
+            cacheEndpoint = "http://127.0.0.1:3900";
+            cacheBucket = "sccache";
+            accessKeyId = "GKkey";
+            secretAccessKey = "secret";
+          };
+        }
+      ];
+      specialArgs = { inherit pkgs; };
+    };
+    env = evaluated.config.programs.rsHarbor.sccache.envVars;
+  in
+    assert env ? RUSTC_WRAPPER;
+    assert env ? SCCACHE_BUCKET;
+    assert env ? AWS_ACCESS_KEY_ID;
+    assert env ? SCCACHE_CONNECT_TIMEOUT;
+    assert env.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
+    assert env.SCCACHE_BUCKET == "sccache";
+    assert env.AWS_ACCESS_KEY_ID == "GKkey";
+    assert env.AWS_SECRET_ACCESS_KEY == "secret";
+    assert env.SCCACHE_CONNECT_TIMEOUT == "2";
+    pkgs.runCommand "check-sccache-module-env-vars" {} "touch $out";
 }

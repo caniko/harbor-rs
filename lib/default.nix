@@ -7,6 +7,7 @@
   minisignLib = import ./minisign.nix;
   mkToolchain = import ./toolchain.nix {inherit crane;};
   hardeningProfiles = import ./hardening-profiles.nix;
+  mkSccacheLib = import ./sccache.nix {};
 in {
   inherit mkToolchain hardeningProfiles;
 
@@ -40,5 +41,6 @@ in {
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkHomebrewFormula = import ./homebrew-formula.nix;
   mkScoopManifest = import ./scoop-manifest.nix;
-  mkSccacheEnv = import ./sccache.nix {};
+  mkSccacheEnv = mkSccacheLib;  # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
+  mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
 }
