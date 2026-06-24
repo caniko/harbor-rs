@@ -55,13 +55,25 @@ in {
     secretAccessKey ? null,
     connectTimeout ? "2",
   }:
-    if !enable || bucket == null || endpoint == null
+    if !enable
     then {}
-    else {
-      RUSTC_WRAPPER = package;
-      SCCACHE_CONNECT_TIMEOUT = connectTimeout;
-    }
-    // mkSccacheInner {
-      inherit bucket endpoint region keyPrefix useSsl accessKeyId secretAccessKey;
-    };
+    else let
+      # In sandboxed builds HOME=/homeless-shelter which sccache cannot write to.
+      # Point SCCACHE_DIR at a writable TMPDIR-relative path so local-only
+      # sccache works even when the NixOS module's impure-env SCCACHE_DIR is
+      # unavailable (pre-2.20 Nix, sandboxCacheDir unset, etc.).
+      localEnv = {
+        RUSTC_WRAPPER = package;
+        SCCACHE_DIR = "$NIX_BUILD_TOP/.sccache";
+      };
+      s3Cfg = if bucket != null && endpoint != null then
+        mkSccacheInner {
+          inherit bucket endpoint region keyPrefix useSsl accessKeyId secretAccessKey;
+        }
+        // {
+          SCCACHE_CONNECT_TIMEOUT = connectTimeout;
+        }
+      else {};
+    in
+      localEnv // s3Cfg;
 }
