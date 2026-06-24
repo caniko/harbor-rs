@@ -5,10 +5,25 @@
 #   - Shared (S3):    add `cacheEndpoint` + `cacheBucket`
 #   - Authenticated:  add `accessKeyId` + `secretAccessKey`
 #
-# Exports config.programs.rsHarbor.sccache.envVars — the single source
-# of truth for all sccache-related environment variables. Consumers
-# (overlays, home-manager modules, etc.) read this to inject env vars
-# at derivation level instead of relying on impure-env.
+# Two-layer env-var strategy:
+#
+#   Layer 1 — impure-env (nix daemon → all sandbox builds):
+#     SCCACHE_DIR is injected via nix.settings.impure-env whenever
+#     sandboxCacheDir is configured. This is safe because SCCACHE_DIR
+#     is a local filesystem path, not a secret. It ensures every
+#     derivation built on the host — even those from third-party
+#     flakes that hardcode RUSTC_WRAPPER=sccache — can write to the
+#     sccache disk cache under a writable /tmp directory.
+#
+#   Layer 2 — derivation-level injection (opt-in, for S3 creds):
+#     config.programs.rsHarbor.sccache.envVars exports RUSTC_WRAPPER,
+#     S3 endpoint/bucket, and AWS credentials. Consumers read this
+#     via builtins.tryEval and apply overrideAttrs to their crane
+#     builds. S3 credentials NEVER pass through impure-env.
+#
+#   Layer 3 — interactive/logind session (convenience):
+#     environment.variables mirrors envVars so RUSTC_WRAPPER is
+#     active in shells and systemd user services.
 {
   config,
   lib,
@@ -160,9 +175,14 @@ in {
         "d ${cfg.sandboxCacheDir} 1777 root root -"
       ];
 
-    nix.settings =
-      lib.optionalAttrs (cfg.sandboxCacheDir != null) {
-        extra-sandbox-paths = [cfg.sandboxCacheDir];
-      };
+    nix.settings.extra-sandbox-paths = mkIf (cfg.sandboxCacheDir != null) [cfg.sandboxCacheDir];
+
+    # Pass SCCACHE_DIR into every nix build sandbox via impure-env.
+    # This is a local cache path, NOT a secret — safe to expose broadly.
+    # Without it, third-party crane-based flakes that hardcode
+    # RUSTC_WRAPPER=sccache fail because sccache defaults to
+    # ~/.cache/sccache which is unwritable under HOME=/homeless-shelter.
+    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) "SCCACHE_DIR=${cfg.sandboxCacheDir}";
+    nix.settings.experimental-features = mkIf (cfg.sandboxCacheDir != null) ["configurable-impure-env"];
   };
 }
