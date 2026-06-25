@@ -182,10 +182,10 @@ in {
     # via impure-env. SCCACHE_DIR is the primary disk cache; XDG_CACHE_HOME
     # prevents sccache 0.15's preprocessor cache from using the unwritable
     # $HOME (which defaults to /homeless-shelter in sandboxed builds).
-    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) {
-      SCCACHE_DIR = cfg.sandboxCacheDir;
-      XDG_CACHE_HOME = cfg.sandboxCacheDir;
-    };
+    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) [
+      "SCCACHE_DIR=${cfg.sandboxCacheDir}"
+      "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
+    ];
     nix.settings.experimental-features = mkIf (cfg.sandboxCacheDir != null) ["configurable-impure-env"];
   };
 }
