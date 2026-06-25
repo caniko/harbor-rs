@@ -60,6 +60,7 @@
         })
         (mkIf (cfg.sandboxCacheDir != null) {
           SCCACHE_DIR = cfg.sandboxCacheDir;
+          XDG_CACHE_HOME = cfg.sandboxCacheDir;
         })
         cfg.extraEnv
       ])
@@ -177,12 +178,14 @@ in {
 
     nix.settings.extra-sandbox-paths = mkIf (cfg.sandboxCacheDir != null) [cfg.sandboxCacheDir];
 
-    # Pass SCCACHE_DIR into every nix build sandbox via impure-env.
-    # This is a local cache path, NOT a secret — safe to expose broadly.
-    # Without it, third-party crane-based flakes that hardcode
-    # RUSTC_WRAPPER=sccache fail because sccache defaults to
-    # ~/.cache/sccache which is unwritable under HOME=/homeless-shelter.
-    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) "SCCACHE_DIR=${cfg.sandboxCacheDir}";
+    # Pass SCCACHE_DIR and XDG_CACHE_HOME into every nix build sandbox
+    # via impure-env. SCCACHE_DIR is the primary disk cache; XDG_CACHE_HOME
+    # prevents sccache 0.15's preprocessor cache from using the unwritable
+    # $HOME (which defaults to /homeless-shelter in sandboxed builds).
+    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) {
+      SCCACHE_DIR = cfg.sandboxCacheDir;
+      XDG_CACHE_HOME = cfg.sandboxCacheDir;
+    };
     nix.settings.experimental-features = mkIf (cfg.sandboxCacheDir != null) ["configurable-impure-env"];
   };
 }

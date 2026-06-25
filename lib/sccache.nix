@@ -59,12 +59,13 @@ in {
     then {}
     else let
       # In sandboxed builds HOME=/homeless-shelter which sccache cannot write to.
-      # Point SCCACHE_DIR at a writable TMPDIR-relative path so local-only
-      # sccache works even when the NixOS module's impure-env SCCACHE_DIR is
+      # Point SCCACHE_DIR and XDG_CACHE_HOME at a writable TMPDIR-relative path
+      # so local-only sccache works even when the NixOS module's impure-env is
       # unavailable (pre-2.20 Nix, sandboxCacheDir unset, etc.).
       localEnv = {
         RUSTC_WRAPPER = package;
         SCCACHE_DIR = "$NIX_BUILD_TOP/.sccache";
+        XDG_CACHE_HOME = "$NIX_BUILD_TOP/.sccache";
       };
       s3Cfg = if bucket != null && endpoint != null then
         mkSccacheInner {
