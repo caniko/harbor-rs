@@ -145,6 +145,24 @@ in {
       example = "/tmp/sccache";
     };
 
+    # List of package attribute names to automatically inject sccache
+    # env vars into via nixpkgs overlays. Each listed package gets
+    # RUSTC_WRAPPER, S3 credentials, and sccache added to
+    # nativeBuildInputs — no manual overrideAttrs needed.
+    # Useful in crossbow extraModules to wire S3 caching into
+    # cross-compiled or native Rust packages.
+    crossbowPackages = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      description = ''
+        Package attribute names to inject sccache env vars into via
+        nixpkgs overlays. Each package gets sccache added to
+        nativeBuildInputs and the full computedEnvVars merged into
+        its derivation environment.
+      '';
+      example = ["identity-cli" "kanidmWithSecretProvisioning_1_10"];
+    };
+
     connectTimeout = mkOption {
       type = types.str;
       default = "2";
@@ -187,5 +205,23 @@ in {
       "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
     ];
     nix.settings.experimental-features = mkIf (cfg.sandboxCacheDir != null) ["configurable-impure-env"];
+
+    # Auto-generate nixpkgs overlay for crossbow packages: inject sccache
+    # env vars and add sccache to nativeBuildInputs without manual
+    # overrideAttrs per package.
+    nixpkgs.overlays = mkIf (cfg.crossbowPackages != []) [(final: prev: let
+      scc = computedEnvVars;
+      overrideOne = name:
+        if prev ? ${name}
+        then {
+          ${name} = prev.${name}.overrideAttrs (old: {
+            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [final.sccache];
+            env = (old.env or {}) // scc;
+          });
+        }
+        else {};
+    in
+      builtins.foldl' (acc: name: acc // overrideOne name) {} cfg.crossbowPackages
+    )];
   };
 }
