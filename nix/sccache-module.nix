@@ -250,29 +250,19 @@ in {
       })
     ];
 
-    # Auto-generate nixpkgs overlay for crossbow packages: inject sccache
-    # env vars and add sccache to nativeBuildInputs without manual
-    # overrideAttrs per package.
+    # Auto-generate nixpkgs overlay for crossbow packages: add sccache to
+    # nativeBuildInputs so cross-compiled Rust builds use the host sccache
+    # daemon. Env vars (RUSTC_WRAPPER, cache endpoints) are NOT injected
+    # here — they would leak to sub-derivations (e.g. cargo dependencies)
+    # whose sandbox $HOME (= /homeless-shelter/) is unwritable. The host
+    # impure-env layer must handle RUSTC_WRAPPER and SCCACHE_DIR when the
+    # daemon is configured.
     nixpkgs.overlays = mkIf (cfg.crossbowPackages != []) [(final: prev: let
-      # Sandbox builds need a writable SCCACHE_DIR. When sandboxCacheDir is
-      # not explicitly configured, fall back to /tmp so sccache does not try
-      # $HOME/.cache/sccache (which resolves to unwritable /homeless-shelter/
-      # inside the Nix sandbox).
-      sandboxDir =
-        if cfg.sandboxCacheDir != null
-        then cfg.sandboxCacheDir
-        else "/tmp/sccache-cache";
-      scc =
-        if cfg.enable
-        then (builtins.removeAttrs computedEnvVars ["SCCACHE_DIR"])
-          // { SCCACHE_DIR = sandboxDir; }
-        else {};
       overrideOne = name:
         if prev ? ${name}
         then {
           ${name} = prev.${name}.overrideAttrs (old: {
             nativeBuildInputs = (old.nativeBuildInputs or []) ++ [final.sccache];
-            env = (old.env or {}) // scc;
           });
         }
         else {};
