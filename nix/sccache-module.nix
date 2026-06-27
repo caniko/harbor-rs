@@ -5,15 +5,27 @@
 #   - Shared (S3):    add `cacheEndpoint` + `cacheBucket`
 #   - Authenticated:  add `accessKeyId` + `secretAccessKey`
 #
-# Two-layer env-var strategy:
+# Two env-var layers under three sandbox access models:
 #
-#   Layer 1 — impure-env (nix daemon → all sandbox builds):
-#     SCCACHE_DIR is injected via nix.settings.impure-env whenever
-#     sandboxCacheDir is configured. This is safe because SCCACHE_DIR
-#     is a local filesystem path, not a secret. It ensures every
-#     derivation built on the host — even those from third-party
-#     flakes that hardcode RUSTC_WRAPPER=sccache — can write to the
-#     sccache disk cache under a writable /tmp directory.
+#   Local-only mode (sandboxCacheDir set, daemon.enable = false):
+#     SCCACHE_DIR is injected via nix.settings.impure-env from the
+#     world-writable sandboxCacheDir (/tmp/sccache). Every derivation
+#     gets a writable disk cache path.
+#
+#   Daemon mode (daemon.enable = true, sandboxCacheDir MUST be null):
+#     A persistent sccache daemon (systemd service, user "sccache")
+#     owns all disk caching under daemon.diskCacheDir and binds a
+#     Unix socket at daemon.socketPath (/run/sccache/sock by default).
+#     The socket lives in a systemd RuntimeDirectory owned by user
+#     sccache (mode 0755) — separate from any world-writable scratch
+#     dir — so sticky-bit races on stale socket files are impossible.
+#     Sandbox builds reach the socket via extra-sandbox-paths and
+#     SCCACHE_SERVER_UDS in impure-env.
+#
+#   Local + daemon compat (sandboxCacheDir set, daemon.enable = true):
+#     NOT ALLOWED — the assertion layer catches this at eval time.
+#     sandboxCacheDir and daemon.enable are mutually exclusive.
+#     Remove sandboxCacheDir when enabling the daemon.
 #
 #   Layer 2 — derivation-level injection (opt-in, for S3 creds):
 #     config.programs.rsHarbor.sccache.envVars exports RUSTC_WRAPPER,
@@ -32,6 +44,8 @@
 }: let
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
   cfg = config.programs.rsHarbor.sccache;
+
+  socketParentDir = builtins.dirOf cfg.daemon.socketPath;
 
   # Compute envVars so the option definition and environment.variables
   # share the same logic without eval-order issues.
@@ -56,7 +70,7 @@
       // (if cfg.secretAccessKey != null then {
         AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
       } else {})
-      // (if cfg.sandboxCacheDir != null then {
+      // (if cfg.sandboxCacheDir != null && !cfg.daemon.enable then {
         SCCACHE_DIR = cfg.sandboxCacheDir;
         XDG_CACHE_HOME = cfg.sandboxCacheDir;
       } else {})
@@ -183,12 +197,14 @@ in {
 
       socketPath = mkOption {
         type = types.path;
-        default = "/tmp/sccache/sock";
+        default = "/run/sccache/sock";
         description = ''
-          Unix socket path for the daemon to listen on. Defaults inside
-          sandboxCacheDir (/tmp/sccache) which is already bind-mounted into
-          every Nix sandbox, so sandbox builds connect without needing a
-          separate extra-sandbox-paths entry.
+          Unix socket path for the daemon to listen on. Defaults under
+          /run/sccache — a systemd RuntimeDirectory owned by the sccache
+          user (mode 0755). Systemd creates the directory before ExecStart
+          and wipes it on stop, so stale-socket races under sticky-bit
+          /tmp directories are impossible. Sandbox builds reach the socket
+          via extra-sandbox-paths + impure-env SCCACHE_SERVER_UDS.
         '';
       };
 
@@ -219,6 +235,21 @@ in {
   };
 
   config = mkIf cfg.enable {
+    assertions = [{
+      assertion = !(cfg.daemon.enable && cfg.sandboxCacheDir != null);
+      message = ''
+        programs.rsHarbor.sccache: sandboxCacheDir (= "${cfg.sandboxCacheDir}") and
+        daemon.enable are mutually exclusive.
+
+        In daemon mode the daemon owns all disk caching at
+        daemon.diskCacheDir (= "${cfg.daemon.diskCacheDir}") and its Unix
+        socket lives in a dedicated RuntimeDirectory (/run/sccache) outside
+        the world-writable sandbox.
+
+        To fix: remove sandboxCacheDir from hosts that enable the daemon.
+      '';
+    }];
+
     programs.rsHarbor.sccache.envVars = computedEnvVars;
 
     environment.systemPackages = [cfg.package];
@@ -229,22 +260,25 @@ in {
       else builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
 
     systemd.tmpfiles.rules =
-      lib.optionals (cfg.sandboxCacheDir != null) [
+      lib.optionals (cfg.sandboxCacheDir != null && !cfg.daemon.enable) [
         "d ${cfg.sandboxCacheDir} 1777 root root -"
       ];
 
-    # Merge sandbox access paths from two sources:
-    #   1. sandboxCacheDir — writable disk cache (also hosts the daemon socket)
-    #   2. daemon.socketPath — impure-env points builds at the host daemon
+    # Sandbox access paths — mutually exclusive between local-only and
+    # daemon mode (enforced by the assertion above):
+    #   1. sandboxCacheDir — writable disk cache (local-only)
+    #   2. daemon socket — dedicated RuntimeDirectory at socketParentDir
     nix.settings = mkMerge [
-      (mkIf (cfg.sandboxCacheDir != null) {
+      (mkIf (cfg.sandboxCacheDir != null && !cfg.daemon.enable) {
         extra-sandbox-paths = [cfg.sandboxCacheDir];
         impure-env = [
           "SCCACHE_DIR=${cfg.sandboxCacheDir}"
           "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
         ];
+        experimental-features = ["configurable-impure-env"];
       })
       (mkIf cfg.daemon.enable {
+        extra-sandbox-paths = [socketParentDir];
         impure-env = ["SCCACHE_SERVER_UDS=${cfg.daemon.socketPath}"];
         experimental-features = ["configurable-impure-env"];
       })
@@ -286,6 +320,8 @@ in {
         RemainAfterExit = true;
         User = "sccache";
         Group = "sccache";
+        RuntimeDirectory = "sccache";
+        RuntimeDirectoryMode = "0755";
         StateDirectory = "sccache";
         StateDirectoryMode = "0700";
         ReadWritePaths = [

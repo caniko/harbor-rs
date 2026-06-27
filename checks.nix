@@ -2037,14 +2037,20 @@ in {
     assert env == {};
     pkgs.runCommand "check-sccache-crane-env-disabled" {} "touch $out";
 
-  # mkSccacheCraneEnv returns {} when S3 params missing
+  # mkSccacheCraneEnv returns local-only env when S3 params missing
   sccache-crane-env-no-s3 = let
     env = self.lib.mkSccacheCraneEnv {
       enable = true;
       package = "${pkgs.sccache}/bin/sccache";
     };
   in
-    assert env == {};
+    assert env ? RUSTC_WRAPPER;
+    assert env ? SCCACHE_DIR;
+    assert env ? XDG_CACHE_HOME;
+    assert !(env ? SCCACHE_BUCKET);
+    assert env.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
+    assert env.SCCACHE_DIR == "$NIX_BUILD_TOP/.sccache";
+    assert env.XDG_CACHE_HOME == "$NIX_BUILD_TOP/.sccache";
     pkgs.runCommand "check-sccache-crane-env-no-s3" {} "touch $out";
 
   # NixOS module exports envVars with credentials
@@ -2063,13 +2069,39 @@ in {
               default = {};
             };
           };
-          options.systemd.tmpfiles.rules = pkgs.lib.mkOption {
-            type = pkgs.lib.types.listOf pkgs.lib.types.str;
-            default = [];
-          };
-          options.nix.settings = pkgs.lib.mkOption {
-            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
-            default = {};
+          options = {
+            systemd = {
+              tmpfiles.rules = pkgs.lib.mkOption {
+                type = pkgs.lib.types.listOf pkgs.lib.types.str;
+                default = [];
+              };
+              services = pkgs.lib.mkOption {
+                type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+                default = {};
+              };
+            };
+            nix.settings = pkgs.lib.mkOption {
+              type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+              default = {};
+            };
+            users = {
+              users = pkgs.lib.mkOption {
+                type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+                default = {};
+              };
+              groups = pkgs.lib.mkOption {
+                type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+                default = {};
+              };
+            };
+            assertions = pkgs.lib.mkOption {
+              type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+              default = [];
+            };
+            nixpkgs.overlays = pkgs.lib.mkOption {
+              type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+              default = [];
+            };
           };
         }
         {
@@ -2096,4 +2128,150 @@ in {
     assert env.AWS_SECRET_ACCESS_KEY == "secret";
     assert env.SCCACHE_CONNECT_TIMEOUT == "2";
     pkgs.runCommand "check-sccache-module-env-vars" {} "touch $out";
+
+  # NixOS module daemon shape — socket in RuntimeDirectory, not /tmp/sccache
+  sccache-module-daemon-shape = let
+    mockBase = {
+      options = {
+        environment = {
+          systemPackages = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.package;
+            default = [];
+          };
+          variables = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.str;
+            default = {};
+          };
+        };
+        systemd = {
+          tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+          services = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        nix.settings = pkgs.lib.mkOption {
+          type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+          default = {};
+        };
+        users = {
+          users = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+          groups = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        assertions = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+        nixpkgs.overlays = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+      };
+    };
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.sccache
+        mockBase
+        {
+          programs.rsHarbor.sccache = {
+            enable = true;
+            daemon.enable = true;
+            cacheEndpoint = "http://127.0.0.1:3900";
+            cacheBucket = "sccache";
+            accessKeyId = "GKkey";
+            secretAccessKey = "secret";
+          };
+        }
+      ];
+      specialArgs = { inherit pkgs; };
+    };
+    svc = evaluated.config.systemd.services.sccache-daemon;
+    settings = evaluated.config.nix.settings;
+  in
+    assert !builtins.any (a: !a.assertion) evaluated.config.assertions;
+    assert settings.extra-sandbox-paths == [ "/run/sccache" ];
+    assert settings."impure-env" == [ "SCCACHE_SERVER_UDS=/run/sccache/sock" ];
+    assert svc.serviceConfig.RuntimeDirectory == "sccache";
+    assert svc.serviceConfig.RuntimeDirectoryMode == "0755";
+    pkgs.runCommand "check-sccache-module-daemon-shape" {} "touch $out";
+
+  # NixOS module assertion fires when daemon + sandboxCacheDir coexist
+  sccache-module-daemon-rejects-sandboxCacheDir = let
+    mockBase = {
+      options = {
+        environment = {
+          systemPackages = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.package;
+            default = [];
+          };
+          variables = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.str;
+            default = {};
+          };
+        };
+        systemd = {
+          tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+          services = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        nix.settings = pkgs.lib.mkOption {
+          type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+          default = {};
+        };
+        users = {
+          users = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+          groups = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        assertions = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+        nixpkgs.overlays = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+      };
+    };
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.sccache
+        mockBase
+        {
+          programs.rsHarbor.sccache = {
+            enable = true;
+            daemon.enable = true;
+            sandboxCacheDir = "/tmp/sccache";
+            cacheEndpoint = "http://127.0.0.1:3900";
+            cacheBucket = "sccache";
+            accessKeyId = "GKkey";
+            secretAccessKey = "secret";
+          };
+        }
+      ];
+      specialArgs = { inherit pkgs; };
+    };
+    assertions = evaluated.config.assertions;
+  in
+    assert builtins.any (a: !a.assertion) assertions;
+    pkgs.runCommand "check-sccache-module-daemon-rejects-sandboxCacheDir" {} "touch $out";
 }
