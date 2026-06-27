@@ -309,7 +309,7 @@ in {
         ExecStart = "${cfg.package}/bin/sccache --start-server";
         ExecStartPost = "${pkgs.coreutils}/bin/chmod 0666 ${cfg.daemon.socketPath}";
         ExecStop = "${cfg.package}/bin/sccache --stop-server";
-        ProtectSystem = "strict";
+        ProtectSystem = "full";
         ProtectHome = true;
       };
     };
