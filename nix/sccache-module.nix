@@ -62,6 +62,9 @@
           SCCACHE_DIR = cfg.sandboxCacheDir;
           XDG_CACHE_HOME = cfg.sandboxCacheDir;
         })
+        (mkIf cfg.daemon.enable {
+          SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
+        })
         cfg.extraEnv
       ])
     else {};
@@ -169,6 +172,40 @@ in {
       description = "SCCACHE_CONNECT_TIMEOUT in seconds. Controls how long sccache waits before falling back to local cache.";
     };
 
+    daemon = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Run a persistent sccache daemon as a systemd service bound to a
+          Unix socket. Sandbox builds reach it via extra-sandbox-paths +
+          impure-env instead of attempting per-build daemon spawns that
+          fail under network-namespace isolation.
+        '';
+      };
+
+      socketPath = mkOption {
+        type = types.path;
+        default = "/run/sccache/sock";
+        description = "Unix socket path for the daemon to listen on.";
+      };
+
+      diskCacheDir = mkOption {
+        type = types.path;
+        default = "/var/lib/sccache";
+        description = "Persistent disk cache directory for the daemon.";
+      };
+
+      idleTimeout = mkOption {
+        type = types.int;
+        default = 0;
+        description = ''
+          Seconds before the daemon shuts down when idle. 0 = never.
+          The daemon starts at boot and stays up for the session.
+        '';
+      };
+    };
+
     # Exported computed env vars — single source of truth for
     # derivation-level injection by consumer modules.
     envVars = mkOption {
@@ -194,17 +231,23 @@ in {
         "d ${cfg.sandboxCacheDir} 1777 root root -"
       ];
 
-    nix.settings.extra-sandbox-paths = mkIf (cfg.sandboxCacheDir != null) [cfg.sandboxCacheDir];
-
-    # Pass SCCACHE_DIR and XDG_CACHE_HOME into every nix build sandbox
-    # via impure-env. SCCACHE_DIR is the primary disk cache; XDG_CACHE_HOME
-    # prevents sccache 0.15's preprocessor cache from using the unwritable
-    # $HOME (which defaults to /homeless-shelter in sandboxed builds).
-    nix.settings.impure-env = mkIf (cfg.sandboxCacheDir != null) [
-      "SCCACHE_DIR=${cfg.sandboxCacheDir}"
-      "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
+    # Merge sandbox access paths from two sources:
+    #   1. sandboxCacheDir — writable disk cache for ad-hoc per-build daemons
+    #   2. daemon.socketPath — read-only bind for connecting to host daemon
+    nix.settings = mkMerge [
+      (mkIf (cfg.sandboxCacheDir != null) {
+        extra-sandbox-paths = [cfg.sandboxCacheDir];
+        impure-env = [
+          "SCCACHE_DIR=${cfg.sandboxCacheDir}"
+          "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
+        ];
+      })
+      (mkIf cfg.daemon.enable {
+        extra-sandbox-paths = [(lib.dirOf cfg.daemon.socketPath)];
+        impure-env = ["SCCACHE_SERVER_UDS=${cfg.daemon.socketPath}"];
+        experimental-features = ["configurable-impure-env"];
+      })
     ];
-    nix.settings.experimental-features = mkIf (cfg.sandboxCacheDir != null) ["configurable-impure-env"];
 
     # Auto-generate nixpkgs overlay for crossbow packages: inject sccache
     # env vars and add sccache to nativeBuildInputs without manual
@@ -223,5 +266,52 @@ in {
     in
       builtins.foldl' (acc: name: acc // overrideOne name) {} cfg.crossbowPackages
     )];
+
+    # Persistent host-side daemon for sandbox builds — binds a Unix socket
+    # that sandbox builds connect to via the impure-env SCCACHE_SERVER_UDS
+    # and the extra-sandbox-paths bind mount above.
+    users.groups.sccache = mkIf cfg.daemon.enable {};
+    users.users.sccache = mkIf cfg.daemon.enable {
+      isSystemUser = true;
+      group = "sccache";
+      description = "sccache daemon user";
+    };
+
+    systemd.services.sccache-daemon = mkIf cfg.daemon.enable {
+      description = "sccache compilation cache daemon (Unix socket)";
+      after = ["network.target"];
+      wants = ["network.target"];
+      wantedBy = ["multi-user.target"];
+
+      environment = let
+        daemonEnv = builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
+      in daemonEnv // {
+        SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
+        SCCACHE_DIR = cfg.daemon.diskCacheDir;
+        SCCACHE_IDLE_TIMEOUT = toString cfg.daemon.idleTimeout;
+      };
+
+      serviceConfig = {
+        Type = "simple";
+        User = "sccache";
+        Group = "sccache";
+        RuntimeDirectory = "sccache";
+        RuntimeDirectoryMode = "0755";
+        StateDirectory = "sccache";
+        StateDirectoryMode = "0700";
+        ReadWritePaths = [
+          (lib.dirOf cfg.daemon.socketPath)
+          cfg.daemon.diskCacheDir
+        ];
+        ExecStartPre = "-${pkgs.coreutils}/bin/rm -f ${cfg.daemon.socketPath}";
+        ExecStart = "${cfg.package}/bin/sccache --start-server";
+        ExecStartPost = "${pkgs.coreutils}/bin/chmod 0666 ${cfg.daemon.socketPath}";
+        Restart = "always";
+        RestartSec = "2";
+        PrivateTmp = true;
+        ProtectSystem = "strict";
+        ProtectHome = true;
+      };
+    };
   };
 }
