@@ -226,10 +226,14 @@ in {
       then computedEnvVars
       else builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
 
-    systemd.tmpfiles.rules =
-      lib.optionals (cfg.sandboxCacheDir != null) [
+    systemd.tmpfiles.rules = mkMerge [
+      (mkIf (cfg.sandboxCacheDir != null) [
         "d ${cfg.sandboxCacheDir} 1777 root root -"
-      ];
+      ])
+      (mkIf cfg.daemon.enable [
+        "d ${lib.dirOf cfg.daemon.socketPath} 0755 root root -"
+      ])
+    ];
 
     # Merge sandbox access paths from two sources:
     #   1. sandboxCacheDir — writable disk cache for ad-hoc per-build daemons
@@ -276,12 +280,6 @@ in {
       group = "sccache";
       description = "sccache daemon user";
     };
-
-    # Ensure the socket directory exists before the daemon starts (and during
-    # the initial NixOS rebuild, since Nix's extra-sandbox-paths references it).
-    systemd.tmpfiles.rules = mkIf cfg.daemon.enable [
-      "d ${lib.dirOf cfg.daemon.socketPath} 0755 root root -"
-    ];
 
     systemd.services.sccache-daemon = mkIf cfg.daemon.enable {
       description = "sccache compilation cache daemon (Unix socket)";
