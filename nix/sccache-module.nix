@@ -292,7 +292,8 @@ in {
       };
 
       serviceConfig = {
-        Type = "simple";
+        Type = "oneshot";
+        RemainAfterExit = true;
         User = "sccache";
         Group = "sccache";
         RuntimeDirectory = "sccache";
@@ -306,8 +307,7 @@ in {
         ExecStartPre = "-${pkgs.coreutils}/bin/rm -f ${cfg.daemon.socketPath}";
         ExecStart = "${cfg.package}/bin/sccache --start-server";
         ExecStartPost = "${pkgs.coreutils}/bin/chmod 0666 ${cfg.daemon.socketPath}";
-        Restart = "always";
-        RestartSec = "2";
+        ExecStop = "${cfg.package}/bin/sccache --stop-server";
         PrivateTmp = true;
         ProtectSystem = "strict";
         ProtectHome = true;
