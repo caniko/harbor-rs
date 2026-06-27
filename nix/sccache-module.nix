@@ -254,7 +254,19 @@ in {
     # env vars and add sccache to nativeBuildInputs without manual
     # overrideAttrs per package.
     nixpkgs.overlays = mkIf (cfg.crossbowPackages != []) [(final: prev: let
-      scc = computedEnvVars;
+      # Sandbox builds need a writable SCCACHE_DIR. When sandboxCacheDir is
+      # not explicitly configured, fall back to /tmp so sccache does not try
+      # $HOME/.cache/sccache (which resolves to unwritable /homeless-shelter/
+      # inside the Nix sandbox).
+      sandboxDir =
+        if cfg.sandboxCacheDir != null
+        then cfg.sandboxCacheDir
+        else "/tmp/sccache-cache";
+      scc =
+        if cfg.enable
+        then (builtins.removeAttrs computedEnvVars ["SCCACHE_DIR"])
+          // { SCCACHE_DIR = sandboxDir; }
+        else {};
       overrideOne = name:
         if prev ? ${name}
         then {
