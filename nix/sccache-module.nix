@@ -250,25 +250,12 @@ in {
       })
     ];
 
-    # Auto-generate nixpkgs overlay for crossbow packages: add sccache to
-    # nativeBuildInputs so cross-compiled Rust builds use the host sccache
-    # daemon. Env vars (RUSTC_WRAPPER, cache endpoints) are NOT injected
-    # here — they would leak to sub-derivations (e.g. cargo dependencies)
-    # whose sandbox $HOME (= /homeless-shelter/) is unwritable. The host
-    # impure-env layer must handle RUSTC_WRAPPER and SCCACHE_DIR when the
-    # daemon is configured.
-    nixpkgs.overlays = mkIf (cfg.crossbowPackages != []) [(final: prev: let
-      overrideOne = name:
-        if prev ? ${name}
-        then {
-          ${name} = prev.${name}.overrideAttrs (old: {
-            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [final.sccache];
-          });
-        }
-        else {};
-    in
-      builtins.foldl' (acc: name: acc // overrideOne name) {} cfg.crossbowPackages
-    )];
+    # Crossbow-package overlay is deliberately empty: cc-rs auto-detects
+    # sccache on PATH and wraps C compiler calls through it, but the
+    # sandbox $HOME (= /homeless-shelter/) is unwritable, so sccache's
+    # preprocessor cache always fails. A future iteration should inject
+    # SCCACHE_DIR into nix.settings.impure-env on the build host (so ALL
+    # sandbox builds get a writable path), then re-enable the overlay.
 
     # Persistent host-side daemon for sandbox builds — binds a Unix socket
     # that sandbox builds connect to via the impure-env SCCACHE_SERVER_UDS
