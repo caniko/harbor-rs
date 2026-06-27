@@ -186,8 +186,13 @@ in {
 
       socketPath = mkOption {
         type = types.path;
-        default = "/run/sccache/sock";
-        description = "Unix socket path for the daemon to listen on.";
+        default = "/tmp/sccache/sock";
+        description = ''
+          Unix socket path for the daemon to listen on. Defaults inside
+          sandboxCacheDir (/tmp/sccache) which is already bind-mounted into
+          every Nix sandbox, so sandbox builds connect without needing a
+          separate extra-sandbox-paths entry.
+        '';
       };
 
       diskCacheDir = mkOption {
@@ -226,18 +231,14 @@ in {
       then computedEnvVars
       else builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
 
-    systemd.tmpfiles.rules = mkMerge [
-      (mkIf (cfg.sandboxCacheDir != null) [
+    systemd.tmpfiles.rules =
+      lib.optionals (cfg.sandboxCacheDir != null) [
         "d ${cfg.sandboxCacheDir} 1777 root root -"
-      ])
-      (mkIf cfg.daemon.enable [
-        "d ${lib.dirOf cfg.daemon.socketPath} 0755 root root -"
-      ])
-    ];
+      ];
 
     # Merge sandbox access paths from two sources:
-    #   1. sandboxCacheDir — writable disk cache for ad-hoc per-build daemons
-    #   2. daemon.socketPath — read-only bind for connecting to host daemon
+    #   1. sandboxCacheDir — writable disk cache (also hosts the daemon socket)
+    #   2. daemon.socketPath — impure-env points builds at the host daemon
     nix.settings = mkMerge [
       (mkIf (cfg.sandboxCacheDir != null) {
         extra-sandbox-paths = [cfg.sandboxCacheDir];
@@ -247,7 +248,6 @@ in {
         ];
       })
       (mkIf cfg.daemon.enable {
-        extra-sandbox-paths = ["?${lib.dirOf cfg.daemon.socketPath}"];
         impure-env = ["SCCACHE_SERVER_UDS=${cfg.daemon.socketPath}"];
         experimental-features = ["configurable-impure-env"];
       })
@@ -300,8 +300,6 @@ in {
         RemainAfterExit = true;
         User = "sccache";
         Group = "sccache";
-        RuntimeDirectory = "sccache";
-        RuntimeDirectoryMode = "0755";
         StateDirectory = "sccache";
         StateDirectoryMode = "0700";
         ReadWritePaths = [
