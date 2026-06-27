@@ -38,35 +38,32 @@
   computedEnvVars =
     if cfg.enable
     then
-      (mkMerge [
-        {
-          RUSTC_WRAPPER = "${cfg.package}/bin/sccache";
-          SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout;
-        }
-        (mkIf (cfg.cacheEndpoint != null && cfg.cacheBucket != null) {
-          SCCACHE_BUCKET = cfg.cacheBucket;
-          SCCACHE_ENDPOINT = cfg.cacheEndpoint;
-          SCCACHE_REGION = cfg.cacheRegion;
-          SCCACHE_S3_USE_SSL = if cfg.cacheUseSsl then "true" else "false";
-        })
-        (mkIf (cfg.cacheKeyPrefix != null) {
-          SCCACHE_S3_KEY_PREFIX = cfg.cacheKeyPrefix;
-        })
-        (mkIf (cfg.accessKeyId != null) {
-          AWS_ACCESS_KEY_ID = cfg.accessKeyId;
-        })
-        (mkIf (cfg.secretAccessKey != null) {
-          AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
-        })
-        (mkIf (cfg.sandboxCacheDir != null) {
-          SCCACHE_DIR = cfg.sandboxCacheDir;
-          XDG_CACHE_HOME = cfg.sandboxCacheDir;
-        })
-        (mkIf cfg.daemon.enable {
-          SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
-        })
-        cfg.extraEnv
-      ])
+      { RUSTC_WRAPPER = "${cfg.package}/bin/sccache";
+        SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout;
+      }
+      // (if cfg.cacheEndpoint != null && cfg.cacheBucket != null then {
+        SCCACHE_BUCKET = cfg.cacheBucket;
+        SCCACHE_ENDPOINT = cfg.cacheEndpoint;
+        SCCACHE_REGION = cfg.cacheRegion;
+        SCCACHE_S3_USE_SSL = if cfg.cacheUseSsl then "true" else "false";
+      } else {})
+      // (if cfg.cacheKeyPrefix != null then {
+        SCCACHE_S3_KEY_PREFIX = cfg.cacheKeyPrefix;
+      } else {})
+      // (if cfg.accessKeyId != null then {
+        AWS_ACCESS_KEY_ID = cfg.accessKeyId;
+      } else {})
+      // (if cfg.secretAccessKey != null then {
+        AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
+      } else {})
+      // (if cfg.sandboxCacheDir != null then {
+        SCCACHE_DIR = cfg.sandboxCacheDir;
+        XDG_CACHE_HOME = cfg.sandboxCacheDir;
+      } else {})
+      // (if cfg.daemon.enable then {
+        SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
+      } else {})
+      // cfg.extraEnv
     else {};
 in {
   options.programs.rsHarbor.sccache = {
