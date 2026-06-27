@@ -243,7 +243,7 @@ in {
         ];
       })
       (mkIf cfg.daemon.enable {
-        extra-sandbox-paths = [(lib.dirOf cfg.daemon.socketPath)];
+        extra-sandbox-paths = ["?${lib.dirOf cfg.daemon.socketPath}"];
         impure-env = ["SCCACHE_SERVER_UDS=${cfg.daemon.socketPath}"];
         experimental-features = ["configurable-impure-env"];
       })
@@ -276,6 +276,12 @@ in {
       group = "sccache";
       description = "sccache daemon user";
     };
+
+    # Ensure the socket directory exists before the daemon starts (and during
+    # the initial NixOS rebuild, since Nix's extra-sandbox-paths references it).
+    systemd.tmpfiles.rules = mkIf cfg.daemon.enable [
+      "d ${lib.dirOf cfg.daemon.socketPath} 0755 root root -"
+    ];
 
     systemd.services.sccache-daemon = mkIf cfg.daemon.enable {
       description = "sccache compilation cache daemon (Unix socket)";
