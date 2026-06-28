@@ -53,7 +53,15 @@ rec {
         export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
         mkdir -p "$RS_HARBOR_CARGO_HOME"
         install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml"
-        trap 'rm -rf "$RS_HARBOR_CARGO_HOME"' EXIT
+        # Chain cargo cleanup with any existing EXIT trap (e.g. direnv's __dump_at_exit)
+        # to avoid overwriting it. direnv's __main__ sets an EXIT trap to capture the
+        # environment; overwriting it would prevent PATH changes from being exported.
+        __rs_harbor_prev_exit=$(trap -p EXIT | sed "s/^trap -- '\\(.*\\)' EXIT$/\\1/")
+        if [[ -n $__rs_harbor_prev_exit ]]; then
+          trap "rm -rf \"\$RS_HARBOR_CARGO_HOME\"; $__rs_harbor_prev_exit" EXIT
+        else
+          trap 'rm -rf "$RS_HARBOR_CARGO_HOME"' EXIT
+        fi
         echo "rs-harbor: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
       ''
       else "";
