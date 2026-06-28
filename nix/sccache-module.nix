@@ -222,6 +222,21 @@ in {
           The daemon starts at boot and stays up for the session.
         '';
       };
+
+      requiresServices = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = ''
+          Systemd unit names that the sccache daemon requires and must start
+          after. Use when the S3 backend (Garage, MinIO, etc.) is a local
+          systemd service — the daemon's startup check (.sccache_check)
+          fails if the backend is not yet accepting connections.
+
+          Example: ["garage-init-sccache.service"] for a garage-backed cache.
+          The daemon's unit gets Requires= + After= for each listed name.
+        '';
+        example = ["garage-init-sccache.service"];
+      };
     };
 
     # Exported computed env vars — single source of truth for
@@ -303,8 +318,9 @@ in {
 
     systemd.services.sccache-daemon = mkIf cfg.daemon.enable {
       description = "sccache compilation cache daemon (Unix socket)";
-      after = ["network.target"];
+      after = ["network.target"] ++ cfg.daemon.requiresServices;
       wants = ["network.target"];
+      requires = cfg.daemon.requiresServices;
       wantedBy = ["multi-user.target"];
 
       environment = let
@@ -318,6 +334,8 @@ in {
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        Restart = "on-failure";
+        RestartSec = "5";
         User = "sccache";
         Group = "sccache";
         RuntimeDirectory = "sccache";
