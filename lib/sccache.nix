@@ -2,12 +2,16 @@
 #                     -> { SCCACHE_*, AWS_* }
 #
 # mkSccacheCraneEnv  :: { enable?, package?, bucket?, endpoint?, region?, keyPrefix?, useSsl?,
-#                         accessKeyId?, secretAccessKey?, connectTimeout? }
+#                         accessKeyId?, secretAccessKey?, connectTimeout?, daemonUds? }
 #                     -> { RUSTC_WRAPPER?, SCCACHE_*, AWS_* }
 #
 # Generate sccache environment variables for dev shells (mkSccacheEnv) or
 # for injection into crane `commonArgs` for derivation-level sccache (mkSccacheCraneEnv).
 # When `enable = false` or required S3 params are missing, mkSccacheCraneEnv returns {}.
+# When `daemonUds` is set (e.g. "/run/sccache/sock"), emits SCCACHE_SERVER_UDS and
+# omits SCCACHE_DIR/XDG_CACHE_HOME — the daemon owns disk caching.  Callers on hosts
+# with a persistent sccache daemon (managed by the NixOS module in daemon mode) should
+# pass daemonUds; otherwise the helper defaults to per-build local-only cache.
 _: let
   inherit (builtins) isString stringLength;
 
@@ -54,27 +58,34 @@ in {
     accessKeyId ? null,
     secretAccessKey ? null,
     connectTimeout ? "2",
+    daemonUds ? null,
   }:
     if !enable
     then {}
     else let
-      # In sandboxed builds HOME=/homeless-shelter which sccache cannot write to.
-      # Point SCCACHE_DIR and XDG_CACHE_HOME at a writable TMPDIR-relative path
-      # so local-only sccache works even when the NixOS module's impure-env is
-      # unavailable (pre-2.20 Nix, sandboxCacheDir unset, etc.).
+      # Daemon mode — caller has a persistent sccache daemon (Unix socket
+      # reachable from the sandbox).  The daemon owns all disk caching so
+      # we omit SCCACHE_DIR/XDG_CACHE_HOME entirely.
+      daemonEnv = if daemonUds != null then {
+        RUSTC_WRAPPER = package;
+        SCCACHE_SERVER_UDS = daemonUds;
+        SCCACHE_CONNECT_TIMEOUT = connectTimeout;
+      } else {};
+      # Local-only mode — per-build writable tmpfs path inside the sandbox
+      # so sccache has a writable HOME-adjacent directory even when the
+      # NixOS module's impure-env SCCACHE_DIR is unavailable.
       localEnv = {
         RUSTC_WRAPPER = package;
         SCCACHE_DIR = "$NIX_BUILD_TOP/.sccache";
         XDG_CACHE_HOME = "$NIX_BUILD_TOP/.sccache";
+        SCCACHE_CONNECT_TIMEOUT = connectTimeout;
       };
       s3Cfg = if bucket != null && endpoint != null then
         mkSccacheInner {
           inherit bucket endpoint region keyPrefix useSsl accessKeyId secretAccessKey;
         }
-        // {
-          SCCACHE_CONNECT_TIMEOUT = connectTimeout;
-        }
       else {};
+      env = if daemonUds != null then daemonEnv else localEnv;
     in
-      localEnv // s3Cfg;
+      env // s3Cfg;
 }

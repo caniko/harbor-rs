@@ -2053,6 +2053,24 @@ in {
     assert env.XDG_CACHE_HOME == "$NIX_BUILD_TOP/.sccache";
     pkgs.runCommand "check-sccache-crane-env-no-s3" {} "touch $out";
 
+  # mkSccacheCraneEnv returns daemon-mode env when daemonUds is set
+  sccache-crane-env-daemon-uds = let
+    env = self.lib.mkSccacheCraneEnv {
+      enable = true;
+      package = "${pkgs.sccache}/bin/sccache";
+      daemonUds = "/run/sccache/sock";
+    };
+  in
+    assert env ? RUSTC_WRAPPER;
+    assert env ? SCCACHE_SERVER_UDS;
+    assert env ? SCCACHE_CONNECT_TIMEOUT;
+    assert !(env ? SCCACHE_DIR);
+    assert !(env ? XDG_CACHE_HOME);
+    assert env.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
+    assert env.SCCACHE_SERVER_UDS == "/run/sccache/sock";
+    assert env.SCCACHE_CONNECT_TIMEOUT == "2";
+    pkgs.runCommand "check-sccache-crane-env-daemon-uds" {} "touch $out";
+
   # NixOS module exports envVars with credentials
   sccache-module-env-vars = let
     evaluated = pkgs.lib.evalModules {
@@ -2274,4 +2292,82 @@ in {
   in
     assert builtins.any (a: !a.assertion) assertions;
     pkgs.runCommand "check-sccache-module-daemon-rejects-sandboxCacheDir" {} "touch $out";
+
+  # crossbowPackages overlay injects sccache env into named packages
+  sccache-module-crossbow-packages = let
+    mockBase = {
+      options = {
+        environment = {
+          systemPackages = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.package;
+            default = [];
+          };
+          variables = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.str;
+            default = {};
+          };
+        };
+        systemd = {
+          tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+          services = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        nix.settings = pkgs.lib.mkOption {
+          type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+          default = {};
+        };
+        users = {
+          users = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+          groups = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        assertions = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+        nixpkgs.overlays = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+      };
+    };
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.sccache
+        mockBase
+        {
+          programs.rsHarbor.sccache = {
+            enable = true;
+            cacheEndpoint = "http://127.0.0.1:3900";
+            cacheBucket = "sccache";
+            accessKeyId = "GKkey";
+            secretAccessKey = "secret";
+            crossbowPackages = ["hello"];
+          };
+        }
+      ];
+      specialArgs = { inherit pkgs; };
+    };
+    # Apply the registered overlays to pkgs
+    overlayedPkgs = pkgs.lib.foldl'
+      (acc: overlay: acc.extend overlay)
+      pkgs
+      evaluated.config.nixpkgs.overlays;
+    helloDrv = overlayedPkgs.hello;
+    helloEnv = helloDrv.env or {};
+  in
+    assert helloEnv ? RUSTC_WRAPPER;
+    assert helloEnv ? SCCACHE_BUCKET;
+    assert helloEnv ? SCCACHE_CONNECT_TIMEOUT;
+    pkgs.runCommand "check-sccache-module-crossbow-packages" {} "touch $out";
 }

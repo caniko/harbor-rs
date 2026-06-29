@@ -299,12 +299,36 @@ in {
       })
     ];
 
-    # Crossbow-package overlay is deliberately empty: cc-rs auto-detects
-    # sccache on PATH and wraps C compiler calls through it, but the
-    # sandbox $HOME (= /homeless-shelter/) is unwritable, so sccache's
-    # preprocessor cache always fails. A future iteration should inject
-    # SCCACHE_DIR into nix.settings.impure-env on the build host (so ALL
-    # sandbox builds get a writable path), then re-enable the overlay.
+    # Crossbow-package overlay — inject sccache into every Rust
+    # package listed in crossbowPackages so sandbox builds route rustc
+    # through the sccache wrapper.
+    #
+    # Each named package gets:
+    #   - cfg.package (sccache binary) in nativeBuildInputs
+    #   - computedEnvVars (RUSTC_WRAPPER, SCCACHE_SERVER_UDS, S3 creds ...)
+    #     merged into the derivation environment
+    #
+    # The overlay is safe to enable whenever cfg.computedEnvVars is
+    # populated.  In daemon mode (cfg.daemon.enable = true) the socket is
+    # reachable from the sandbox via extra-sandbox-paths + impure-env,
+    # and the daemon handles persistent disk/S3 caching — no per-build
+    # SCCACHE_DIR is needed.  In local-only mode (sandboxCacheDir set)
+    # the sandbox gets a writable SCCACHE_DIR via impure-env + tmpfiles,
+    # so sccache's preprocessor cache has a home.
+    nixpkgs.overlays = [
+      (_: prev: builtins.foldl'
+        (acc: name:
+          if prev ? ${name}
+          then acc // {
+            ${name} = prev.${name}.overrideAttrs (old: {
+              nativeBuildInputs = (old.nativeBuildInputs or []) ++ [cfg.package];
+              env = (old.env or {}) // computedEnvVars;
+            });
+          }
+          else acc)
+        {}
+        cfg.crossbowPackages)
+    ];
 
     # Persistent host-side daemon for sandbox builds — binds a Unix socket
     # that sandbox builds connect to via the impure-env SCCACHE_SERVER_UDS
