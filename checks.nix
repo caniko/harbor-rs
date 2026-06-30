@@ -2222,6 +2222,85 @@ in {
     assert svc.serviceConfig.RuntimeDirectoryMode == "0755";
     pkgs.runCommand "check-sccache-module-daemon-shape" {} "touch $out";
 
+  # NixOS module can disable interactive global env without breaking daemon env
+  sccache-module-global-env-disabled = let
+    mockBase = {
+      options = {
+        environment = {
+          systemPackages = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.package;
+            default = [];
+          };
+          variables = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.str;
+            default = {};
+          };
+        };
+        systemd = {
+          tmpfiles.rules = pkgs.lib.mkOption {
+            type = pkgs.lib.types.listOf pkgs.lib.types.str;
+            default = [];
+          };
+          services = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        nix.settings = pkgs.lib.mkOption {
+          type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+          default = {};
+        };
+        users = {
+          users = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+          groups = pkgs.lib.mkOption {
+            type = pkgs.lib.types.attrsOf pkgs.lib.types.raw;
+            default = {};
+          };
+        };
+        assertions = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+        nixpkgs.overlays = pkgs.lib.mkOption {
+          type = pkgs.lib.types.listOf pkgs.lib.types.raw;
+          default = [];
+        };
+      };
+    };
+    evaluated = pkgs.lib.evalModules {
+      modules = [
+        self.nixosModules.sccache
+        mockBase
+        {
+          programs.rsHarbor.sccache = {
+            enable = true;
+            daemon.enable = true;
+            setGlobalEnvironment = false;
+            cacheEndpoint = "http://127.0.0.1:3900";
+            cacheBucket = "sccache";
+            accessKeyId = "GKkey";
+            secretAccessKey = "secret";
+          };
+        }
+      ];
+      specialArgs = { inherit pkgs; };
+    };
+    env = evaluated.config.programs.rsHarbor.sccache.envVars;
+    svc = evaluated.config.systemd.services.sccache-daemon;
+    settings = evaluated.config.nix.settings;
+  in
+    assert evaluated.config.environment.variables == {};
+    assert env.RUSTC_WRAPPER == "${pkgs.sccache}/bin/sccache";
+    assert env.SCCACHE_SERVER_UDS == "/run/sccache/sock";
+    assert env.AWS_ACCESS_KEY_ID == "GKkey";
+    assert settings."impure-env" == [ "SCCACHE_SERVER_UDS=/run/sccache/sock" ];
+    assert svc.environment.AWS_SECRET_ACCESS_KEY == "secret";
+    assert svc.environment.SCCACHE_SERVER_UDS == "/run/sccache/sock";
+    pkgs.runCommand "check-sccache-module-global-env-disabled" {} "touch $out";
+
   # NixOS module assertion fires when daemon + sandboxCacheDir coexist
   sccache-module-daemon-rejects-sandboxCacheDir = let
     mockBase = {

@@ -34,8 +34,10 @@
 #     builds. S3 credentials NEVER pass through impure-env.
 #
 #   Layer 3 — interactive/logind session (convenience):
-#     environment.variables mirrors envVars so RUSTC_WRAPPER is
-#     active in shells and systemd user services.
+#     By default environment.variables mirrors envVars so RUSTC_WRAPPER is
+#     active in shells and systemd user services. Hosts that provide their own
+#     user-owned interactive sccache daemon can disable this layer without
+#     changing derivation-level envVars, sandbox access, or the system daemon.
 {
   config,
   lib,
@@ -89,6 +91,17 @@ in {
       type = types.bool;
       default = true;
       description = "Set RUSTC_WRAPPER=sccache globally via environment.variables.";
+    };
+
+    setGlobalEnvironment = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Mirror computed sccache variables into environment.variables for
+        interactive shells and systemd user services. Set false when a host
+        manages interactive sccache separately, for example with a user-owned
+        daemon and wrapper.
+      '';
     };
 
     cacheEndpoint = mkOption {
@@ -270,7 +283,9 @@ in {
     environment.systemPackages = [cfg.package];
 
     environment.variables =
-      if cfg.setGlobalWrapper
+      if !cfg.setGlobalEnvironment
+      then {}
+      else if cfg.setGlobalWrapper
       then computedEnvVars
       else builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
 
