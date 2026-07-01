@@ -6,4 +6,5 @@ step_runners = { cargo-clippy = "codeberg-small", cargo-doc = "codeberg-small", 
 
 [ci.pages]
 repo = "caniko/rs-harbor"
+canonical_domain = "rs-harbor.tartanoglu.com"
 source_branch = "main"
