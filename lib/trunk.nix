@@ -149,5 +149,10 @@ in
     cargoLock = lockPath;
     cargoExtraArgs = cargoExtraArgs;
     wasm-bindgen-cli = resolvedCli;
-    nativeBuildInputs = nativeBuildInputs ++ [pkgs.nodejs pkgs.tailwindcss_4];
+    nativeBuildInputs = nativeBuildInputs ++ [
+      pkgs.clang
+      pkgs.mold
+      pkgs.nodejs
+      pkgs.tailwindcss_4
+    ];
   } // extraArgs)

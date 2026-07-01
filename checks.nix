@@ -944,6 +944,27 @@ in {
     assert !(pkgs.lib.hasInfix "link-arg=-fuse-ld=lld" c.configText);
     pkgs.runCommand "check-mkCargoConfig-no-windows-gnu-lld" {} "touch $out";
 
+  # mkTrunkPackage includes the host linker tools needed by rs-harbor's
+  # generated Cargo config when Linux mold support is enabled.
+  mkTrunkPackage-includes-linker-tools = let
+    cargoLock = builtins.toFile "trunk-check-Cargo.lock" ''
+      [[package]]
+      name = "wasm-bindgen"
+      version = "0.2.120"
+      source = "registry+https://github.com/rust-lang/crates.io-index"
+    '';
+    drv = self.lib.mkTrunkPackage {
+      inherit pkgs;
+      src = ./tests/fixtures/cross-package-fixture;
+      inherit cargoLock;
+      pname = "check-trunk-linker-tools";
+      craneLib = toolchain.craneLib;
+    };
+  in
+    assert builtins.elem pkgs.clang drv.nativeBuildInputs;
+    assert builtins.elem pkgs.mold drv.nativeBuildInputs;
+    pkgs.runCommand "check-mkTrunkPackage-includes-linker-tools" {} "touch $out";
+
   # mkCargoConfig respects enableParallelFrontend = false
   mkCargoConfig-no-parallel-frontend = let
     c = self.lib.mkCargoConfig {
