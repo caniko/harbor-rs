@@ -46,6 +46,7 @@
 }: let
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
   cfg = config.programs.rsHarbor.sccache;
+  sccacheLib = import ../lib/sccache.nix {};
 
   socketParentDir = builtins.dirOf cfg.daemon.socketPath;
 
@@ -335,10 +336,11 @@ in {
         (acc: name:
           if prev ? ${name}
           then acc // {
-            ${name} = prev.${name}.overrideAttrs (old: {
-              nativeBuildInputs = (old.nativeBuildInputs or []) ++ [cfg.package];
-              env = (old.env or {}) // computedEnvVars;
-            });
+            ${name} = sccacheLib.wrapRustPackageWithSccache {
+              package = prev.${name};
+              sccachePackage = cfg.package;
+              envVars = computedEnvVars;
+            };
           }
           else acc)
         {}

@@ -43,4 +43,5 @@ in {
   mkScoopManifest = import ./scoop-manifest.nix;
   mkSccacheEnv = mkSccacheLib;  # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
   mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
+  wrapRustPackageWithSccache = mkSccacheLib.wrapRustPackageWithSccache;
 }

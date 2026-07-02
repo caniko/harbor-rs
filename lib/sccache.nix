@@ -5,6 +5,8 @@
 #                         accessKeyId?, secretAccessKey?, connectTimeout?, daemonUds? }
 #                     -> { RUSTC_WRAPPER?, SCCACHE_*, AWS_* }
 #
+# wrapRustPackageWithSccache :: { package, sccachePackage, envVars, enable? } -> package
+#
 # Generate sccache environment variables for dev shells (mkSccacheEnv) or
 # for injection into crane `commonArgs` for derivation-level sccache (mkSccacheCraneEnv).
 # When `enable = false` or required S3 params are missing, mkSccacheCraneEnv returns {}.
@@ -46,6 +48,25 @@ in {
   inherit mkSccacheInner;
 
   mkSccacheEnv = mkSccacheInner;
+
+  wrapRustPackageWithSccache = {
+    package,
+    sccachePackage,
+    envVars,
+    enable ? true,
+  }:
+    if !enable
+    then package
+    else
+      package.overrideAttrs (old:
+        {
+          nativeBuildInputs = (old.nativeBuildInputs or []) ++ [sccachePackage];
+        }
+        // (
+          if old ? env
+          then {env = old.env // envVars;}
+          else envVars
+        ));
 
   mkSccacheCraneEnv = {
     enable ? true,

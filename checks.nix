@@ -2464,10 +2464,47 @@ in {
       pkgs
       evaluated.config.nixpkgs.overlays;
     helloDrv = overlayedPkgs.hello;
-    helloEnv = helloDrv.env or {};
+    helloAttrs = (helloDrv.drvAttrs.env or {}) // helloDrv.drvAttrs;
   in
-    assert helloEnv ? RUSTC_WRAPPER;
-    assert helloEnv ? SCCACHE_BUCKET;
-    assert helloEnv ? SCCACHE_CONNECT_TIMEOUT;
+    assert helloAttrs ? RUSTC_WRAPPER;
+    assert helloAttrs ? SCCACHE_BUCKET;
+    assert helloAttrs ? SCCACHE_CONNECT_TIMEOUT;
     pkgs.runCommand "check-sccache-module-crossbow-packages" {} "touch $out";
+
+  sccache-wrapRustPackageWithSccache-shapes = let
+    envVars = {
+      RUSTC_WRAPPER = "${pkgs.sccache}/bin/sccache";
+      SCCACHE_BUCKET = "sccache";
+      SCCACHE_CONNECT_TIMEOUT = "2";
+    };
+    plainWrapped = self.lib.wrapRustPackageWithSccache {
+      package = pkgs.hello;
+      sccachePackage = pkgs.sccache;
+      inherit envVars;
+    };
+    envPackage = pkgs.hello.overrideAttrs (old: {
+      env = (old.env or {}) // {
+        EXISTING_VAR = "kept";
+      };
+    });
+    envWrapped = self.lib.wrapRustPackageWithSccache {
+      package = envPackage;
+      sccachePackage = pkgs.sccache;
+      inherit envVars;
+    };
+    disabledWrapped = self.lib.wrapRustPackageWithSccache {
+      package = pkgs.hello;
+      sccachePackage = pkgs.sccache;
+      inherit envVars;
+      enable = false;
+    };
+    plainAttrs = (plainWrapped.drvAttrs.env or {}) // plainWrapped.drvAttrs;
+    envAttrs = envWrapped.drvAttrs.env or {};
+  in
+    assert plainAttrs ? RUSTC_WRAPPER;
+    assert plainAttrs ? SCCACHE_BUCKET;
+    assert envAttrs.EXISTING_VAR == "kept";
+    assert envAttrs.RUSTC_WRAPPER == envVars.RUSTC_WRAPPER;
+    assert disabledWrapped == pkgs.hello;
+    pkgs.runCommand "check-sccache-wrapRustPackageWithSccache-shapes" {} "touch $out";
 }
