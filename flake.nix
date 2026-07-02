@@ -22,6 +22,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
+
+    meta-harbor = {
+      url = "git+https://codeberg.org/caniko/meta-harbor.git?ref=trunk";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = {
@@ -32,9 +38,13 @@
     rust-overlay,
     osxcross,
     plinth,
+    meta-harbor,
     ...
   }: let
-    lib = import ./lib {inherit crane osxcross;};
+    lib = import ./lib {
+      inherit crane osxcross;
+      meta-harbor = meta-harbor.lib;
+    };
   in
     {
       inherit lib;

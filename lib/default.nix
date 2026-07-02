@@ -1,6 +1,7 @@
 {
   crane,
   osxcross,
+  meta-harbor ? null,
 }: let
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
@@ -10,6 +11,10 @@
   mkSccacheLib = import ./sccache.nix {};
 in {
   inherit mkToolchain hardeningProfiles;
+  opencode =
+    if meta-harbor != null
+    then meta-harbor.opencode
+    else throw "rs-harbor: opencode helpers require the meta-harbor flake input";
 
   mkCargoConfig = import ./cargo-config.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
@@ -41,7 +46,7 @@ in {
   mkFlatpakManifest = import ./flatpak-manifest.nix;
   mkHomebrewFormula = import ./homebrew-formula.nix;
   mkScoopManifest = import ./scoop-manifest.nix;
-  mkSccacheEnv = mkSccacheLib;  # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
+  mkSccacheEnv = mkSccacheLib; # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
   mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
   wrapRustPackageWithSccache = mkSccacheLib.wrapRustPackageWithSccache;
 }

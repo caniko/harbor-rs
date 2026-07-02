@@ -18,6 +18,7 @@ rec {
     extraShellHook ? "",
     checks ? {},
     cargoConfig ? null,
+    opencodeLsp ? {enable = true;},
   }: let
     inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
 
@@ -39,6 +40,11 @@ rec {
 
     osxPackages = pkgs.lib.optionals (enableOsxcrossEnv && osxcrossToolchain != null) [
       osxcrossToolchain
+    ];
+
+    opencodeLspPackages = pkgs.lib.optionals (opencodeLsp.enable or true) [
+      pkgs.nixd
+      pkgs.taplo
     ];
 
     osxShellHook =
@@ -85,7 +91,7 @@ rec {
       // {
         inherit checks;
 
-        packages = basePackages ++ windowsPackages ++ osxPackages ++ packages;
+        packages = basePackages ++ windowsPackages ++ osxPackages ++ opencodeLspPackages ++ packages;
 
         shellHook = ''
           ${cargoConfigHook}
@@ -97,7 +103,7 @@ rec {
   # Build a docs/tooling shell that starts from the same foundation as
   # mkDevShell, but keeps cross-compilation environment variables disabled
   # unless a downstream project explicitly opts back in.
-  mkDocsShell = args@{
+  mkDocsShell = args @ {
     enableWindowsEnv ? false,
     enableOsxcrossEnv ? false,
     ...
@@ -123,13 +129,14 @@ rec {
     extraShellHook ? "",
     checks ? {},
     cargoConfig ? null,
+    opencodeLsp ? {enable = true;},
   }: let
     shell = {
       win ? false,
       osx ? false,
     }:
       mkDevShell {
-        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig;
+        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig opencodeLsp;
         enableWindowsEnv = win;
         enableOsxcrossEnv = osx && enableOsxcrossEnv;
       };
@@ -137,6 +144,9 @@ rec {
     default = shell {};
     windows = shell {win = true;};
     macos = shell {osx = true;};
-    cross = shell {win = true; osx = true;};
+    cross = shell {
+      win = true;
+      osx = true;
+    };
   };
 }
