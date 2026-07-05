@@ -90,6 +90,29 @@
         "url": "https://codeberg.org/caniko/meta-harbor.git"
       }
     },
+    "nix-opencode-lsp": {
+      "inputs": {
+        "flake-utils": [
+          "flake-utils"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1783251082,
+        "narHash": "sha256-XfHlECWS/u6FWjYAMOsGk6pcGx+z3HA8WWGWR7VvTSI=",
+        "ref": "refs/heads/trunk",
+        "rev": "a45718d96cdde0101ef8c20942fada0b188745f0",
+        "revCount": 1,
+        "type": "git",
+        "url": "ssh://git@codeberg.org/caniko/nix-opencode-lsp.git"
+      },
+      "original": {
+        "type": "git",
+        "url": "ssh://git@codeberg.org/caniko/nix-opencode-lsp.git"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1781607440,
@@ -159,6 +182,7 @@
         "crane": "crane",
         "flake-utils": "flake-utils",
         "meta-harbor": "meta-harbor",
+        "nix-opencode-lsp": "nix-opencode-lsp",
         "nixpkgs": "nixpkgs",
         "osxcross": "osxcross",
         "plinth": "plinth",

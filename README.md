@@ -15,6 +15,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
+- `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain
 
 ### More helpers
 

@@ -28,6 +28,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
+
+    nix-opencode-lsp = {
+      url = "git+ssh://git@codeberg.org/caniko/nix-opencode-lsp.git";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = {
@@ -39,6 +45,7 @@
     osxcross,
     plinth,
     meta-harbor,
+    nix-opencode-lsp,
     ...
   }: let
     lib = import ./lib {
@@ -144,6 +151,7 @@
 
       devShells = import ./nix/dev-shells.nix {
         harbor = self.lib;
+        opencodeLsp = nix-opencode-lsp.lib;
         inherit pkgs toolchain cross cargoConfig;
         plinthProject = plinth.packages.${system}.plinth-project;
       };
