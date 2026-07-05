@@ -23,7 +23,7 @@
 #       packageModes = ["debug" "release"];
 #     };
 #   };
-{
+{packageTests}: {
   pkgs,
   androidSdk,
   rustToolchain,
@@ -49,8 +49,8 @@ assert lib.assertMsg (builtins.isList modes && modes != [])
 "rs-harbor: mkAndroidFlavorTable `modes` must be a non-empty list";
 assert lib.assertMsg (builtins.elem defaultMode ["debug" "release"])
 "rs-harbor: mkAndroidFlavorTable `defaultMode` must be \"debug\" or \"release\""; let
-  mkAndroidApk = import ./android-apk.nix;
-  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
+  mkAndroidApk = import ./android-apk.nix {inherit packageTests;};
+  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix {inherit packageTests;};
 
   validMode = mode: builtins.elem mode ["debug" "release"];
 

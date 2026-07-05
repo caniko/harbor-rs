@@ -23,6 +23,7 @@
 - [mkCoprSpec](./packaging/copr.md)
 - [mkHomebrewFormula](./packaging/homebrew-formula.md)
 - [Homebrew CLI](./packaging/homebrew-cli.md)
+- [Package Tests](./packaging/package-tests.md)
 - [Steam Runtime Tools](./packaging/steam-runtime.md)
 
 # Integration

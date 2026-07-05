@@ -3,7 +3,7 @@
 # Build a simple binary .deb from explicit staged files. This helper is for
 # projects that already have built artifacts and need deterministic release
 # packages without invoking cargo-deb.
-{
+{packageTests}: {
   pkgs,
   packageName,
   version,
@@ -59,14 +59,7 @@
       install -D -m ${lib.escapeShellArg mode} ${lib.escapeShellArg (toString file.source)} "$pkg"/${lib.escapeShellArg target}
     '')
     files;
-in
-  assert validName || throw "mkDebPackage: packageName must be a Debian package name, got ${packageName}";
-  assert validVersion || throw "mkDebPackage: version must be non-empty";
-  assert validArch || throw "mkDebPackage: arch must be one of amd64, arm64, or all";
-  assert validMaintainer || throw "mkDebPackage: maintainer must be non-empty";
-  assert validDescription || throw "mkDebPackage: description must be non-empty";
-  assert validFiles || throw "mkDebPackage: files must be a non-empty list";
-  assert lib.all (x: x) fileChecks;
+  package =
     pkgs.runCommand "${packageName}_${version}_${arch}.deb" {
       nativeBuildInputs = [pkgs.dpkg];
     } ''
@@ -76,4 +69,26 @@ in
       printf '%s\n' ${lib.escapeShellArg controlText} > "$pkg/DEBIAN/control"
       ${installCommands}
       dpkg-deb --root-owner-group --build "$pkg" "$out"
-    ''
+    '';
+in
+  assert validName || throw "mkDebPackage: packageName must be a Debian package name, got ${packageName}";
+  assert validVersion || throw "mkDebPackage: version must be non-empty";
+  assert validArch || throw "mkDebPackage: arch must be one of amd64, arm64, or all";
+  assert validMaintainer || throw "mkDebPackage: maintainer must be non-empty";
+  assert validDescription || throw "mkDebPackage: description must be non-empty";
+  assert validFiles || throw "mkDebPackage: files must be a non-empty list";
+  assert lib.all (x: x) fileChecks;
+    package
+    // {
+      artifactBuilder = packageTests.mkArtifactBuilder {
+        kind = "debian-builder";
+        inherit packageName version;
+        output = toString package;
+        buildCommand = "nix build .#${packageName}-deb";
+        metadata = {
+          inherit arch depends section priority;
+          fileCount = builtins.length files;
+          helper = "mkDebPackage";
+        };
+      };
+    }

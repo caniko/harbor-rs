@@ -15,7 +15,10 @@
 #
 # Cargo.lock is parsed to auto-select the matching
 # wasm-bindgen-cli from nixpkgs.
-{crane}: {
+{
+  crane,
+  packageTests,
+}: {
   src,
   pkgs,
   cargoLock,
@@ -25,8 +28,7 @@
   cargoExtraArgs ? "",
   nativeBuildInputs ? [],
   ...
-} @ args:
-let
+} @ args: let
   lib = pkgs.lib;
   inherit (lib) hasSuffix concatStringsSep;
 
@@ -43,7 +45,8 @@ let
   wasmBindgenNameLine = builtins.head (
     builtins.filter (
       line: builtins.match "name = \"wasm-bindgen\"" line != null
-    ) lockLines
+    )
+    lockLines
   );
 
   wasmBindgenVersion =
@@ -53,43 +56,52 @@ let
       # version = "X.Y.Z" in the lines between that header and the next header.
       wasmBindgenIdx = let
         findIdx = lines: idx:
-          if lines == [] then -1
+          if lines == []
+          then -1
           else if builtins.match "name = \"wasm-bindgen\"" (builtins.head lines) != null
           then idx
           else findIdx (builtins.tail lines) (idx + 1);
-      in findIdx lockLines 0;
+      in
+        findIdx lockLines 0;
 
       # Walk backward to find the [[package]] header, then forward
       # from there to find version = "X.Y.Z".
       blockStart = let
         back = lines: idx:
-          if idx < 0 then 0
+          if idx < 0
+          then 0
           else if builtins.match "\[\[package\]\]" (builtins.elemAt lines idx) != null
           then idx
           else back lines (idx - 1);
-      in back lockLines (wasmBindgenIdx - 1);
+      in
+        back lockLines (wasmBindgenIdx - 1);
 
       # Scan from blockStart to next [[package]] for version line
       blockEnd = let
         fwd = lines: idx:
-          if idx >= builtins.length lines then builtins.length lines
+          if idx >= builtins.length lines
+          then builtins.length lines
           else if idx != blockStart && builtins.match "\[\[package\]\]" (builtins.elemAt lines idx) != null
           then idx
           else fwd lines (idx + 1);
-      in fwd lockLines (blockStart + 1);
+      in
+        fwd lockLines (blockStart + 1);
 
       blockLines = lib.sublist blockStart (blockEnd - blockStart) lockLines;
       versionLine = builtins.head (
         builtins.filter (
           line: builtins.match "version = \".*\"" line != null
-        ) blockLines
+        )
+        blockLines
       );
     in
       if versionLine != null
       then let
         matched = builtins.match "version = \"(.*)\"" versionLine;
       in
-        if matched != null then builtins.head matched else ""
+        if matched != null
+        then builtins.head matched
+        else ""
       else ""
     else "";
 
@@ -98,10 +110,17 @@ let
   versionToAttr = ver: let
     parts = lib.splitString "." ver;
     major = builtins.head parts;
-    minor = if builtins.length parts > 1 then builtins.elemAt parts 1 else "0";
-    patch = if builtins.length parts > 2 then builtins.elemAt parts 2 else "0";
+    minor =
+      if builtins.length parts > 1
+      then builtins.elemAt parts 1
+      else "0";
+    patch =
+      if builtins.length parts > 2
+      then builtins.elemAt parts 2
+      else "0";
     attr = "wasm-bindgen-cli_${major}_${minor}_${patch}";
-  in attr;
+  in
+    attr;
 
   resolvedCli = let
     exactAttr = versionToAttr wasmBindgenVersion;
@@ -130,29 +149,55 @@ let
     inherit src;
     filter = path: type:
       (effectiveCraneLib.filterCargoSources path type)
-      || type == "regular" && pkgs.lib.any
-        (ext: pkgs.lib.hasSuffix ext (baseNameOf (toString path)))
-        [ ".html" ".css" ".js" ]
-      || baseNameOf (toString path) == "Trunk.toml"
-    ;
+      || type
+      == "regular"
+      && pkgs.lib.any
+      (ext: pkgs.lib.hasSuffix ext (baseNameOf (toString path)))
+      [".html" ".css" ".js"]
+      || baseNameOf (toString path) == "Trunk.toml";
     name = "${pname}-wasm-src";
   };
 
   extraArgs = builtins.removeAttrs args [
-    "src" "pkgs" "cargoLock" "pname" "version" "craneLib"
-    "cargoExtraArgs" "nativeBuildInputs"
+    "src"
+    "pkgs"
+    "cargoLock"
+    "pname"
+    "version"
+    "craneLib"
+    "cargoExtraArgs"
+    "nativeBuildInputs"
   ];
+in let
+  package = effectiveCraneLib.buildTrunkPackage ({
+      src = cleanWasmSrc;
+      inherit pname version;
+      cargoLock = lockPath;
+      cargoExtraArgs = cargoExtraArgs;
+      wasm-bindgen-cli = resolvedCli;
+      nativeBuildInputs =
+        nativeBuildInputs
+        ++ [
+          pkgs.clang
+          pkgs.mold
+          pkgs.nodejs
+          pkgs.tailwindcss_4
+        ];
+    }
+    // extraArgs);
 in
-  effectiveCraneLib.buildTrunkPackage ({
-    src = cleanWasmSrc;
-    inherit pname version;
-    cargoLock = lockPath;
-    cargoExtraArgs = cargoExtraArgs;
-    wasm-bindgen-cli = resolvedCli;
-    nativeBuildInputs = nativeBuildInputs ++ [
-      pkgs.clang
-      pkgs.mold
-      pkgs.nodejs
-      pkgs.tailwindcss_4
-    ];
-  } // extraArgs)
+  package
+  // {
+    artifactBuilder = packageTests.mkArtifactBuilder {
+      kind = "trunk-builder";
+      packageName = pname;
+      inherit version;
+      output = toString package;
+      buildCommand = "nix build .#${pname}-trunk";
+      inputs = [(toString src)];
+      metadata = {
+        inherit cargoExtraArgs wasmBindgenVersion;
+        helper = "mkTrunkPackage";
+      };
+    };
+  }

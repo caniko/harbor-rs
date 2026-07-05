@@ -21,7 +21,7 @@
 #     license = "MIT";
 #     url = "https://example.com/my-app";
 #   };
-{
+{packageTests}: {
   pkgs,
   name,
   version,
@@ -54,16 +54,20 @@
     then true
     else builtins.match "[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+" appId != null;
 in
-  assert validName != null
-    || throw "mkCoprSpec: name must match RPM Name pattern, got: ${name}";
-  assert validVersion != null
-    || throw "mkCoprSpec: version must not contain '-' or whitespace, got: ${version}";
-  assert builtins.isString summary && summary != ""
-    || throw "mkCoprSpec: summary must be a non-empty string";
-  assert builtins.isString license && license != ""
-    || throw "mkCoprSpec: license must be a non-empty string (RPM requires License:)";
+  assert validName
+  != null
+  || throw "mkCoprSpec: name must match RPM Name pattern, got: ${name}";
+  assert validVersion
+  != null
+  || throw "mkCoprSpec: version must not contain '-' or whitespace, got: ${version}";
+  assert builtins.isString summary
+  && summary != ""
+  || throw "mkCoprSpec: summary must be a non-empty string";
+  assert builtins.isString license
+  && license != ""
+  || throw "mkCoprSpec: license must be a non-empty string (RPM requires License:)";
   assert validAppId
-    || throw "mkCoprSpec: appId must be reverse-DNS format, got: ${toString appId}"; let
+  || throw "mkCoprSpec: appId must be reverse-DNS format, got: ${toString appId}"; let
     hasDesktop = desktopFile != null;
     hasIcon = icon != null;
     effectiveAppId =
@@ -149,7 +153,7 @@ in
 
     formatChangelogEntry = e:
       assert validChangelogEntry e
-        || throw "mkCoprSpec: each changelog entry must be { date; author; version; entries = [..]; }";
+      || throw "mkCoprSpec: each changelog entry must be { date; author; version; entries = [..]; }";
         "* ${e.date} ${e.author} - ${e.version}\n"
         + lib.concatMapStringsSep "\n" (line: "- ${line}") e.entries;
 
@@ -191,8 +195,20 @@ in
       if coprMakefile
       then pkgs.writeText "${name}-copr-Makefile" coprMakefileText
       else null;
+    artifactBuilder = packageTests.mkArtifactBuilder {
+      kind = "copr-rpm-builder";
+      packageName = name;
+      inherit version;
+      output = toString specPath;
+      buildCommand = "nix build .#${name}-copr-spec";
+      metadata = {
+        inherit release license sources buildArch buildRequires requires coprMakefile;
+        helper = "mkCoprSpec";
+        outputKind = "rpm-spec";
+      };
+    };
   in
     {
-      inherit specText specPath;
+      inherit specText specPath artifactBuilder;
     }
     // lib.optionalAttrs coprMakefile {inherit coprMakefilePath;}

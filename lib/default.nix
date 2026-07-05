@@ -9,8 +9,12 @@
   mkToolchain = import ./toolchain.nix {inherit crane;};
   hardeningProfiles = import ./hardening-profiles.nix;
   mkSccacheLib = import ./sccache.nix {};
+  packageTests =
+    if meta-harbor != null
+    then meta-harbor.packageTests
+    else throw "rs-harbor: package-test helpers require the meta-harbor flake input";
 in {
-  inherit mkToolchain hardeningProfiles;
+  inherit mkToolchain hardeningProfiles packageTests;
   opencode =
     if meta-harbor != null
     then meta-harbor.opencode
@@ -29,23 +33,26 @@ in {
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
 
   mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
-  mkTrunkPackage = import ./trunk.nix {inherit crane;};
+  mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
   mkRustServiceModule = import ./nixos-rust-service.nix {
     inherit hardeningProfiles;
   };
 
   findLocalMavenCache = import ./android-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
-  mkAndroidApk = import ./android-apk.nix;
-  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix;
-  mkAndroidFlavorTable = import ./android-flavor-table.nix;
-  mkAppImage = import ./appimage.nix;
-  mkChocoPackage = import ./choco-package.nix;
-  mkCoprSpec = import ./copr-spec.nix;
-  mkDebPackage = import ./deb-package.nix;
-  mkFlatpakManifest = import ./flatpak-manifest.nix;
-  mkHomebrewFormula = import ./homebrew-formula.nix;
-  mkScoopManifest = import ./scoop-manifest.nix;
+  mkAndroidApk = import ./android-apk.nix {inherit packageTests;};
+  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix {inherit packageTests;};
+  mkAndroidFlavorTable = import ./android-flavor-table.nix {inherit packageTests;};
+  mkAppImage = import ./appimage.nix {inherit packageTests;};
+  mkPackageArtifactBuilder = import ./package-artifact-builder.nix {inherit packageTests;};
+  mkChocoPackage = import ./choco-package.nix {inherit packageTests;};
+  mkChocoTestEnvironment = import ./choco-test-environment.nix {inherit packageTests;};
+  mkPackageTestPlan = import ./package-test-plan.nix {inherit packageTests;};
+  mkCoprSpec = import ./copr-spec.nix {inherit packageTests;};
+  mkDebPackage = import ./deb-package.nix {inherit packageTests;};
+  mkFlatpakManifest = import ./flatpak-manifest.nix {inherit packageTests;};
+  mkHomebrewFormula = import ./homebrew-formula.nix {inherit packageTests;};
+  mkScoopManifest = import ./scoop-manifest.nix {inherit packageTests;};
   mkSccacheEnv = mkSccacheLib; # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
   mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
   wrapRustPackageWithSccache = mkSccacheLib.wrapRustPackageWithSccache;

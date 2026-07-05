@@ -10,9 +10,11 @@
 # to run inside a dev shell with cargo-ndk, Gradle, Android SDK/NDK, and network
 # access available, then leaves the APK in the project's normal Gradle output
 # directory for device-oriented smoke loops.
-{
+{packageTests}: {
   pkgs,
   flavors,
+  packageName ? "android-apk",
+  version ? "0.1.0",
   defaultFlavor ? "app",
   defaultAbi ? "arm64-v8a",
   defaultMode ? "debug",
@@ -21,42 +23,37 @@
   cargoNoDefaultFeatures ? false,
   lib ? pkgs.lib,
 }:
-
 assert lib.assertMsg (builtins.isAttrs flavors && flavors != {})
-  "rs-harbor: mkAndroidApkDevBuilder requires a non-empty `flavors` attrset";
+"rs-harbor: mkAndroidApkDevBuilder requires a non-empty `flavors` attrset";
 assert lib.assertMsg (builtins.hasAttr defaultFlavor flavors)
-  "rs-harbor: mkAndroidApkDevBuilder defaultFlavor `${defaultFlavor}` is not in flavors";
-
-let
-  shellCase =
-    lib.concatStringsSep "\n" (
-      lib.mapAttrsToList (
-        name: cfg:
-          assert lib.assertMsg (cfg ? cargoPkg)
-            "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires cargoPkg";
-          assert lib.assertMsg (cfg ? gradleModule)
-            "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires gradleModule";
-          assert lib.assertMsg (cfg ? jniLibsDir)
-            "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires jniLibsDir";
-          assert lib.assertMsg (cfg ? apkOutPath)
-            "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires apkOutPath";
-          ''
-            ${lib.escapeShellArg name})
-              cargo_pkg=${lib.escapeShellArg cfg.cargoPkg}
-              gradle_module=${lib.escapeShellArg cfg.gradleModule}
-              jni_libs_dir=${lib.escapeShellArg cfg.jniLibsDir}
-              apk_out_path=${lib.escapeShellArg cfg.apkOutPath}
-              ;;
-          ''
-      )
-      flavors
-    );
+"rs-harbor: mkAndroidApkDevBuilder defaultFlavor `${defaultFlavor}` is not in flavors"; let
+  shellCase = lib.concatStringsSep "\n" (
+    lib.mapAttrsToList (
+      name: cfg:
+        assert lib.assertMsg (cfg ? cargoPkg)
+        "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires cargoPkg";
+        assert lib.assertMsg (cfg ? gradleModule)
+        "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires gradleModule";
+        assert lib.assertMsg (cfg ? jniLibsDir)
+        "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires jniLibsDir";
+        assert lib.assertMsg (cfg ? apkOutPath)
+        "rs-harbor: mkAndroidApkDevBuilder flavor `${name}` requires apkOutPath"; ''
+          ${lib.escapeShellArg name})
+            cargo_pkg=${lib.escapeShellArg cfg.cargoPkg}
+            gradle_module=${lib.escapeShellArg cfg.gradleModule}
+            jni_libs_dir=${lib.escapeShellArg cfg.jniLibsDir}
+            apk_out_path=${lib.escapeShellArg cfg.apkOutPath}
+            ;;
+        ''
+    )
+    flavors
+  );
 
   cargoNoDefault = lib.optionalString cargoNoDefaultFeatures "--no-default-features";
-  cargoFeatureFlag = lib.optionalString (cargoFeatures != [])
+  cargoFeatureFlag =
+    lib.optionalString (cargoFeatures != [])
     "--features ${lib.concatStringsSep "," cargoFeatures}";
-in
-  pkgs.writeShellScript "android-apk-dev-builder" ''
+  script = pkgs.writeShellScript "android-apk-dev-builder" ''
     set -euo pipefail
 
     if [ -z "''${ANDROID_NDK_HOME:-}" ]; then
@@ -101,4 +98,19 @@ in
     (cd ${lib.escapeShellArg androidDir} && gradle "$gradle_module:assemble$mode_cap")
 
     echo "[android-apk] APK at $apk_out_path"
-  ''
+  '';
+in
+  script
+  // {
+    artifactBuilder = packageTests.mkArtifactBuilder {
+      kind = "android-apk-dev-builder";
+      inherit packageName version;
+      output = toString script;
+      buildCommand = "nix build .#android-apk-dev-builder";
+      metadata = {
+        inherit defaultFlavor defaultAbi defaultMode androidDir cargoFeatures cargoNoDefaultFeatures;
+        flavors = builtins.attrNames flavors;
+        helper = "mkAndroidApkDevBuilder";
+      };
+    };
+  }

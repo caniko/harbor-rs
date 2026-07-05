@@ -4,7 +4,7 @@
 # Generate a Homebrew binary formula from release metadata. rs-harbor only
 # emits the formula file; computing archive checksums and publishing a tap
 # stay in downstream release workflows.
-{
+{packageTests}: {
   pkgs,
   name,
   version,
@@ -177,6 +177,18 @@
     ${formulaText}
     FORMULA
   '';
+  artifactBuilder = packageTests.mkArtifactBuilder {
+    kind = "homebrew-builder";
+    packageName = name;
+    inherit version;
+    output = toString formulaPath;
+    buildCommand = "nix build .#${name}-homebrew-formula";
+    metadata = {
+      inherit platforms dependencies binaries;
+      helper = "mkHomebrewFormula";
+      outputKind = "homebrew-formula";
+    };
+  };
 in
   assert validName
   || throw "mkHomebrewFormula: name must match [a-z][a-z0-9-]*, got: ${name}";
@@ -205,5 +217,5 @@ in
   || throw "mkHomebrewFormula: testBlock must be null or a string";
   assert validExtraRubyBody
   || throw "mkHomebrewFormula: extraRubyBody must be a string"; {
-    inherit formulaText formulaPath;
+    inherit formulaText formulaPath artifactBuilder;
   }

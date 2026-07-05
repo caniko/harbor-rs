@@ -27,6 +27,7 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 - `mkDebPackage` — Debian `.deb` package helper
 - `mkScoopManifest` — Scoop (Windows) manifest generator
 - `mkChocoPackage` — Chocolatey (Windows) `.nuspec` + install-script package helper
+- `mkPackageArtifactBuilder` / `mkPackageTestPlan` / `mkChocoTestEnvironment` — package-builder metadata, verification plans, and Chocolatey Vagrant test environments
 
 ## Prerequisites
 
@@ -109,6 +110,7 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [mkDevShell, mkDocsShell, and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
 - [Homebrew formula](docs/src/packaging/homebrew-formula.md)
+- [Package tests](docs/src/packaging/package-tests.md)
 - [COPR spec](docs/src/packaging/copr.md)
 
 Source repository: <https://codeberg.org/caniko/rs-harbor>

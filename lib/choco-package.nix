@@ -1,4 +1,4 @@
-{
+{packageTests}: {
   pkgs,
   id,
   version,
@@ -72,18 +72,17 @@
 
   architectureValidations = map (key: validateArchitecture key architectures.${key}) architectureKeys;
 
-  validateExtraField = key:
-    let
-      value = extraNuspecFields.${key};
-    in
-      assert builtins.match "[A-Za-z_][A-Za-z0-9_.-]*" key != null
-      || throw "mkChocoPackage: extraNuspecFields.${key} must be a valid XML element name";
-      assert
-        builtins.isString value
-        || builtins.isInt value
-        || builtins.isFloat value
-        || builtins.isBool value
-      || throw "mkChocoPackage: extraNuspecFields.${key} must be a string, int, float, or bool"; true;
+  validateExtraField = key: let
+    value = extraNuspecFields.${key};
+  in
+    assert builtins.match "[A-Za-z_][A-Za-z0-9_.-]*" key
+    != null
+    || throw "mkChocoPackage: extraNuspecFields.${key} must be a valid XML element name";
+    assert builtins.isString value
+    || builtins.isInt value
+    || builtins.isFloat value
+    || builtins.isBool value
+    || throw "mkChocoPackage: extraNuspecFields.${key} must be a string, int, float, or bool"; true;
 
   extraFieldValidations = map validateExtraField (builtins.attrNames extraNuspecFields);
 
@@ -96,9 +95,9 @@
 
   escapeXml = value:
     builtins.replaceStrings
-      ["&" "<" ">" "\"" "'"]
-      ["&amp;" "&lt;" "&gt;" "&quot;" "&apos;"]
-      value;
+    ["&" "<" ">" "\"" "'"]
+    ["&amp;" "&lt;" "&gt;" "&quot;" "&apos;"]
+    value;
 
   escapePowerShellSingleQuoted = value:
     builtins.replaceStrings ["'"] ["''"] value;
@@ -133,8 +132,8 @@
     ]
     ++ lib.optional (releaseNotesUrl != null) (xmlField "releaseNotes" releaseNotesUrl)
     ++ map
-      (key: xmlField key (extraFieldValueToString extraNuspecFields.${key}))
-      (builtins.sort builtins.lessThan (builtins.attrNames extraNuspecFields))
+    (key: xmlField key (extraFieldValueToString extraNuspecFields.${key}))
+    (builtins.sort builtins.lessThan (builtins.attrNames extraNuspecFields))
     ++ [
       "    <requireLicenseAcceptance>false</requireLicenseAcceptance>"
     ];
@@ -215,6 +214,32 @@
     cp ${nuspecPath} "$out/${id}.nuspec"
     cp ${installScriptPath} "$out/tools/chocolateyInstall.ps1"
   '';
+
+  nupkgPath =
+    pkgs.runCommand "${id}.${version}.nupkg" {
+      nativeBuildInputs = [pkgs.zip];
+    } ''
+      tmp="$TMPDIR/package"
+      cp -R ${packageDir} "$tmp"
+      chmod -R u+w "$tmp"
+      cd "$tmp"
+      zip -qr "$out" .
+    '';
+
+  artifactBuilder = packageTests.mkArtifactBuilder {
+    kind = "chocolatey-builder";
+    packageName = id;
+    inherit version;
+    output = toString nupkgPath;
+    buildCommand = "nix build .#${id}-chocolatey";
+    metadata = {
+      inherit binaries;
+      packageDir = toString packageDir;
+      nuspecPath = toString nuspecPath;
+      installScriptPath = toString installScriptPath;
+      nupkgName = "${id}.${version}.nupkg";
+    };
+  };
 in
   assert validId
   || throw "mkChocoPackage: id must match [a-z][a-z0-9-]*, got: ${id}";
@@ -243,7 +268,8 @@ in
   || throw "mkChocoPackage: owners must be a non-empty list of non-empty strings";
   assert validArchitectures
   || throw "mkChocoPackage: architectures must be a non-empty attrset";
-  assert invalidArchitectureKeys == []
+  assert invalidArchitectureKeys
+  == []
   || throw "mkChocoPackage: unsupported architecture keys: ${lib.concatStringsSep ", " invalidArchitectureKeys}";
   assert lib.all (x: x) architectureValidations;
   assert validBinaries
@@ -253,5 +279,5 @@ in
   assert validExtraNuspecFields
   || throw "mkChocoPackage: extraNuspecFields must be an attrset";
   assert lib.all (x: x) extraFieldValidations; {
-    inherit nuspecText installScriptText packageDir;
+    inherit id version nuspecText installScriptText packageDir nupkgPath artifactBuilder;
   }

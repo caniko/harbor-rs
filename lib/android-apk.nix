@@ -42,17 +42,14 @@
 #     cargoFeatures = ["tutorial"];
 #     mavenCacheTar = ./gradle-cache.tar;
 #   };
-
-{
+{packageTests}: {
   pkgs,
   androidSdk,
   rustToolchain,
   workspaceSrc,
-
   # ─────────────────────────────────────────────────────────────────────────
   # Project-specific knobs
   # ─────────────────────────────────────────────────────────────────────────
-
   # Cargo workspace member whose cdylib produces `lib<cargoPkg>.so`.
   cargoPkg,
   # Gradle subproject path, e.g. ":app" or ":test-peer".
@@ -61,29 +58,23 @@
   jniLibsDir,
   # Final relative path inside the workspace where gradle emits the APK.
   apkOutPath,
-
   abi ? "arm64-v8a",
   mode ? "debug",
   pname ? "android-apk",
   version ? "0.1.0",
-
   cargoFeatures ? [],
   cargoNoDefaultFeatures ? false,
-
   # ─────────────────────────────────────────────────────────────────────────
   # Toolchain / tool overrides
   # ─────────────────────────────────────────────────────────────────────────
-
   ndkVersion ? "29.0.14206865",
   cargoNdk ? pkgs.cargo-ndk,
   jdk ? pkgs.jdk21,
   gradle ? pkgs.gradle,
   lib ? pkgs.lib,
-
   # ─────────────────────────────────────────────────────────────────────────
   # Hermetic-build inputs (mutually exclusive; first non-null wins)
   # ─────────────────────────────────────────────────────────────────────────
-
   # Path to a tarball whose root is `files-2.1/` — the standard layout of
   # `$GRADLE_USER_HOME/caches/modules-2/files-2.1`. Pack via:
   #   tar --sort=name --mtime='2026-01-01 00:00:00 UTC' \
@@ -94,17 +85,14 @@
   # upstream gradle2nix tooling is unblocked. Currently a no-op placeholder.
   gradleDeps ? null,
 }:
-
 assert lib.assertMsg (builtins.isString cargoPkg)
-  "rs-harbor: mkAndroidApk requires `cargoPkg` (a workspace cdylib package name)";
+"rs-harbor: mkAndroidApk requires `cargoPkg` (a workspace cdylib package name)";
 assert lib.assertMsg (builtins.isString gradleModule && lib.hasPrefix ":" gradleModule)
-  "rs-harbor: mkAndroidApk `gradleModule` must look like \":app\" or \":test-peer\", got ${toString gradleModule}";
+"rs-harbor: mkAndroidApk `gradleModule` must look like \":app\" or \":test-peer\", got ${toString gradleModule}";
 assert lib.assertMsg (builtins.elem mode ["debug" "release"])
-  "rs-harbor: mkAndroidApk `mode` must be \"debug\" or \"release\", got ${mode}";
+"rs-harbor: mkAndroidApk `mode` must be \"debug\" or \"release\", got ${mode}";
 assert lib.assertMsg (rustToolchain != null)
-  "rs-harbor: mkAndroidApk requires `rustToolchain` — pass `(mkToolchain { ... }).rustToolchain`";
-
-let
+"rs-harbor: mkAndroidApk requires `rustToolchain` — pass `(mkToolchain { ... }).rustToolchain`"; let
   modeCap =
     if mode == "debug"
     then "Debug"
@@ -115,7 +103,8 @@ let
   hermetic = mavenCacheTar != null || gradleDeps != null;
 
   cargoNoDefault = lib.optionalString cargoNoDefaultFeatures "--no-default-features";
-  cargoFeatureFlag = lib.optionalString (cargoFeatures != [])
+  cargoFeatureFlag =
+    lib.optionalString (cargoFeatures != [])
     "--features ${lib.concatStringsSep "," cargoFeatures}";
   cargoReleaseFlag = lib.optionalString (mode == "release") "--release";
 
@@ -163,8 +152,11 @@ let
     '';
 
     meta = {
-      description =
-        "Android ${moduleSubdir} APK (${mode}, ${if hermetic then "hermetic" else "impure"})";
+      description = "Android ${moduleSubdir} APK (${mode}, ${
+        if hermetic
+        then "hermetic"
+        else "impure"
+      })";
       platforms = ["x86_64-linux" "aarch64-linux"];
     };
   };
@@ -194,8 +186,29 @@ let
         false
       '';
   };
-in
-  pkgs.stdenv.mkDerivation (
+in let
+  package = pkgs.stdenv.mkDerivation (
     commonAttrs
-    // (if hermetic then hermeticExtras else impureExtras)
-  )
+    // (
+      if hermetic
+      then hermeticExtras
+      else impureExtras
+    )
+  );
+in
+  package
+  // {
+    artifactBuilder = packageTests.mkArtifactBuilder {
+      kind = "android-apk-builder";
+      packageName = pname;
+      inherit version;
+      output = toString package;
+      buildCommand = "nix build .#${pname}-android-apk";
+      inputs = [(toString workspaceSrc)];
+      metadata = {
+        inherit cargoPkg gradleModule jniLibsDir apkOutPath abi mode cargoFeatures cargoNoDefaultFeatures ndkVersion;
+        hermetic = hermetic;
+        helper = "mkAndroidApk";
+      };
+    };
+  }

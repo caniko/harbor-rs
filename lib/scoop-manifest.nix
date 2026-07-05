@@ -5,7 +5,7 @@
 # Generate a Scoop manifest from release metadata. rs-harbor only emits the
 # manifest file; checksum computation and bucket publishing stay in downstream
 # release workflows.
-{
+{packageTests}: {
   pkgs,
   name,
   version,
@@ -112,11 +112,24 @@
   manifestText = builtins.toJSON manifest;
   manifestSource = pkgs.writeText "${name}.json.raw" manifestText;
 
-  manifestPath = pkgs.runCommand "${name}.json" {
-    nativeBuildInputs = [pkgs.jq];
-  } ''
-    jq . ${manifestSource} > "$out"
-  '';
+  manifestPath =
+    pkgs.runCommand "${name}.json" {
+      nativeBuildInputs = [pkgs.jq];
+    } ''
+      jq . ${manifestSource} > "$out"
+    '';
+  artifactBuilder = packageTests.mkArtifactBuilder {
+    kind = "scoop-builder";
+    packageName = name;
+    inherit version;
+    output = toString manifestPath;
+    buildCommand = "nix build .#${name}-scoop-manifest";
+    metadata = {
+      inherit architectures binaries persist;
+      helper = "mkScoopManifest";
+      outputKind = "scoop-manifest";
+    };
+  };
 in
   assert validName
   || throw "mkScoopManifest: name must match [a-z][a-z0-9-]*, got: ${name}";
@@ -131,7 +144,8 @@ in
   || throw "mkScoopManifest: license must be a non-empty string";
   assert validArchitectures
   || throw "mkScoopManifest: architectures must be a non-empty attrset";
-  assert invalidArchitectureKeys == []
+  assert invalidArchitectureKeys
+  == []
   || throw "mkScoopManifest: unsupported architecture keys: ${lib.concatStringsSep ", " invalidArchitectureKeys}";
   assert lib.all (x: x) architectureValidations;
   assert validBinaries
@@ -144,5 +158,5 @@ in
   || throw "mkScoopManifest: autoupdate must be null or an attrset";
   assert validExtraFields
   || throw "mkScoopManifest: extraFields must be an attrset"; {
-    inherit manifestText manifestPath;
+    inherit manifestText manifestPath artifactBuilder;
   }
