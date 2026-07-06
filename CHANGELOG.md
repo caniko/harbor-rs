@@ -13,3 +13,5 @@
   with a pre-deploy validation step
 - `mkTrunkPackage` now includes `clang` and `mold` in native build inputs for
   Linux mold linker support
+- `mkToolchain` now guards Crane dependency-only builds from dummifying
+  `[patch.crates-io]` path crates.

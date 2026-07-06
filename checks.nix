@@ -30,6 +30,49 @@ in
       assert t ? craneLib;
         pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
 
+    # Path-patched crates under [patch.crates-io] must not be dummified by
+    # Crane's dependency-only phase. Registry dependencies may compile against
+    # those patched crates and require their real API.
+    craneLib-path-patch-buildPackage-disables-implicit-deps = let
+      fixtureSrc = ./tests/fixtures/path-patch-fixture;
+      pkg = toolchain.craneLib.buildPackage {
+        src = fixtureSrc;
+        pname = "path-patch-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      };
+    in
+      assert pkgs.lib.isDerivation pkg;
+      assert pkg ? cargoArtifacts;
+      assert pkg.cargoArtifacts == null;
+        pkgs.runCommand "check-craneLib-path-patch-buildPackage-disables-implicit-deps" {} "touch $out";
+
+    craneLib-path-patch-buildDepsOnly-rejected = let
+      fixtureSrc = ./tests/fixtures/path-patch-fixture;
+      result = builtins.tryEval (toolchain.craneLib.buildDepsOnly {
+        src = fixtureSrc;
+        pname = "path-patch-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      });
+    in
+      assert result.success == false;
+        pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-rejected" {} "touch $out";
+
+    craneLib-path-patch-buildDepsOnly-escape-hatch = let
+      fixtureSrc = ./tests/fixtures/path-patch-fixture;
+      result = builtins.tryEval (toolchain.craneLib.buildDepsOnly {
+        src = fixtureSrc;
+        pname = "path-patch-fixture";
+        version = "0.1.0";
+        doCheck = false;
+        rsHarborAllowPathPatchBuildDepsOnly = true;
+      });
+    in
+      assert result.success == true;
+      assert pkgs.lib.isDerivation result.value;
+        pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-escape-hatch" {} "touch $out";
+
     # Rust package derivations carry compiler/linker tools explicitly so
     # build scripts and drv reproducers can find cc/gcc outside dev shells.
     mkRustNativeBuildInputs-shape = let

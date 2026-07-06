@@ -41,7 +41,61 @@
       extensions = extensions';
       targets = crossTargets;
     };
-    craneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
+    upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
+
+    patchCratesIoPathPatches = args: let
+      cargoTomlPath = args.src + "/Cargo.toml";
+      cargoToml =
+        if args ? src && builtins.pathExists cargoTomlPath
+        then builtins.fromTOML (builtins.readFile cargoTomlPath)
+        else {};
+      cratesIoPatches = cargoToml.patch."crates-io" or {};
+      patchNames = builtins.attrNames cratesIoPatches;
+      pathPatchNames = builtins.filter (name: (cratesIoPatches.${name} ? path)) patchNames;
+    in
+      builtins.map (name: {
+        inherit name;
+        path = cratesIoPatches.${name}.path;
+      })
+      pathPatchNames;
+
+    formatPathPatches = pathPatches:
+      pkgs.lib.concatStringsSep ", " (
+        builtins.map (patch: "${patch.name} -> ${patch.path}") pathPatches
+      );
+
+    stripRsHarborCraneArgs = args:
+      builtins.removeAttrs args ["rsHarborAllowPathPatchBuildDepsOnly"];
+
+    pathPatchBuildDepsOnlyError = pathPatches: ''
+      rs-harbor: refusing craneLib.buildDepsOnly for a Cargo workspace with [patch.crates-io] path patches: ${formatPathPatches pathPatches}
+
+      Crane's dependency-only build replaces path crates with dummy sources. That is unsafe when a patched crate is used by registry dependencies, because those dependencies can compile against a dummy API and fail with misleading missing-symbol errors.
+
+      Use craneLib.buildPackage (args // { cargoArtifacts = null; }) to build with real sources, remove the path patch, or vendor the dependency in a way that does not rely on [patch.crates-io]. If this project is known to tolerate dummy path patches, pass rsHarborAllowPathPatchBuildDepsOnly = true.
+    '';
+
+    craneLib =
+      upstreamCraneLib
+      // {
+        buildDepsOnly = args: let
+          pathPatches = patchCratesIoPathPatches args;
+          allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+        in
+          if pathPatches != [] && !allow
+          then throw (pathPatchBuildDepsOnlyError pathPatches)
+          else upstreamCraneLib.buildDepsOnly (stripRsHarborCraneArgs args);
+
+        buildPackage = args: let
+          pathPatches = patchCratesIoPathPatches args;
+          args' = stripRsHarborCraneArgs args;
+        in
+          upstreamCraneLib.buildPackage (
+            if pathPatches != [] && !(args ? cargoArtifacts)
+            then args' // {cargoArtifacts = null;}
+            else args'
+          );
+      };
   in {
     inherit rustToolchain craneLib crossTargets;
   }

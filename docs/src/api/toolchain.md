@@ -19,6 +19,24 @@
 - `craneLib`
 - `crossTargets`
 
+## Path-patched crates and `buildDepsOnly`
+
+The returned `craneLib` wraps Crane's `buildPackage` and `buildDepsOnly` for workspaces that use `[patch.crates-io]` with local `path` entries.
+
+Crane's dependency-only phase builds a dummy source tree for path crates. That is unsafe when a registry dependency compiles against a patched local crate, because the dependency may see the dummy crate API instead of the real patched API.
+
+For these workspaces, `craneLib.buildPackage` automatically disables implicit dependency artifact reuse by passing `cargoArtifacts = null` unless the caller already provided `cargoArtifacts`.
+
+Direct `craneLib.buildDepsOnly` calls fail with an rs-harbor error naming the path patches. Prefer:
+
+```nix
+craneLib.buildPackage (commonArgs // {
+  cargoArtifacts = null;
+})
+```
+
+If a workspace is known to tolerate dummy path patches, pass `rsHarborAllowPathPatchBuildDepsOnly = true` to `buildDepsOnly`.
+
 ## Example
 
 ```nix
