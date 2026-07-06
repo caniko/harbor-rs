@@ -21,6 +21,7 @@ in {
     else throw "rs-harbor: opencode helpers require the meta-harbor flake input";
 
   mkCargoConfig = import ./cargo-config.nix;
+  mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   mkSteamRuntimeTools = import ./steam-runtime.nix;

@@ -30,6 +30,32 @@ in
       assert t ? craneLib;
         pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
 
+    # Rust package derivations carry compiler/linker tools explicitly so
+    # build scripts and drv reproducers can find cc/gcc outside dev shells.
+    mkRustNativeBuildInputs-shape = let
+      inputs = self.lib.mkRustNativeBuildInputs {
+        inherit pkgs;
+        extra = [pkgs.pkg-config];
+      };
+    in
+      assert builtins.elem pkgs.stdenv.cc inputs;
+      assert builtins.elem pkgs.clang inputs;
+      assert builtins.elem pkgs.mold inputs;
+      assert builtins.elem pkgs.pkg-config inputs;
+        pkgs.runCommand "check-mkRustNativeBuildInputs-shape" {} "touch $out";
+
+    mkRustNativeBuildInputs-tool-opt-outs = let
+      inputs = self.lib.mkRustNativeBuildInputs {
+        inherit pkgs;
+        includeClang = false;
+        includeMold = false;
+      };
+    in
+      assert builtins.elem pkgs.stdenv.cc inputs;
+      assert !(builtins.elem pkgs.clang inputs);
+      assert !(builtins.elem pkgs.mold inputs);
+        pkgs.runCommand "check-mkRustNativeBuildInputs-tool-opt-outs" {} "touch $out";
+
     # mkCross returns expected attributes
     mkCross-shape = let
       c = self.lib.mkCross {
