@@ -20,6 +20,22 @@ Important parameters:
 - `checks`
 - `cargoConfig`
 
+## mkProjectCliShellTools
+
+Use `mkProjectCliShellTools` when a project wants its flake-built CLI available in `direnv` or `nix develop`:
+
+```nix
+projectCli = rs-harbor.lib.mkProjectCliShellTools {
+  inherit pkgs;
+  package = self'.packages.my-cli;
+  commandName = "my-cli";
+  hint = "my-cli dev shell - run `my-cli --help`";
+  versionCheck.expected = version;
+};
+```
+
+Append `projectCli.packages` to the shell packages and `projectCli.shellHook` to the shell hook. The hook fails if `command -v` resolves to a different binary than the package output, which prevents stale tools earlier on `PATH` from shadowing the current flake build.
+
 ## mkDevShells
 
 `mkDevShells` wraps `mkDevShell` and returns:

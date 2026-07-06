@@ -5,6 +5,54 @@
 # Build devShells with Rust cross-compilation environment variables pre-configured.
 # mkDevShells calls mkDevShell internally, so both live in the same file.
 rec {
+  # Build a small reusable package/hook pair for making a project CLI
+  # available in dev shells without allowing an older PATH entry to win.
+  mkProjectCliShellTools = {
+    pkgs,
+    package,
+    commandName,
+    hint ? "",
+    versionCheck ? {},
+  }: let
+    lib = pkgs.lib;
+    expectedPath = "${package}/bin/${commandName}";
+    expected = versionCheck.expected or null;
+    versionCommand = versionCheck.command or "${commandName} --version";
+    predicate = versionCheck.predicate or null;
+    hintHook = lib.optionalString (hint != "") ''
+      echo ${lib.escapeShellArg hint}
+    '';
+    expectedHook = lib.optionalString (expected != null) ''
+      __rs_harbor_project_cli_version="$(${versionCommand} 2>&1 || true)"
+      if ! printf '%s\n' "$__rs_harbor_project_cli_version" | grep -F -- ${lib.escapeShellArg expected} >/dev/null; then
+        echo "rs-harbor: ${commandName} version check failed; expected output containing ${expected}" >&2
+        echo "$__rs_harbor_project_cli_version" >&2
+        return 1 2>/dev/null || exit 1
+      fi
+    '';
+    predicateHook = lib.optionalString (predicate != null) ''
+      RS_HARBOR_PROJECT_CLI=${lib.escapeShellArg commandName} \
+      RS_HARBOR_PROJECT_CLI_PATH="$__rs_harbor_project_cli_resolved" \
+        ${predicate}
+    '';
+  in {
+    packages = [package];
+    shellHook = ''
+      __rs_harbor_project_cli_resolved="$(command -v ${lib.escapeShellArg commandName} || true)"
+      if [ -z "$__rs_harbor_project_cli_resolved" ]; then
+        echo "rs-harbor: ${commandName} is not available on PATH" >&2
+        return 1 2>/dev/null || exit 1
+      fi
+      if [ "$__rs_harbor_project_cli_resolved" != ${lib.escapeShellArg expectedPath} ]; then
+        echo "rs-harbor: ${commandName} resolved to $__rs_harbor_project_cli_resolved, expected ${expectedPath}" >&2
+        return 1 2>/dev/null || exit 1
+      fi
+      ${expectedHook}
+      ${predicateHook}
+      ${hintHook}
+    '';
+  };
+
   # Build a devShell with Rust cross-compilation environment variables pre-configured.
   mkDevShell = {
     pkgs,

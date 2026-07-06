@@ -13,6 +13,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
 - `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
+- `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain

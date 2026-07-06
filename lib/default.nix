@@ -28,7 +28,7 @@ in {
   mkMacosUniversalStager = import ./macos-staging.nix;
   mkOsxcrossHooks = import ./osxcross-hooks.nix;
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
-  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells;
+  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells mkProjectCliShellTools;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
 

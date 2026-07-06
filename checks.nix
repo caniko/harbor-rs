@@ -450,6 +450,53 @@ in
       assert (s.type or null) == "derivation";
         pkgs.runCommand "check-mkDocsShell-shape" {} "touch $out";
 
+    # mkProjectCliShellTools returns a package list and PATH validation hook
+    # for exposing a project-built CLI in downstream dev shells.
+    mkProjectCliShellTools-shape = let
+      fakeCli = pkgs.writeShellApplication {
+        name = "demo-cli";
+        text = ''
+          echo "demo-cli 1.2.3"
+        '';
+      };
+      tools = self.lib.mkProjectCliShellTools {
+        inherit pkgs;
+        package = fakeCli;
+        commandName = "demo-cli";
+        hint = "demo-cli shell ready";
+        versionCheck.expected = "1.2.3";
+      };
+    in
+      assert tools.packages == [fakeCli];
+      assert builtins.isString tools.shellHook;
+      assert pkgs.lib.hasInfix "command -v" tools.shellHook;
+      assert pkgs.lib.hasInfix "demo-cli" tools.shellHook;
+        pkgs.runCommand "check-mkProjectCliShellTools-shape" {} "touch $out";
+
+    # mkProjectCliShellTools puts the requested CLI on PATH and its hook
+    # rejects missing/stale commands before the developer starts working.
+    mkProjectCliShellTools-path-smoke = let
+      fakeCli = pkgs.writeShellApplication {
+        name = "demo-cli";
+        text = ''
+          echo "demo-cli 1.2.3"
+        '';
+      };
+      tools = self.lib.mkProjectCliShellTools {
+        inherit pkgs;
+        package = fakeCli;
+        commandName = "demo-cli";
+        versionCheck.expected = "1.2.3";
+      };
+    in
+      pkgs.runCommand "check-mkProjectCliShellTools-path-smoke" {
+        buildInputs = tools.packages;
+      } ''
+        command -v demo-cli >/dev/null
+        ${tools.shellHook}
+        touch "$out"
+      '';
+
     # mkDevShells accepts the full parameter set simit's cross_template()
     # passes: packages list with all audit/release tools, extraShellHook,
     # and checks.  This is the rs-harbor side of the simit↔rs-harbor

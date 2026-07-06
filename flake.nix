@@ -152,7 +152,7 @@
       devShells = import ./nix/dev-shells.nix {
         harbor = self.lib;
         opencodeLsp = nix-opencode-lsp.lib;
-        inherit pkgs toolchain cross cargoConfig;
+        inherit pkgs toolchain cross cargoConfig rsHarborCli;
         plinthProject = plinth.packages.${system}.plinth-project;
       };
 
