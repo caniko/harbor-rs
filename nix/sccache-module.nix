@@ -45,6 +45,7 @@
   ...
 }: let
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
+  sccacheDefault = import ../lib/generated/sccache-default.nix;
   cfg = config.programs.rsHarbor.sccache;
   sccacheLib = import ../lib/sccache.nix {};
 
@@ -127,7 +128,7 @@ in {
 
     cacheRegion = mkOption {
       type = types.str;
-      default = "auto";
+      default = sccacheDefault.cacheRegion;
       description = "S3 region for sccache. Use 'auto' for custom endpoints.";
     };
 
@@ -140,7 +141,7 @@ in {
 
     cacheUseSsl = mkOption {
       type = types.bool;
-      default = false;
+      default = sccacheDefault.cacheUseSsl;
       description = "Whether to use SSL for the S3 endpoint. Set true for HTTPS endpoints.";
     };
 
@@ -193,7 +194,7 @@ in {
 
     connectTimeout = mkOption {
       type = types.str;
-      default = "2";
+      default = sccacheDefault.connectTimeout;
       description = "SCCACHE_CONNECT_TIMEOUT in seconds. Controls how long sccache waits before falling back to local cache.";
     };
 
@@ -211,7 +212,7 @@ in {
 
       socketPath = mkOption {
         type = types.path;
-        default = "/run/sccache/sock";
+        default = sccacheDefault.systemSocketPath;
         description = ''
           Unix socket path for the daemon to listen on. Defaults under
           /run/sccache — a systemd RuntimeDirectory owned by the sccache
@@ -224,13 +225,13 @@ in {
 
       diskCacheDir = mkOption {
         type = types.path;
-        default = "/var/lib/sccache";
+        default = sccacheDefault.systemDiskCacheDir;
         description = "Persistent disk cache directory for the daemon.";
       };
 
       idleTimeout = mkOption {
         type = types.int;
-        default = 0;
+        default = sccacheDefault.idleTimeout;
         description = ''
           Seconds before the daemon shuts down when idle. 0 = never.
           The daemon starts at boot and stays up for the session.

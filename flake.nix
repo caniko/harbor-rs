@@ -34,6 +34,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
+
+    nix-pklx = {
+      url = "git+https://codeberg.org/caniko/nix-pklx.git";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.crane.follows = "crane";
+      inputs.flake-utils.follows = "flake-utils";
+      inputs.plinth.inputs.nixpkgs.follows = "nixpkgs";
+      inputs.plinth.inputs.flake-utils.follows = "flake-utils";
+    };
   };
 
   outputs = {
@@ -46,6 +55,7 @@
     plinth,
     meta-harbor,
     nix-opencode-lsp,
+    nix-pklx,
     ...
   }: let
     lib = import ./lib {
@@ -58,6 +68,8 @@
 
       nixosModules.macosSdk = import ./nix/nixos-module.nix;
       nixosModules.sccache = import ./nix/sccache-module.nix;
+
+      homeManagerModules.sccache = import ./nix/sccache-home.nix;
 
       templates = {
         bevy = {
@@ -146,6 +158,11 @@
         };
         deploy-pages = plinth.lib.${system}.mkDeployPagesApp {
           domain = "rs-harbor.tartanoglu.com";
+        };
+
+        pklx-eval = {
+          type = "app";
+          program = "${nix-pklx.packages.${system}.pklx}/bin/pklx";
         };
       };
 
