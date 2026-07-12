@@ -1116,6 +1116,8 @@ in
     in
       assert drv ? artifactBuilder;
       assert drv.artifactBuilder.kind == "trunk-builder";
+      assert builtins.elem pkgs.clang drv.nativeBuildInputs;
+      assert builtins.elem pkgs.mold drv.nativeBuildInputs;
       assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
       assert drv.artifactBuilder.metadata.wasmSplit == false;
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";

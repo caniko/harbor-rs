@@ -15,7 +15,7 @@ rs-harbor.lib.mkDioxusPackage {
   rustToolchain = wasm.rustToolchain;
   package = "my-dioxus-app";
   cargoVendorDir = vendorCargoDir;
-  wasmBindgenCli = wasmBindgenPkgs.wasm-bindgen-cli_0_2_126;
+  wasmBindgenCli = wasmBindgenPkgs."wasm-bindgen-cli_0_2_126";
   installSubdir = "share/my-dioxus-web";
 }
 ```
