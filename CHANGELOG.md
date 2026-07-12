@@ -6,6 +6,8 @@
 
 - `mkPkgConfigEnv` and `mkDioxusPackage` helpers, with shape checks and
   packaging documentation.
+- `mkToolchain` now handles unavailable source paths safely while inspecting
+  Cargo path patches.
 - `lib.mkSccacheEnv` — generate `SCCACHE_*` environment variables for
   S3-compatible sccache backends
 - `nixosModules.sccache` — NixOS module for declarative sccache setup
