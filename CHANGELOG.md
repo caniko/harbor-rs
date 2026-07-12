@@ -4,6 +4,8 @@
 
 ### Added
 
+- `mkPkgConfigEnv` and `mkDioxusPackage` helpers, with shape checks and
+  packaging documentation.
 - `lib.mkSccacheEnv` — generate `SCCACHE_*` environment variables for
   S3-compatible sccache backends
 - `nixosModules.sccache` — NixOS module for declarative sccache setup

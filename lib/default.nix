@@ -29,12 +29,13 @@ in {
   mkMacosUniversalStager = import ./macos-staging.nix;
   mkOsxcrossHooks = import ./osxcross-hooks.nix;
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
-  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells mkProjectCliShellTools;
+  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells mkProjectCliShellTools mkPkgConfigEnv;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
 
   mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
+  mkDioxusPackage = import ./dioxus.nix {inherit packageTests;};
   mkRustServiceModule = import ./nixos-rust-service.nix {
     inherit hardeningProfiles;
   };

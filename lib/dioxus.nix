@@ -164,7 +164,7 @@ in
   packageDrv
   // {
     artifactBuilder = packageTests.mkArtifactBuilder {
-      kind = "dioxus-builder";
+      kind = "trunk-builder";
       packageName = pname;
       inherit version;
       output = toString packageDrv;

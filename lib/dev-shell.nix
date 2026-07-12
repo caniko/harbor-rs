@@ -5,6 +5,14 @@
 # Build devShells with Rust cross-compilation environment variables pre-configured.
 # mkDevShells calls mkDevShell internally, so both live in the same file.
 rec {
+  mkPkgConfigEnv = {
+    pkgs,
+    deps ? [],
+  }:
+    pkgs.lib.optionalAttrs (deps != []) {
+      PKG_CONFIG_PATH = pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" deps;
+    };
+
   # Build a small reusable package/hook pair for making a project CLI
   # available in dev shells without allowing an older PATH entry to win.
   mkProjectCliShellTools = {
@@ -129,8 +137,9 @@ rec {
       then cross.windowsEnv
       else {};
 
-    pkgConfigEnv = pkgs.lib.optionalAttrs (pkgConfigDeps != []) {
-      PKG_CONFIG_PATH = pkgs.lib.makeSearchPathOutput "dev" "lib/pkgconfig" pkgConfigDeps;
+    pkgConfigEnv = mkPkgConfigEnv {
+      inherit pkgs;
+      deps = pkgConfigDeps;
     };
 
     mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;

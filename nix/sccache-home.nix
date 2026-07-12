@@ -112,7 +112,7 @@ in {
         RestartSec = "5";
         Environment = serviceEnvironment;
         ExecStartPre = [
-          "${pkgs.coreutils}/bin/mkdir -p %t/${sccacheDefault.userSocketRel} ${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}"
+          "${pkgs.coreutils}/bin/mkdir -p %t/${builtins.dirOf sccacheDefault.userSocketRel} ${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}"
           "-${pkgs.coreutils}/bin/rm -f %t/${sccacheDefault.userSocketRel}"
         ];
         ExecStart = "${cfg.package}/bin/sccache --start-server";

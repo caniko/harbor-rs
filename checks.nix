@@ -99,6 +99,21 @@ in
       assert !(builtins.elem pkgs.mold inputs);
         pkgs.runCommand "check-mkRustNativeBuildInputs-tool-opt-outs" {} "touch $out";
 
+    # The same explicit pkg-config environment is available to dev-shell
+    # callers and to consumers that need to reproduce a derivation's build
+    # environment outside Nix's setup-hook phase.
+    mkPkgConfigEnv-shape = let
+      empty = self.lib.mkPkgConfigEnv {inherit pkgs;};
+      env = self.lib.mkPkgConfigEnv {
+        inherit pkgs;
+        deps = [pkgs.openssl];
+      };
+    in
+      assert empty == {};
+      assert env ? PKG_CONFIG_PATH;
+      assert pkgs.lib.hasInfix "/lib/pkgconfig" env.PKG_CONFIG_PATH;
+        pkgs.runCommand "check-mkPkgConfigEnv-shape" {} "touch $out";
+
     # mkCross returns expected attributes
     mkCross-shape = let
       c = self.lib.mkCross {
@@ -1064,12 +1079,7 @@ in
     # mkTrunkPackage includes the host linker tools needed by rs-harbor's
     # generated Cargo config when Linux mold support is enabled.
     mkTrunkPackage-includes-linker-tools = let
-      cargoLock = builtins.toFile "trunk-check-Cargo.lock" ''
-        [[package]]
-        name = "wasm-bindgen"
-        version = "0.2.120"
-        source = "registry+https://github.com/rust-lang/crates.io-index"
-      '';
+      cargoLock = ./tests/fixtures/cross-package-fixture/Cargo.lock;
       drv = self.lib.mkTrunkPackage {
         inherit pkgs;
         src = ./tests/fixtures/cross-package-fixture;
@@ -1084,6 +1094,31 @@ in
       assert drv.artifactBuilder.kind == "trunk-builder";
       assert drv.artifactBuilder.output == toString drv;
         pkgs.runCommand "check-mkTrunkPackage-includes-linker-tools" {} "touch $out";
+
+    # Dioxus packaging keeps the generic bundle and artifact contract in
+    # rs-harbor; downstream projects only provide their Cargo source policy.
+    mkDioxusPackage-shape = let
+      wasmToolchain = self.lib.mkWasmToolchain {inherit pkgs;};
+      cargoLock = ./tests/fixtures/cross-package-fixture/Cargo.lock;
+      vendor = pkgs.runCommand "dioxus-check-vendor" {} ''
+        mkdir -p $out
+        : > $out/config.toml
+      '';
+      drv = self.lib.mkDioxusPackage {
+        inherit pkgs cargoLock;
+        src = ./tests/fixtures/cross-package-fixture;
+        pname = "check-dioxus-package";
+        craneLib = toolchain.craneLib;
+        rustToolchain = wasmToolchain.rustToolchain;
+        cargoVendorDir = vendor;
+        wasmBindgenCli = pkgs.wasm-bindgen-cli;
+      };
+    in
+      assert drv ? artifactBuilder;
+      assert drv.artifactBuilder.kind == "trunk-builder";
+      assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
+      assert drv.artifactBuilder.metadata.wasmSplit == false;
+        pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
 
     # mkCargoConfig respects enableParallelFrontend = false
     mkCargoConfig-no-parallel-frontend = let
