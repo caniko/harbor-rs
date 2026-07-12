@@ -44,17 +44,14 @@ assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
-    cargoTomlPath =
-      if args ? src
-      then "${args.src}/Cargo.toml"
-      else null;
-    cargoTomlText =
-      if cargoTomlPath != null
-      then builtins.tryEval (builtins.readFile cargoTomlPath)
-      else {success = false;};
     cargoToml =
-      if cargoTomlText.success
-      then builtins.fromTOML cargoTomlText.value
+      if args ? src && builtins.isPath args.src
+      then let
+        cargoTomlPath = args.src + "/Cargo.toml";
+      in
+        if builtins.pathExists cargoTomlPath
+        then builtins.fromTOML (builtins.readFile cargoTomlPath)
+        else {}
       else {};
     cratesIoPatches = cargoToml.patch."crates-io" or {};
     patchNames = builtins.attrNames cratesIoPatches;
