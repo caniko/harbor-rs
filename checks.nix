@@ -1145,19 +1145,23 @@ in
     # rs-harbor; downstream projects only provide their Cargo source policy.
     mkDioxusPackage-shape = let
       wasmToolchain = self.lib.mkWasmToolchain {inherit pkgs;};
-      cargoLock = ./tests/fixtures/cross-package-fixture/Cargo.lock;
+      cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
       vendor = pkgs.runCommand "dioxus-check-vendor" {} ''
         mkdir -p $out
         : > $out/config.toml
       '';
       drv = self.lib.mkDioxusPackage {
         inherit pkgs cargoLock;
-        src = ./tests/fixtures/cross-package-fixture;
+        src = ./tests/fixtures/dioxus-fixture;
         pname = "check-dioxus-package";
         craneLib = toolchain.craneLib;
         rustToolchain = wasmToolchain.rustToolchain;
         cargoVendorDir = vendor;
-        wasmBindgenCli = pkgs.wasm-bindgen-cli;
+        # This nixpkgs snapshot does not expose 0.2.126 as an attribute. The
+        # explicit opt-out is intentional here; production callers should
+        # provide a custom exact-version derivation instead.
+        wasmBindgenCli = pkgs.wasm-bindgen-cli_0_2_120;
+        allowWasmBindgenMismatch = true;
       };
     in
       assert drv ? artifactBuilder;
@@ -1166,7 +1170,83 @@ in
       assert builtins.elem pkgs.mold drv.nativeBuildInputs;
       assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
       assert drv.artifactBuilder.metadata.wasmSplit == false;
+      assert drv.passthru.dioxus.wasmBindgenVersion == "0.2.126";
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
+
+    mkDioxusFullstackPackage-fixture = let
+      wasmToolchain = self.lib.mkWasmToolchain {inherit pkgs;};
+      # This nixpkgs snapshot predates the fixture's locked 0.2.126 CLI
+      # attribute. Build the exact CLI once for the real fixture instead of
+      # allowing Dioxus' runtime ABI check to be bypassed.
+      wasmBindgenCli = pkgs.rustPlatform.buildRustPackage {
+        pname = "wasm-bindgen-cli";
+        version = "0.2.126";
+        src = pkgs.fetchCrate {
+          pname = "wasm-bindgen-cli";
+          version = "0.2.126";
+          hash = "sha256-H6Is3fiZVxZCfOMWK5dWMSrtn50VGv0sfdnsT+cTtyk=";
+        };
+        cargoHash = "sha256-VucqkXbCi4qtQzY/HrXiDnbSURsagPsdNVMn1Tw3UiY=";
+        nativeBuildInputs = [pkgs.pkg-config];
+        buildInputs = [pkgs.openssl] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [pkgs.curl];
+        doCheck = false;
+      };
+      drv = self.lib.mkDioxusFullstackPackage {
+        inherit pkgs;
+        src = ./tests/fixtures/dioxus-fixture;
+        cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
+        pname = "check-dioxus-fullstack";
+        craneLib = toolchain.craneLib;
+        rustToolchain = wasmToolchain.rustToolchain;
+        inherit wasmBindgenCli;
+        package = "dioxus-harbor-fixture";
+        webFeatures = ["web"];
+        serverFeatures = ["server"];
+      };
+    in
+      pkgs.runCommand "check-mkDioxusFullstackPackage-fixture" {} ''
+        test -x ${drv}/bin/check-dioxus-fullstack
+        test -s ${drv}/share/check-dioxus-fullstack/public/index.html
+        test -d ${drv}/share/check-dioxus-fullstack/public/assets
+        js=$(find ${drv}/share/check-dioxus-fullstack/public/assets -type f -name '*.js' -print -quit)
+        wasm=$(find ${drv}/share/check-dioxus-fullstack/public/assets -type f -name '*.wasm' -print -quit)
+        test -n "$js"
+        test -n "$wasm"
+        grep -Fq "$(basename "$js")" ${drv}/share/check-dioxus-fullstack/public/index.html
+        touch $out
+      '';
+
+    mkDioxusBuildPlan-fixture = let
+      plan = self.lib.mkDioxusBuildPlan {
+        lib = pkgs.lib;
+        package = "dioxus-harbor-fixture";
+        sharedFeatures = [];
+        webFeatures = ["web"];
+        serverFeatures = ["server"];
+        wasmSplit = false;
+        fullstack = true;
+      };
+    in
+      assert builtins.elem "--fullstack" plan.dxArgs;
+      assert builtins.elem "@client" plan.dxArgs;
+      assert builtins.elem "@server" plan.dxArgs;
+      assert builtins.elem "--server" plan.dxArgs;
+      assert builtins.elem "--target" plan.dxArgs;
+      assert builtins.elem "--features" plan.webCargoArgs;
+      assert plan.metadata.featureSets.server == ["server"];
+      assert plan.metadata.wasmTarget == "wasm32-unknown-unknown";
+        pkgs.runCommand "check-mkDioxusBuildPlan-fixture" {} "touch $out";
+
+    resolveWasmBindgenCli-rejects-mismatch = let
+      result = builtins.tryEval (self.lib.resolveWasmBindgenCli {
+        inherit pkgs;
+        lib = pkgs.lib;
+        cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
+        wasmBindgenCli = pkgs.wasm-bindgen-cli_0_2_120;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-resolveWasmBindgenCli-rejects-mismatch" {} "touch $out";
 
     # mkCargoConfig respects enableParallelFrontend = false
     mkCargoConfig-no-parallel-frontend = let

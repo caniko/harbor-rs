@@ -29,6 +29,8 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 - `mkScoopManifest` — Scoop (Windows) manifest generator
 - `mkChocoPackage` — Chocolatey (Windows) `.nuspec` + install-script package helper
 - `mkPackageArtifactBuilder` / `mkPackageTestPlan` / `mkChocoTestEnvironment` — package-builder metadata, verification plans, and Chocolatey Vagrant test environments
+- `mkDioxusWebPackage` / `mkDioxusFullstackPackage` — reproducible Dioxus 0.7 web and fullstack bundles with exact `wasm-bindgen-cli`, offline Cargo vendoring, and the shared artifact contract
+- `mkDioxusBuildPlan` / `resolveWasmBindgenCli` — reusable Dioxus command planning and lockfile-to-toolchain version resolution for downstream flakes
 
 ## Prerequisites
 
@@ -73,6 +75,32 @@ This produces:
 - `nix develop .#windows` for MinGW cross builds
 - `nix develop .#macos` for osxcross when a macOS SDK is configured
 - `nix develop .#cross` for both Windows and macOS helpers
+
+### Dioxus bundles
+
+Product flakes should keep their source filtering, Cargo lockfile, and
+deployment layout local, then delegate the Dioxus mechanics to rs-harbor:
+
+```nix
+rs-harbor.lib.mkDioxusWebPackage {
+  inherit pkgs craneLib rustToolchain;
+  src = filteredSource;
+  cargoLock = ./Cargo.lock;
+  pname = "my-app-dioxus";
+  package = "my-app";
+  wasmBindgenCli = exactWasmBindgenCli;
+  webFeatures = [ "web" ];
+  wasmSplit = true;
+  installSubdir = "share/my-app/dioxus";
+}
+```
+
+Use `mkDioxusFullstackPackage` when the Dioxus server executable is the
+deployable process. It emits the server under `bin/` and the generated
+`public/` tree separately. A product with an existing Axum process can use
+the web builder and copy its `public/` output into that process's static
+tree instead. The compatibility `mkDioxusPackage` name remains available for
+one migration cycle.
 
 ## macOS SDK Init
 

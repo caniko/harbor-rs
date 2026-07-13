@@ -13,6 +13,7 @@
     if meta-harbor != null
     then meta-harbor.packageTests
     else throw "rs-harbor: package-test helpers require the meta-harbor flake input";
+  dioxusLib = import ./dioxus.nix {inherit packageTests;};
 in {
   inherit mkToolchain hardeningProfiles packageTests;
   opencode =
@@ -38,7 +39,9 @@ in {
 
   mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
-  mkDioxusPackage = import ./dioxus.nix {inherit packageTests;};
+  inherit (dioxusLib) mkDioxusPackage mkDioxusWebPackage mkDioxusFullstackPackage;
+  mkDioxusBuildPlan = import ./dioxus-build-plan.nix;
+  resolveWasmBindgenCli = import ./wasm-bindgen.nix;
   mkRustServiceModule = import ./nixos-rust-service.nix {
     inherit hardeningProfiles;
   };

@@ -1,35 +1,63 @@
-# mkDioxusPackage
+# Dioxus packages
 
-`mkDioxusPackage` builds a Dioxus web distribution through the pinned Rust
-toolchain and Dioxus CLI. It keeps generic WASM/Cargo plumbing in rs-harbor;
-projects supply their filtered source, lockfile, and git-vendor policy.
+`rs-harbor.lib.mkDioxusWebPackage` and
+`rs-harbor.lib.mkDioxusFullstackPackage` provide the shared Nix mechanics for
+Dioxus 0.7 applications. They vendor Cargo dependencies, resolve the exact
+`wasm-bindgen-cli` version recorded in `Cargo.lock`, add the native linker
+tools needed by fullstack builds, and run the Dioxus CLI offline.
+
+## Web package
+
+Use the web builder when the product already owns the server process or static
+asset routing:
 
 ```nix
-let
-  wasm = rs-harbor.lib.mkWasmToolchain { inherit pkgs; };
-in
-rs-harbor.lib.mkDioxusPackage {
-  inherit pkgs src cargoLock;
-  pname = "my-dioxus-web";
-  craneLib = wasm.craneLib;
-  rustToolchain = wasm.rustToolchain;
-  package = "my-dioxus-app";
-  cargoVendorDir = vendorCargoDir;
-  wasmBindgenCli = wasmBindgenPkgs."wasm-bindgen-cli_0_2_126";
-  installSubdir = "share/my-dioxus-web";
+rs-harbor.lib.mkDioxusWebPackage {
+  inherit pkgs craneLib rustToolchain;
+  src = filteredSource;
+  cargoLock = ./Cargo.lock;
+  pname = "my-app-dioxus";
+  package = "my-app";
+  wasmBindgenCli = exactWasmBindgenCli;
+  webFeatures = [ "web" ];
+  wasmSplit = true;
+  installSubdir = "share/my-app/dioxus";
 }
 ```
 
-The helper runs `dx --frozen bundle --platform web --release`, uses crane's
-generated Cargo vendor configuration and offline mode, supplies clang, mold,
-esbuild, and the selected WASM toolchain, installs Dioxus' `public` contents
-under `installSubdir`, and emits the normalized package-test artifact builder.
+The derivation installs the generated Dioxus `public/` tree below
+`installSubdir` (including `index.html`, hashed JavaScript, and WASM assets).
+The product can copy that tree into its own static directory and apply its own
+compression or cache policy.
 
-`wasmSplit` is opt-in. Dioxus 0.7.9's route splitter can panic in walrus for
-some applications, so enable it only after a bundle test proves the pinned
-feature graph. Binaryen's empty `-O0` request is translated to the
-semantics-preserving `--strip-debug` pass by default; callers can replace
-`wasmOptPackage` or `wasmOptArgs` for a compatible Dioxus/Binaryen pair.
+## Fullstack package
 
-`cargoArgs` are appended after the output arguments and Cargo's `--`
-separator, so project-specific Cargo flags do not change the Dioxus command.
+Use the fullstack builder when Dioxus owns the deployable server executable:
+
+```nix
+rs-harbor.lib.mkDioxusFullstackPackage {
+  inherit pkgs craneLib rustToolchain;
+  src = filteredSource;
+  cargoLock = ./Cargo.lock;
+  pname = "my-app";
+  package = "my-app";
+  wasmBindgenCli = exactWasmBindgenCli;
+  webFeatures = [ "web" ];
+  serverFeatures = [ "server" ];
+  publicSubdir = "share/my-app/public";
+}
+```
+
+The output contains `bin/my-app` and `bin/my-app-unwrapped`, plus the generated
+public tree. The wrapper sets `DIOXUS_PUBLIC_PATH` to the packaged public path;
+set `wrapServer = false` when the product supplies its own process wrapper.
+
+## Toolchain and feature policy
+
+`mkDioxusBuildPlan` is available for consumers that need to inspect or compose
+the command shape. Fullstack plans build the client with `@client` and the
+server with `@server --server`, allowing independent Cargo feature and target
+arguments. `resolveWasmBindgenCli` fails early when the lockfile version has no
+exact nixpkgs package; callers may pass a custom derivation with the matching
+`.version` instead. `mkDioxusPackage` is retained as a compatibility alias for
+the web builder during the migration window.
