@@ -24,6 +24,9 @@ in {
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
+  mkCrossPackageOutputs = import ./cross-package-outputs.nix {
+    mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
+  };
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;

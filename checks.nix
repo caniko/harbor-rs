@@ -710,6 +710,52 @@ in
       assert missingSrc.success == false;
         pkgs.runCommand "check-mkCrossPackages-validation" {} "touch $out";
 
+    # Non-native outputs can preserve the consumer's pinned Rust channel and
+    # date instead of silently switching to rs-harbor's default toolchain.
+    mkCrossPackages-toolchain-args = let
+      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      out = self.lib.mkCrossPackages {
+        inherit pkgs cross;
+        inherit (toolchain) craneLib;
+        pname = "fixture";
+        commonArgs = {
+          src = fixtureSrc;
+          version = "0.1.0";
+          doCheck = false;
+        };
+        targets = ["aarch64-linux"];
+        toolchainArgs = {
+          channel = "stable";
+          extensions = ["rust-src"];
+        };
+      };
+    in
+      assert out ? "fixture-aarch64-linux";
+      assert builtins.isString out."fixture-aarch64-linux".drvPath;
+        pkgs.runCommand "check-mkCrossPackages-toolchain-args" {} "touch $out";
+
+    # mkCrossPackageOutputs preserves the flat package set and adds the
+    # build/host namespace consumed by Crossbow package registries.
+    mkCrossPackageOutputs-contract = let
+      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      out = self.lib.mkCrossPackageOutputs {
+        buildSystem = "x86_64-linux";
+        hostSystem = "aarch64-linux";
+        inherit pkgs cross;
+        inherit (toolchain) craneLib;
+        pname = "fixture";
+        commonArgs = {
+          src = fixtureSrc;
+          version = "0.1.0";
+          doCheck = false;
+        };
+        targets = ["aarch64-linux"];
+      };
+    in
+      assert out.crossPackages."x86_64-linux"."aarch64-linux" ? "fixture-aarch64-linux";
+      assert out.packages == out.crossPackages."x86_64-linux"."aarch64-linux";
+        pkgs.runCommand "check-mkCrossPackageOutputs-contract" {} "touch $out";
+
     # mkCrossPackages aarch64-linux + darwin targets. The aarch64 craneLib and the
     # darwin osxcross path are only meaningful on x86_64-linux, mirroring the
     # gating of the osxcross checks above. Darwin falls back to a runCommand that

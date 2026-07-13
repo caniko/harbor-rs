@@ -6,6 +6,7 @@
 #   commonArgs,      # base crane args shared across targets; MUST include 'src'
 #   targets ? [ "native" ],   # subset of the supported target names
 #   targetArgs ? {},          # per-target extra crane args, merged LAST
+#   toolchainArgs ? {},       # mkToolchain args for non-native targets
 # } -> attrset of derivations keyed by OUTPUT ATTR NAME:
 #        "native"         -> attr "${pname}"
 #        "aarch64-linux"  -> attr "${pname}-aarch64-linux"
@@ -30,6 +31,7 @@
   commonArgs,
   targets ? ["native"],
   targetArgs ? {},
+  toolchainArgs ? {},
 }: let
   lib = pkgs.lib;
 
@@ -65,7 +67,12 @@ in
 
     # --- aarch64-linux ------------------------------------------------------
     aarch64LinuxTarget = "aarch64-unknown-linux-gnu";
-    toolchainAarch64 = mkToolchain {pkgs = cross.linuxAarch64.pkgsCross;};
+    toolchainAarch64 = mkToolchain (
+      {
+        pkgs = cross.linuxAarch64.pkgsCross;
+      }
+      // toolchainArgs
+    );
     craneLibAarch64 = toolchainAarch64.craneLib;
     aarch64LinuxArgs =
       commonArgs

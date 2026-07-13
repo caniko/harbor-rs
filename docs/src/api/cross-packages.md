@@ -6,6 +6,29 @@ lifting the per-target crane boilerplate (separate `cargoArtifacts`, the right
 the reusable form of the hand-rolled cross matrix that projects such as
 `rs-modde` previously kept inline.
 
+For NixOS consumers that need an explicit build/host contract, use
+`mkCrossPackageOutputs`. It preserves the flat package set and adds the stable
+namespace `crossPackages.<build-system>.<host-system>`:
+
+```nix
+let
+  outputs = rs-harbor.lib.mkCrossPackageOutputs {
+    buildSystem = "x86_64-linux";
+    hostSystem = "aarch64-linux";
+    inherit pkgs craneLib cross commonArgs;
+    pname = "my-service";
+    targets = ["aarch64-linux"];
+  };
+in {
+  packages = outputs.packages;
+  crossPackages = outputs.crossPackages;
+}
+```
+
+The helper does not make an existing host-native derivation cross-compilable;
+the selected target must still be produced by `mkCrossPackages` with a real
+cross toolchain.
+
 ## Signature
 
 ```nix
@@ -17,6 +40,7 @@ rs-harbor.lib.mkCrossPackages {
   commonArgs;      # base crane args shared across targets; MUST include `src`
   targets ? [ "native" ];   # subset of the supported target names
   targetArgs ? {};          # optional per-target extra crane args
+  toolchainArgs ? {};       # mkToolchain args for non-native targets
 }
 ```
 
@@ -42,6 +66,10 @@ For each target, args are merged as:
 3. `targetArgs.<target>` **last**, so consumers can inject project dependencies
    (`buildInputs`, `nativeBuildInputs`, `postInstall`, `cargoBuildExtraArgs`,
    `doCheck`, …) and override anything above.
+
+`toolchainArgs` is applied when constructing the non-native Rust toolchain. Use
+it to preserve a project's pinned channel/date or target list, for example
+`toolchainArgs = { channel = "nightly"; date = "2026-02-28"; };`.
 
 ## Darwin fallback
 
