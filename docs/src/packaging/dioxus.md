@@ -52,6 +52,35 @@ The output contains `bin/my-app` and `bin/my-app-unwrapped`, plus the generated
 public tree. The wrapper sets `DIOXUS_PUBLIC_PATH` to the packaged public path;
 set `wrapServer = false` when the product supplies its own process wrapper.
 
+## Externally built servers
+
+Some applications own an Axum or other server executable that embeds Dioxus
+SSR while building the browser bundle separately. Add the asset linker to that
+server derivation's native build inputs and run it before wrapping or stripping
+the executable:
+
+```nix
+let
+  dioxusAssetLinker = rs-harbor.lib.mkDioxusAssetLinker {
+    inherit pkgs;
+    dioxusCli = pkgs.dioxus-cli;
+  };
+in
+craneLib.buildPackage {
+  nativeBuildInputs = [ dioxusAssetLinker ];
+  postInstall = ''
+    dioxus-link-assets \
+      "$out/bin/my-server" \
+      "$out/share/my-app/public/assets"
+  '';
+}
+```
+
+This runs Dioxus' own `dx tools assets` command, which copies declared assets
+and patches their hashed paths into the executable. Crane consumers must call
+it in the derivation's `postInstall`, before reference-removal hooks sanitize
+vendored source paths.
+
 ## Toolchain and feature policy
 
 `mkDioxusBuildPlan` is available for consumers that need to inspect or compose

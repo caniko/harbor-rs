@@ -41,6 +41,7 @@ in {
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
   inherit (dioxusLib) mkDioxusPackage mkDioxusWebPackage mkDioxusFullstackPackage;
   mkDioxusBuildPlan = import ./dioxus-build-plan.nix;
+  mkDioxusAssetLinker = import ./dioxus-asset-linker.nix;
   resolveWasmBindgenCli = import ./wasm-bindgen.nix;
   mkRustServiceModule = import ./nixos-rust-service.nix {
     inherit hardeningProfiles;

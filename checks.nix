@@ -1173,6 +1173,24 @@ in
       assert drv.passthru.dioxus.wasmBindgenVersion == "0.2.126";
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
 
+    mkDioxusAssetLinker-shape = let
+      linker = self.lib.mkDioxusAssetLinker {inherit pkgs;};
+    in
+      pkgs.runCommand "check-mkDioxusAssetLinker-shape" {
+        nativeBuildInputs = [linker];
+      } ''
+        test -x ${linker}/bin/dioxus-link-assets
+        if dioxus-link-assets 2>usage; then
+          echo "dioxus-link-assets unexpectedly accepted missing arguments" >&2
+          exit 1
+        else
+          status=$?
+        fi
+        test "$status" -eq 64
+        grep -Fq 'usage: dioxus-link-assets EXECUTABLE DESTINATION' usage
+        touch $out
+      '';
+
     mkDioxusFullstackPackage-fixture = let
       wasmToolchain = self.lib.mkWasmToolchain {inherit pkgs;};
       # This nixpkgs snapshot predates the fixture's locked 0.2.126 CLI
