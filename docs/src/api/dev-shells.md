@@ -49,11 +49,19 @@ That layout works well for workspaces where some crates only need native tools w
 
 ## mkDocsShell
 
-Use `mkDocsShell` for CI and local workflows that only need docs or project-site tooling:
+Use `mkDocsShell` for CI and local workflows that only need mdBook documentation:
 
 - `nix develop .#docs -c cargo doc --no-deps --all-features`
 - `nix develop .#docs -c mdbook serve docs`
-- `nix develop .#docs -c plinth-project serve --config website/plinth-project.toml`
+
+The Plinth-powered project site is intentionally isolated from the reusable
+`rs-harbor` flake so consumers cannot create a dependency cycle. Run its
+dedicated nested flake when needed:
+
+```bash
+nix develop ./site#docs
+nix build ./site#site
+```
 
 ## Example
 

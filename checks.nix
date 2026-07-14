@@ -4,10 +4,18 @@
   system,
   toolchain,
   cross,
+  rootInputNames,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
 in
   {
+    # The reusable library flake must not acquire a consumer-site input. The
+    # optional Pages publisher lives in ./site, keeping the dependency graph
+    # one-way when Plinth consumes rs-harbor.
+    rs-harbor-root-inputs-no-consumer-site =
+      assert !(builtins.elem "plinth" rootInputNames);
+        pkgs.runCommand "check-rs-harbor-root-inputs-no-consumer-site" {} "touch $out";
+
     # mkToolchain returns expected attributes
     mkToolchain-shape = let
       t = self.lib.mkToolchain {inherit pkgs;};

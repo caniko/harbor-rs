@@ -18,11 +18,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    plinth = {
-      url = "git+https://codeberg.org/caniko/plinth.git?ref=refs/heads/trunk";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     meta-harbor = {
       url = "git+https://codeberg.org/caniko/meta-harbor.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,11 +28,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    nix-pklx = {
-      url = "git+https://codeberg.org/caniko/nix-pklx.git";
-      inputs.nixpkgs.follows = "nixpkgs";
-      inputs.crane.follows = "crane";
-    };
   };
 
   outputs =
@@ -48,10 +38,8 @@
       crane,
       rust-overlay,
       osxcross,
-      plinth,
       meta-harbor,
       nix-opencode-lsp,
-      nix-pklx,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -94,16 +82,6 @@
           cross = self.lib.mkCross { inherit pkgs system; };
           cargoConfig = self.lib.mkCargoConfig { inherit pkgs; };
 
-          sitePackages = import ./nix/site.nix {
-            inherit pkgs;
-            lib = nixpkgs.lib;
-            projectSiteLib = import "${plinth}/nix/project-site.nix" {
-              inherit pkgs;
-              lib = nixpkgs.lib;
-              plinthProject = plinth.packages.${system}.plinth-project;
-            };
-          };
-
           bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {
             inherit pkgs;
           };
@@ -129,8 +107,7 @@
         in
         {
           packages =
-            sitePackages
-            // {
+            {
               validate-macos-sdk = validateMacosSdk;
               stage-macos-universal = macosStaging.stager;
               bootstrap-cmds-mig = bootstrapCmdsMig;
@@ -155,24 +132,17 @@
               type = "app";
               program = "${macosStaging.stager}/bin/stage-macos-universal";
             };
-            deploy-pages = plinth.lib.${system}.mkDeployPagesApp {
-              domain = "rs-harbor.tartanoglu.com";
-            };
-            pklx-eval = {
-              type = "app";
-              program = "${nix-pklx.packages.${system}.pklx}/bin/pklx";
-            };
           };
 
           devShells = import ./nix/dev-shells.nix {
             harbor = self.lib;
             opencodeLsp = nix-opencode-lsp.lib;
             inherit pkgs toolchain cross cargoConfig rsHarborCli;
-            plinthProject = plinth.packages.${system}.plinth-project;
           };
 
           checks = import ./checks.nix {
             inherit self pkgs system toolchain cross;
+            rootInputNames = builtins.attrNames inputs;
           };
         };
     };

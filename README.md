@@ -72,7 +72,8 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 This produces:
 
 - `nix develop` for native work
-- `nix develop .#docs` for documentation and project-site tooling
+- `nix develop .#docs` for mdBook documentation tooling
+- `nix develop ./site#docs` for the optional Plinth-powered project-site tooling
 - `nix develop .#windows` for MinGW cross builds
 - `nix develop .#macos` for osxcross when a macOS SDK is configured
 - `nix develop .#cross` for both Windows and macOS helpers
