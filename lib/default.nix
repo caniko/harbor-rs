@@ -48,6 +48,7 @@ in {
   };
 
   findLocalMavenCache = import ./android-maven-cache.nix;
+  fetchMavenCache = import ./fetch-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
   mkAndroidApk = import ./android-apk.nix {inherit packageTests;};
   mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix {inherit packageTests;};
