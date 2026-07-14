@@ -37,6 +37,22 @@ craneLib.buildPackage (commonArgs // {
 
 If a workspace is known to tolerate dummy path patches, pass `rsHarborAllowPathPatchBuildDepsOnly = true` to `buildDepsOnly`.
 
+Path-patch detection reads `Cargo.toml` during evaluation. Direct Nix paths and
+`lib.cleanSourceWith` sources are handled automatically. If `src` is a generated
+derivation output or an undeclared plain-string path, provide the manifest
+explicitly to avoid import-from-derivation and store-state-dependent evaluation:
+
+```nix
+craneLib.buildPackage {
+  src = generatedSource;
+  rsHarborCargoTomlContents = builtins.readFile ./Cargo.toml;
+  # ...
+}
+```
+
+The rs-harbor-only argument is removed before the remaining arguments are
+passed to Crane.
+
 ## Example
 
 ```nix

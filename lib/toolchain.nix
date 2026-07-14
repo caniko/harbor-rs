@@ -44,14 +44,84 @@ assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
+    # `cleanSourceWith` returns a source accessor whose filtered `outPath` may
+    # not be realised while package arguments are still being evaluated. Read
+    # Cargo.toml from its durable original source instead. Clean-source
+    # accessors can also carry a stale wrapper path in their string context,
+    # so classify that context and reconstruct only a proven static store path.
+    # This keeps evaluation independent of prior build and store state.
+    cargoTomlSource =
+      if args ? src && (args.src._isLibCleanSourceWith or false)
+      then args.src.origSrc
+      else args.src or null;
+    cargoTomlSourceStringResult =
+      if cargoTomlSource != null
+      then builtins.tryEval (toString cargoTomlSource)
+      else {
+        success = false;
+        value = null;
+      };
+    cargoTomlSourceString =
+      if cargoTomlSourceStringResult.success
+      then cargoTomlSourceStringResult.value
+      else null;
+    cargoTomlSourceContext =
+      if cargoTomlSourceString != null
+      then builtins.getContext cargoTomlSourceString
+      else {};
+    cargoTomlSourceContextValues = builtins.attrValues cargoTomlSourceContext;
+    cargoTomlSourceHasOnlyPathContext =
+      cargoTomlSourceContextValues
+      != []
+      && builtins.all
+      (context: builtins.attrNames context == ["path"] && context.path)
+      cargoTomlSourceContextValues;
+    cargoTomlSourcePlain =
+      if cargoTomlSourceString != null
+      then builtins.unsafeDiscardStringContext cargoTomlSourceString
+      else null;
+    cargoTomlSourceIsStorePath =
+      cargoTomlSourcePlain
+      != null
+      && pkgs.lib.hasPrefix (builtins.storeDir + "/") cargoTomlSourcePlain;
+    cargoTomlSourceIsSafe =
+      cargoTomlSourceString
+      != null
+      && (
+        builtins.isPath cargoTomlSource
+        || (cargoTomlSourceHasOnlyPathContext && cargoTomlSourceIsStorePath)
+      );
+    cargoTomlPath =
+      if builtins.isPath cargoTomlSource
+      then cargoTomlSource + "/Cargo.toml"
+      else if cargoTomlSourceHasOnlyPathContext && cargoTomlSourceIsStorePath
+      then (/. + cargoTomlSourcePlain) + "/Cargo.toml"
+      else null;
+    cargoTomlRead =
+      if args ? rsHarborCargoTomlContents
+      then
+        if builtins.isString args.rsHarborCargoTomlContents
+        then {
+          success = true;
+          value = args.rsHarborCargoTomlContents;
+        }
+        else throw "rs-harbor: rsHarborCargoTomlContents must be a string"
+      else if cargoTomlSource != null && !cargoTomlSourceIsSafe
+      then
+        throw ''
+          rs-harbor: cannot safely inspect Cargo.toml from this `src` during evaluation.
+
+          Generated derivation outputs and untracked plain-string paths would make path-patch validation depend on prior store or host state. Pass `rsHarborCargoTomlContents = builtins.readFile ./Cargo.toml` so validation has explicit source data, or pass a direct Nix path / lib.cleanSourceWith source as `src`.
+        ''
+      else if cargoTomlPath != null
+      then builtins.tryEval (builtins.readFile cargoTomlPath)
+      else {
+        success = false;
+        value = null;
+      };
     cargoToml =
-      if args ? src && builtins.isPath args.src
-      then let
-        cargoTomlPath = args.src + "/Cargo.toml";
-      in
-        if builtins.pathExists cargoTomlPath
-        then builtins.fromTOML (builtins.readFile cargoTomlPath)
-        else {}
+      if cargoTomlRead.success
+      then builtins.fromTOML (builtins.unsafeDiscardStringContext cargoTomlRead.value)
       else {};
     cratesIoPatches = cargoToml.patch."crates-io" or {};
     patchNames = builtins.attrNames cratesIoPatches;
@@ -69,7 +139,10 @@ assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}
     );
 
   stripRsHarborCraneArgs = args:
-    builtins.removeAttrs args ["rsHarborAllowPathPatchBuildDepsOnly"];
+    builtins.removeAttrs args [
+      "rsHarborAllowPathPatchBuildDepsOnly"
+      "rsHarborCargoTomlContents"
+    ];
 
   pathPatchBuildDepsOnlyError = pathPatches: ''
     rs-harbor: refusing craneLib.buildDepsOnly for a Cargo workspace with [patch.crates-io] path patches: ${formatPathPatches pathPatches}
@@ -83,15 +156,21 @@ assert pkgs.lib.assertMsg (date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}
     upstreamCraneLib
     // {
       buildDepsOnly = args: let
-        pathPatches = patchCratesIoPathPatches args;
         allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+        pathPatches =
+          if allow
+          then []
+          else patchCratesIoPathPatches args;
       in
-        if pathPatches != [] && !allow
+        if pathPatches != []
         then throw (pathPatchBuildDepsOnlyError pathPatches)
         else upstreamCraneLib.buildDepsOnly (stripRsHarborCraneArgs args);
 
       buildPackage = args: let
-        pathPatches = patchCratesIoPathPatches args;
+        pathPatches =
+          if args ? cargoArtifacts
+          then []
+          else patchCratesIoPathPatches args;
         args' = stripRsHarborCraneArgs args;
       in
         upstreamCraneLib.buildPackage (

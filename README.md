@@ -15,7 +15,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
-- `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
+- `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, `mkHomebrewFormula`, and `mkAndroidFlavorTable` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain
 
 ### More helpers
@@ -31,6 +31,7 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 - `mkPackageArtifactBuilder` / `mkPackageTestPlan` / `mkChocoTestEnvironment` — package-builder metadata, verification plans, and Chocolatey Vagrant test environments
 - `mkDioxusWebPackage` / `mkDioxusFullstackPackage` — reproducible Dioxus 0.7 web and fullstack bundles with exact `wasm-bindgen-cli`, offline Cargo vendoring, and the shared artifact contract
 - `mkDioxusBuildPlan` / `resolveWasmBindgenCli` — reusable Dioxus command planning and lockfile-to-toolchain version resolution for downstream flakes
+- `mkAndroidApk` / `mkAndroidApkDevBuilder` / `mkAndroidFlavorTable` / `findLocalMavenCache` — Android Rust+Gradle packages, fix-loop staging apps, flavor expansion, and pinned Maven-cache discovery
 
 ## Prerequisites
 
@@ -138,6 +139,7 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [mkCrossPackages](docs/src/api/cross-packages.md)
 - [mkDevShell, mkDocsShell, and mkDevShells](docs/src/api/dev-shells.md)
 - [Packaging](docs/src/packaging/appimage.md)
+- [Android APK packages](docs/src/packaging/android-apk.md)
 - [Homebrew formula](docs/src/packaging/homebrew-formula.md)
 - [Package tests](docs/src/packaging/package-tests.md)
 - [COPR spec](docs/src/packaging/copr.md)

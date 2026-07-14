@@ -47,6 +47,119 @@ in
       assert pkg.cargoArtifacts == null;
         pkgs.runCommand "check-craneLib-path-patch-buildPackage-disables-implicit-deps" {} "touch $out";
 
+    # Filtered source paths may not have been realised yet. Inspecting their
+    # Cargo.toml must not depend on a previous build leaving the source in the
+    # Nix store.
+    craneLib-path-patch-filtered-source-evaluates = let
+      originalSrc = ./tests/fixtures/path-patch-fixture;
+      staticContextSrc = builtins.path {
+        path = originalSrc;
+        name = "path-context-cargo-source";
+      };
+      filteredSrc = pkgs.lib.cleanSourceWith {
+        src = originalSrc;
+        filter = _path: _type: true;
+      };
+      fixtureSrc =
+        filteredSrc
+        // {
+          # Model an accessor whose filtered output is not usable yet. The
+          # detector must inspect origSrc, not depend on outPath contents.
+          outPath = pkgs.emptyDirectory;
+          origSrc = staticContextSrc;
+        };
+      pkg = toolchain.craneLib.buildPackage {
+        src = fixtureSrc;
+        pname = "path-patch-filtered-source-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      };
+    in
+      assert pkgs.lib.isDerivation pkg;
+      assert pkg ? cargoArtifacts;
+      assert pkg.cargoArtifacts == null;
+        pkgs.runCommand "check-craneLib-path-patch-filtered-source-evaluates" {} "touch $out";
+
+    # Generated sources are not safe to inspect during evaluation: their
+    # output may or may not exist depending on prior store state.
+    craneLib-path-patch-generated-source-rejected = let
+      generatedContext = pkgs.runCommand "generated-source-context" {} ''
+        mkdir -p $out
+      '';
+      generatedSrc =
+        builtins.appendContext
+        (toString ./tests/fixtures/path-patch-fixture)
+        (builtins.getContext (toString generatedContext));
+      result = builtins.tryEval (toolchain.craneLib.buildPackage {
+        src = generatedSrc;
+        pname = "generated-source-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-craneLib-path-patch-generated-source-rejected" {} "touch $out";
+
+    # Empty-context path strings are host-state inputs, not declared Nix paths.
+    craneLib-path-patch-plain-string-source-rejected = let
+      result = builtins.tryEval (toolchain.craneLib.buildPackage {
+        src = "/tmp/undeclared-cargo-source";
+        pname = "plain-string-source-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-craneLib-path-patch-plain-string-source-rejected" {} "touch $out";
+
+    # A context entry that claims both static-path and derivation-output
+    # provenance is derived and must fail closed.
+    craneLib-path-patch-mixed-context-source-rejected = let
+      staticSrc = builtins.path {
+        path = ./tests/fixtures/path-patch-fixture;
+        name = "mixed-context-cargo-source";
+      };
+      staticString = toString staticSrc;
+      contextDrv = pkgs.runCommand "mixed-context-source-dependency" {} "touch $out";
+      contextKey = builtins.unsafeDiscardStringContext contextDrv.drvPath;
+      mixedContext = {
+        ${contextKey} = {
+          path = true;
+          outputs = ["out"];
+        };
+      };
+      mixedSrc =
+        builtins.appendContext
+        (builtins.unsafeDiscardStringContext staticString)
+        mixedContext;
+      result = builtins.tryEval (toolchain.craneLib.buildPackage {
+        src = mixedSrc;
+        pname = "mixed-context-source-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-craneLib-path-patch-mixed-context-source-rejected" {} "touch $out";
+
+    # Callers with generated sources can provide the Cargo manifest explicitly
+    # so path-patch validation stays deterministic without import-from-derivation.
+    craneLib-path-patch-generated-source-explicit-manifest = let
+      generatedSrc = pkgs.runCommand "generated-cargo-source" {} ''
+        mkdir -p $out
+      '';
+      pkg = toolchain.craneLib.buildPackage {
+        src = generatedSrc;
+        pname = "generated-source-fixture";
+        version = "0.1.0";
+        doCheck = false;
+        rsHarborCargoTomlContents = builtins.readFile ./tests/fixtures/path-patch-fixture/Cargo.toml;
+      };
+    in
+      assert pkgs.lib.isDerivation pkg;
+      assert pkg.cargoArtifacts == null;
+        pkgs.runCommand "check-craneLib-path-patch-generated-source-explicit-manifest" {} "touch $out";
+
     craneLib-path-patch-buildDepsOnly-rejected = let
       fixtureSrc = ./tests/fixtures/path-patch-fixture;
       result = builtins.tryEval (toolchain.craneLib.buildDepsOnly {
@@ -821,6 +934,19 @@ in
       assert pkgs.lib.hasSuffix "-fixture-cache.tar" (builtins.baseNameOf cache);
         pkgs.runCommand "check-findLocalMavenCache-flat-hash" {} "touch $out";
 
+    # Invalid committed hash data is a broken foundational input, not a cache
+    # miss. Reject it during evaluation with findLocalMavenCache's clear error.
+    findLocalMavenCache-rejects-invalid-hash = let
+      invalidHash = builtins.toFile "invalid-gradle-cache.sha256" "not-a-sha256\n";
+      result = builtins.tryEval (self.lib.findLocalMavenCache {
+        sha256Path = invalidHash;
+        hostPath = ./tests/fixtures/android-maven-cache/cache.tar;
+        name = "fixture-cache.tar";
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-findLocalMavenCache-rejects-invalid-hash" {} "touch $out";
+
     # mkAndroidFlavorTable expands asymmetric flavor modes into packages, dev
     # builders, and app wrappers while preserving caller-owned public names.
     mkAndroidFlavorTable-shape = let
@@ -831,6 +957,7 @@ in
         workspaceSrc = pkgs.emptyDirectory;
         commonCargoFeatures = ["tutorial"];
         commonCargoNoDefaultFeatures = true;
+        cargoNdkPlatform = 28;
         flavors = {
           app = {
             cargoPkg = "game";
@@ -842,6 +969,8 @@ in
           test-peer = {
             cargoPkg = "game-test-peer";
             gradleModule = ":test-peer";
+            cargoFeatures = [];
+            cargoNdkPlatform = 29;
             packageModes = ["debug"];
             packageAttr = mode: "android-test-peer-apk";
             devAppAttr = "android-test-peer-apk";
@@ -861,7 +990,18 @@ in
       assert table.apps.android-apk.type == "app";
       assert table.apps.android-test-peer-apk.type == "app";
       assert table.packages.android-apk-debug.artifactBuilder.kind == "android-apk-builder";
+      assert table.packages.android-apk-debug.artifactBuilder.buildCommand == "nix build .#android-apk-debug";
+      assert table.packages.android-apk-debug.artifactBuilder.metadata.cargoNdkPlatform == 28;
+      assert table.packages.android-test-peer-apk.artifactBuilder.buildCommand == "nix build .#android-test-peer-apk";
+      assert table.packages.android-test-peer-apk.artifactBuilder.metadata.cargoFeatures == [];
+      assert table.packages.android-test-peer-apk.artifactBuilder.metadata.cargoNdkPlatform == 29;
       assert table.devBuilders.android-apk.artifactBuilder.kind == "android-apk-dev-builder";
+      assert table.devBuilders.android-apk.artifactBuilder.packageName == "android-apk";
+      assert table.devBuilders.android-apk.artifactBuilder.buildCommand == "nix run .#android-apk";
+      assert table.devBuilders.android-test-peer-apk.artifactBuilder.packageName == "android-test-peer-apk";
+      assert table.devBuilders.android-test-peer-apk.artifactBuilder.buildCommand == "nix run .#android-test-peer-apk";
+      assert table.devBuilders.android-test-peer-apk.artifactBuilder.metadata.cargoFeatures == [];
+      assert table.devBuilders.android-test-peer-apk.artifactBuilder.metadata.cargoNdkPlatform == 29;
         pkgs.runCommand "check-mkAndroidFlavorTable-shape" {} "touch $out";
 
     # mkSteamRuntimeTools returns expected metadata and packages.
@@ -2286,10 +2426,9 @@ in
       assert pkgs.lib.hasInfix "socket=x11" m.manifestText;
         pkgs.runCommand "check-mkFlatpakManifest-finish-args" {} "touch $out";
 
-    # mkAndroidApk produces a derivation with the project-specific bits
-    # baked into the build script. We don't try to actually build the APK
-    # in CI (it needs the Android SDK + a real `cargo ndk` workflow);
-    # instead we evaluate the derivation and assert basic shape.
+    # mkAndroidApk produces a derivation with the project-specific bits baked
+    # into the build script. This shape check covers the intentionally impure
+    # path; a fake-tool runtime check below exercises the hermetic path.
     mkAndroidApk-shape = let
       fakeSdk = pkgs.runCommand "fake-androidsdk" {} ''
         mkdir -p $out/libexec/android-sdk/ndk/29.0.14206865
@@ -2311,23 +2450,32 @@ in
         apkOutPath = "android/app/build/outputs/apk/debug/app-debug.apk";
         cargoNoDefaultFeatures = true;
         cargoFeatures = ["alpha" "beta"];
+        cargoNdkPlatform = 28;
       };
     in
       assert drv.pname == "android-apk";
       assert drv ? artifactBuilder;
       assert drv.artifactBuilder.kind == "android-apk-builder";
       assert drv.artifactBuilder.output == toString drv;
+      assert drv.artifactBuilder.buildCommand == null;
+      assert drv.artifactBuilder.metadata.cargoHermetic == false;
+      assert drv.artifactBuilder.metadata.gradleHermetic == false;
       assert drv.drvAttrs ? __noChroot;
       assert drv.drvAttrs.__noChroot == true;
+      assert drv.drvAttrs.CARGO_NDK_PLATFORM == "28";
+      assert builtins.elem pkgs.perl drv.drvAttrs.nativeBuildInputs;
       assert pkgs.lib.hasInfix "cargo ndk -t arm64-v8a" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix "test-pkg" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix "--no-default-features" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix "--features alpha,beta" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix ":app:assembleDebug" drv.drvAttrs.buildPhase;
       assert !(pkgs.lib.hasInfix "--offline" drv.drvAttrs.buildPhase);
+      assert pkgs.lib.hasInfix "GRADLE_USER_HOME" drv.drvAttrs.preBuild;
+      assert pkgs.lib.hasInfix "CARGO_HOME" drv.drvAttrs.preBuild;
         pkgs.runCommand "check-mkAndroidApk-shape" {} "touch $out";
 
-    # Hermetic mode flips to gradle --offline + drops __noChroot.
+    # Hermetic mode requires both Cargo and Maven inputs, runs both package
+    # managers offline, and drops __noChroot.
     mkAndroidApk-hermetic = let
       fakeSdk = pkgs.runCommand "fake-androidsdk" {} ''
         mkdir -p $out/libexec/android-sdk/ndk/29.0.14206865
@@ -2340,6 +2488,10 @@ in
         mkdir -p $out
         touch $out/dummy
       '';
+      fakeVendor = pkgs.runCommand "fake-cargo-vendor" {} ''
+        mkdir -p $out
+        touch $out/config.toml
+      '';
       drv = self.lib.mkAndroidApk {
         inherit pkgs;
         androidSdk = fakeSdk;
@@ -2351,14 +2503,91 @@ in
         apkOutPath = "android/test-peer/build/outputs/apk/release/test-peer-release.apk";
         mode = "release";
         mavenCacheTar = fakeCacheTar;
+        cargoVendorDir = fakeVendor;
+        buildCommand = "nix build .#android-test-peer-apk";
       };
     in
       assert !(drv.drvAttrs ? __noChroot && drv.drvAttrs.__noChroot == true);
+      assert drv.artifactBuilder.buildCommand == "nix build .#android-test-peer-apk";
+      assert drv.artifactBuilder.metadata.cargoHermetic == true;
+      assert drv.artifactBuilder.metadata.gradleHermetic == true;
+      assert drv.artifactBuilder.metadata.hermetic == true;
+      assert builtins.length drv.artifactBuilder.inputs == 3;
       assert pkgs.lib.hasInfix "--offline" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix ":test-peer:assembleRelease" drv.drvAttrs.buildPhase;
       assert pkgs.lib.hasInfix "--release" drv.drvAttrs.buildPhase;
-      assert pkgs.lib.hasInfix "extracted maven cache" drv.drvAttrs.preBuild;
+      assert pkgs.lib.hasInfix "CARGO_NET_OFFLINE=true" drv.drvAttrs.preBuild;
+      assert pkgs.lib.hasInfix "extracted Maven cache" drv.drvAttrs.preBuild;
         pkgs.runCommand "check-mkAndroidApk-hermetic" {} "touch $out";
+
+    # Build the hermetic derivation with fake tools. This proves that Cargo's
+    # vendor config preserves the consumer config, Maven cache layout is
+    # validated, API level reaches cargo-ndk, Gradle runs offline, and the APK
+    # is copied from the declared path.
+    mkAndroidApk-hermetic-runtime = let
+      fakeSdk = pkgs.runCommand "fake-androidsdk-runtime" {} ''
+        mkdir -p $out/libexec/android-sdk/ndk/29.0.14206865
+      '';
+      fakeVendor = pkgs.runCommand "fake-cargo-vendor-runtime" {} ''
+        mkdir -p $out
+        cat > $out/config.toml <<EOF
+        [source.crates-io]
+        replace-with = "vendored-sources"
+        [source.vendored-sources]
+        directory = "$out"
+        EOF
+      '';
+      fakeCacheTar = pkgs.runCommand "fake-maven-cache-runtime.tar" {nativeBuildInputs = [pkgs.gnutar];} ''
+        mkdir -p cache/files-2.1/example/group
+        touch cache/files-2.1/example/group/artifact.jar
+        tar -cf $out -C cache files-2.1
+      '';
+      fakeCargo = pkgs.writeShellScriptBin "cargo" ''
+        set -euo pipefail
+        test "$1" = ndk
+        test "$CARGO_NET_OFFLINE" = true
+        test "$CARGO_NDK_PLATFORM" = 28
+        grep -q vendored-sources "$CARGO_HOME/config.toml"
+        grep -q 'jobs = 1' .cargo/config.toml
+        output=""
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = -o ]; then
+            output="$2"
+            shift 2
+          else
+            shift
+          fi
+        done
+        test -n "$output"
+        mkdir -p "$output/arm64-v8a"
+        touch "$output/arm64-v8a/libfixture.so"
+      '';
+      fakeGradle = pkgs.writeShellScriptBin "gradle" ''
+        set -euo pipefail
+        test "$1" = :app:assembleDebug
+        test "$2" = --no-daemon
+        test "$3" = --offline
+        test -d "$GRADLE_USER_HOME/caches/modules-2/files-2.1"
+        mkdir -p app/build/outputs/apk/debug
+        touch app/build/outputs/apk/debug/app-debug.apk
+      '';
+    in
+      self.lib.mkAndroidApk {
+        inherit pkgs;
+        androidSdk = fakeSdk;
+        rustToolchain = fakeCargo;
+        cargoNdk = pkgs.emptyDirectory;
+        jdk = pkgs.emptyDirectory;
+        gradle = fakeGradle;
+        workspaceSrc = ./tests/fixtures/android-workspace;
+        cargoVendorDir = fakeVendor;
+        mavenCacheTar = fakeCacheTar;
+        cargoPkg = "fixture";
+        gradleModule = ":app";
+        jniLibsDir = "android/app/src/main/jniLibs";
+        apkOutPath = "android/app/build/outputs/apk/debug/app-debug.apk";
+        cargoNdkPlatform = 28;
+      };
 
     # Bad inputs are rejected with clear messages.
     mkAndroidApk-rejects-bad-mode = let
@@ -2398,24 +2627,73 @@ in
       assert !result.success;
         pkgs.runCommand "check-mkAndroidApk-rejects-missing-toolchain" {} "touch $out";
 
+    mkAndroidApk-rejects-maven-without-cargo-vendor = let
+      fakeSdk = pkgs.runCommand "fake-androidsdk" {} "mkdir -p $out";
+      fakeToolchain = pkgs.symlinkJoin {
+        name = "fake-rust";
+        paths = [pkgs.coreutils];
+      };
+      result = builtins.tryEval (self.lib.mkAndroidApk {
+        inherit pkgs;
+        androidSdk = fakeSdk;
+        rustToolchain = fakeToolchain;
+        workspaceSrc = ./.;
+        cargoPkg = "x";
+        gradleModule = ":x";
+        jniLibsDir = "x";
+        apkOutPath = "x";
+        mavenCacheTar = ./tests/fixtures/android-maven-cache/cache.tar;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkAndroidApk-rejects-maven-without-cargo-vendor" {} "touch $out";
+
+    mkAndroidApk-rejects-unimplemented-gradle-deps = let
+      fakeSdk = pkgs.runCommand "fake-androidsdk" {} "mkdir -p $out";
+      fakeToolchain = pkgs.symlinkJoin {
+        name = "fake-rust";
+        paths = [pkgs.coreutils];
+      };
+      result = builtins.tryEval (self.lib.mkAndroidApk {
+        inherit pkgs;
+        androidSdk = fakeSdk;
+        rustToolchain = fakeToolchain;
+        workspaceSrc = ./.;
+        cargoPkg = "x";
+        gradleModule = ":x";
+        jniLibsDir = "x";
+        apkOutPath = "x";
+        gradleDeps = ./tests/fixtures/android-maven-cache/cache.tar;
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkAndroidApk-rejects-unimplemented-gradle-deps" {} "touch $out";
+
     mkAndroidApkDevBuilder-shape = let
       script = self.lib.mkAndroidApkDevBuilder {
         inherit pkgs;
         defaultFlavor = "test-peer";
         cargoNoDefaultFeatures = true;
         cargoFeatures = ["tutorial"];
+        cargoNdkPlatform = 28;
         flavors = {
           app = {
             cargoPkg = "game";
             gradleModule = ":app";
             jniLibsDir = "android/app/src/main/jniLibs";
-            apkOutPath = "android/app/build/outputs/apk/debug/app-debug.apk";
+            apkOutPath = mode: "android/app/build/outputs/apk/${mode}/app-${mode}.apk";
           };
           test-peer = {
             cargoPkg = "game-android-test-peer";
             gradleModule = ":test-peer";
             jniLibsDir = "android/test-peer/src/main/jniLibs";
-            apkOutPath = "android/test-peer/build/outputs/apk/debug/test-peer-debug.apk";
+            apkOutPath = {
+              debug = "android/test-peer/build/outputs/apk/debug/test-peer-debug.apk";
+              release = "android/test-peer/build/outputs/apk/release/test-peer-release.apk";
+            };
+            cargoFeatures = ["peer"];
+            cargoNoDefaultFeatures = false;
+            cargoNdkPlatform = 29;
           };
         };
       };
@@ -2423,16 +2701,114 @@ in
       assert script ? artifactBuilder;
       assert script.artifactBuilder.kind == "android-apk-dev-builder";
       assert script.artifactBuilder.output == toString script;
+      assert script.artifactBuilder.buildCommand == null;
         pkgs.runCommand "check-mkAndroidApkDevBuilder-shape" {} ''
           cp ${script} script
-          grep 'cargo ndk -t "$abi" -o "$jni_libs_dir" build' script
+          grep 'cargo_args=(ndk -t "$abi" -o "$jni_libs_dir" build)' script
           grep 'game-android-test-peer' script
           grep 'gradle_module=:test-peer' script
           grep 'gradle "$gradle_module:assemble$mode_cap"' script
-          grep -- '--no-default-features' script
-          grep -- '--features tutorial' script
+          grep 'cargo_features=peer' script
+          grep 'cargo_no_default=0' script
+          grep 'cargo_ndk_platform=29' script
+          grep 'apk_out_path_release=android/test-peer/build/outputs/apk/release/test-peer-release.apk' script
           touch $out
         '';
+
+    # Execute both flavors with fake cargo/Gradle tools. Per-flavor features,
+    # no-default-features, API level, ABI, mode, and APK path must stay aligned.
+    mkAndroidApkDevBuilder-runtime = let
+      fakeCargo = pkgs.writeShellScriptBin "cargo" ''
+        set -euo pipefail
+        printf '%s\n%s\n' "$CARGO_NDK_PLATFORM" "$*" > "$TRACE_DIR/cargo-$TRACE_CASE"
+        output=""
+        while [ "$#" -gt 0 ]; do
+          if [ "$1" = -o ]; then
+            output="$2"
+            shift 2
+          else
+            shift
+          fi
+        done
+        test -n "$output"
+        mkdir -p "$output"
+        touch "$output/libfixture.so"
+      '';
+      fakeCargoNdk = pkgs.writeShellScriptBin "cargo-ndk" "exit 0";
+      fakeGradle = pkgs.writeShellScriptBin "gradle" ''
+        set -euo pipefail
+        printf '%s\n' "$*" > "$TRACE_DIR/gradle-$TRACE_CASE"
+        case "$1" in
+          :app:assembleRelease)
+            mkdir -p app/build/outputs/apk/release
+            touch app/build/outputs/apk/release/app-release.apk
+            ;;
+          :test-peer:assembleDebug)
+            mkdir -p test-peer/build/outputs/apk/debug
+            touch test-peer/build/outputs/apk/debug/test-peer-debug.apk
+            ;;
+          *)
+            exit 1
+            ;;
+        esac
+      '';
+      script = self.lib.mkAndroidApkDevBuilder {
+        inherit pkgs;
+        defaultFlavor = "test-peer";
+        cargoNoDefaultFeatures = true;
+        cargoFeatures = ["common"];
+        cargoNdkPlatform = 28;
+        flavors = {
+          app = {
+            cargoPkg = "game";
+            gradleModule = ":app";
+            jniLibsDir = "android/app/src/main/jniLibs";
+            apkOutPath = mode: "android/app/build/outputs/apk/${mode}/app-${mode}.apk";
+            cargoFeatures = ["app-feature"];
+          };
+          test-peer = {
+            cargoPkg = "game-android-test-peer";
+            gradleModule = ":test-peer";
+            jniLibsDir = "android/test-peer/src/main/jniLibs";
+            apkOutPath = mode: "android/test-peer/build/outputs/apk/${mode}/test-peer-${mode}.apk";
+            cargoFeatures = ["peer-feature"];
+            cargoNoDefaultFeatures = false;
+            cargoNdkPlatform = 29;
+          };
+        };
+      };
+    in
+      pkgs.runCommand "check-mkAndroidApkDevBuilder-runtime" {
+        nativeBuildInputs = [fakeCargo fakeCargoNdk fakeGradle];
+      } ''
+        export ANDROID_NDK_HOME="$PWD/ndk"
+        export ANDROID_SDK_ROOT="$PWD/sdk"
+        export TRACE_DIR="$PWD/trace"
+        mkdir -p "$ANDROID_NDK_HOME" "$ANDROID_SDK_ROOT" "$TRACE_DIR" work/android/app work/android/test-peer
+        cd work
+
+        TRACE_CASE=test-peer ${script}
+        test -f android/test-peer/build/outputs/apk/debug/test-peer-debug.apk
+        read -r test_peer_platform < "$TRACE_DIR/cargo-test-peer"
+        test "$test_peer_platform" = 29
+        grep -q -- '--features peer-feature' "$TRACE_DIR/cargo-test-peer"
+        if grep -q -- '--no-default-features' "$TRACE_DIR/cargo-test-peer"; then
+          exit 1
+        fi
+        grep -q ':test-peer:assembleDebug' "$TRACE_DIR/gradle-test-peer"
+
+        TRACE_CASE=app FLAVOR=app ABI=x86_64 MODE=release ${script}
+        test -f android/app/build/outputs/apk/release/app-release.apk
+        read -r app_platform < "$TRACE_DIR/cargo-app"
+        test "$app_platform" = 28
+        grep -q -- '-t x86_64' "$TRACE_DIR/cargo-app"
+        grep -q -- '--release' "$TRACE_DIR/cargo-app"
+        grep -q -- '--no-default-features' "$TRACE_DIR/cargo-app"
+        grep -q -- '--features app-feature' "$TRACE_DIR/cargo-app"
+        grep -q ':app:assembleRelease' "$TRACE_DIR/gradle-app"
+
+        touch $out
+      '';
 
     mkMinisignSign-shape = let
       app = self.lib.mkMinisignSign {

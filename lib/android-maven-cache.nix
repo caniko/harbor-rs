@@ -42,10 +42,37 @@ assert lib.assertMsg (builtins.isBool recursive)
 "rs-harbor: findLocalMavenCache `recursive` must be a boolean"; let
   hostPathString = toString hostPath;
 
-  hash =
+  rawHash =
     if builtins.pathExists sha256Path
-    then builtins.head (builtins.match "([^\n\r[:space:]]+).*" (builtins.readFile sha256Path))
+    then builtins.readFile sha256Path
     else null;
+  hashMatch =
+    if rawHash == null
+    then null
+    else builtins.match "[[:space:]]*([^\n\r[:space:]]+).*" rawHash;
+  hash =
+    if rawHash == null
+    then null
+    else if hashMatch == null
+    then throw "rs-harbor: findLocalMavenCache `${toString sha256Path}` is empty or contains no hash"
+    else builtins.head hashMatch;
+  validHash =
+    hash
+    == null
+    || builtins.match "[0-9a-fA-F]{64}" hash != null
+    || builtins.match "[0-9abcdfghijklmnpqrsvwxyz]{52}" hash != null
+    || builtins.match "sha256-[A-Za-z0-9+/]{43}=" hash != null;
+  normalizedHash =
+    if hash == null
+    then null
+    else if !validHash
+    then throw "rs-harbor: findLocalMavenCache `${toString sha256Path}` does not contain a valid SHA-256 hash"
+    else
+      builtins.convertHash {
+        inherit hash;
+        hashAlgo = "sha256";
+        toHashFormat = "sri";
+      };
 in
   if hash == null || !(builtins.pathExists hostPath)
   then null
@@ -55,5 +82,5 @@ in
       builtins.path {
         path = hostPath;
         inherit name recursive;
-        sha256 = hash;
+        sha256 = normalizedHash;
       }
