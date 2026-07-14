@@ -1222,7 +1222,9 @@ in
         serverFeatures = ["server"];
       };
     in
-      pkgs.runCommand "check-mkDioxusFullstackPackage-fixture" {} ''
+      pkgs.runCommand "check-mkDioxusFullstackPackage-fixture" {
+        nativeBuildInputs = [pkgs.wabt];
+      } ''
         test -x ${drv}/bin/check-dioxus-fullstack
         test -s ${drv}/share/check-dioxus-fullstack/public/index.html
         test -d ${drv}/share/check-dioxus-fullstack/public/assets
@@ -1231,6 +1233,10 @@ in
         test -n "$js"
         test -n "$wasm"
         grep -Fq "$(basename "$js")" ${drv}/share/check-dioxus-fullstack/public/index.html
+        if wasm-objdump -h "$wasm" | grep -Fq '.debug_info'; then
+          echo "release Dioxus bundle retained DWARF debug information" >&2
+          exit 1
+        fi
         touch $out
       '';
 
@@ -1250,9 +1256,11 @@ in
       assert builtins.elem "@server" plan.dxArgs;
       assert builtins.elem "--server" plan.dxArgs;
       assert builtins.elem "--target" plan.dxArgs;
+      assert builtins.elem "--debug-symbols=false" plan.dxArgs;
       assert builtins.elem "--features" plan.webCargoArgs;
       assert plan.metadata.featureSets.server == ["server"];
       assert plan.metadata.wasmTarget == "wasm32-unknown-unknown";
+      assert !plan.metadata.debugSymbols;
         pkgs.runCommand "check-mkDioxusBuildPlan-fixture" {} "touch $out";
 
     resolveWasmBindgenCli-rejects-mismatch = let

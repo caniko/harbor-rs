@@ -5,6 +5,7 @@
   package ? null,
   binary ? package,
   profile ? "release",
+  debugSymbols ? profile != "release",
   noDefaultFeatures ? true,
   sharedFeatures ? [],
   webFeatures ? ["web"],
@@ -38,6 +39,7 @@
     ++ lib.optional (binary != null) "--bin"
     ++ lib.optional (binary != null) binary
     ++ profileArgs
+    ++ ["--debug-symbols=${if debugSymbols then "true" else "false"}"]
     ++ lib.optional splitEnabled "--wasm-split";
   targetArgs = target: featureArgs (if target == "web" then webFeatureSet else serverFeatureSet)
     ++ lib.optional (target == "web") "--target"
@@ -58,7 +60,7 @@ in
     metadata = {
       platform = "web";
       features = if fullstack then sharedFeatures else webFeatureSet;
-      inherit package binary profile noDefaultFeatures wasmTarget wasmSplit fullstack;
+      inherit package binary profile debugSymbols noDefaultFeatures wasmTarget wasmSplit fullstack;
       featureSets = {
         shared = sharedFeatures;
         web = webFeatures;

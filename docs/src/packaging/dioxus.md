@@ -30,6 +30,14 @@ The derivation installs the generated Dioxus `public/` tree below
 The product can copy that tree into its own static directory and apply its own
 compression or cache policy.
 
+Release plans pass `--debug-symbols=false` explicitly. Dioxus 0.7 otherwise
+retains DWARF even for `--release`, increasing the browser artifact and making
+some Binaryen releases abort while re-emitting debug information. Non-release
+profiles keep symbols by default; set `debugSymbols` explicitly when a product
+needs the opposite policy.
+The builder also turns an ignored `wasm-opt` failure back into a failed Nix
+build, preventing an unoptimized fallback bundle from reaching a release.
+
 ## Fullstack package
 
 Use the fullstack builder when Dioxus owns the deployable server executable:

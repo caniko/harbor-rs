@@ -13,8 +13,16 @@
     wasmOptArgs,
   }:
     pkgs.writeShellScriptBin "wasm-opt" ''
-      set -euo pipefail
-      exec ${wasmOptPackage}/bin/wasm-opt ${pkgs.lib.escapeShellArgs wasmOptArgs} "$@"
+      set -uo pipefail
+      if ${wasmOptPackage}/bin/wasm-opt ${pkgs.lib.escapeShellArgs wasmOptArgs} "$@"; then
+        exit 0
+      else
+        status=$?
+        if [ -n "''${RS_HARBOR_DIOXUS_WASM_OPT_FAILURE:-}" ]; then
+          printf 'wasm-opt exited with status %s\n' "$status" > "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE"
+        fi
+        exit "$status"
+      fi
     '';
 
   common = {
@@ -31,6 +39,7 @@
     package,
     binary,
     profile,
+    debugSymbols,
     noDefaultFeatures,
     sharedFeatures,
     webFeatures,
@@ -69,7 +78,7 @@
         allowMismatch = allowWasmBindgenMismatch;
       };
       plan = buildPlan {
-        inherit lib package binary profile noDefaultFeatures sharedFeatures webFeatures
+        inherit lib package binary profile debugSymbols noDefaultFeatures sharedFeatures webFeatures
           serverFeatures wasmTarget wasmSplit cargoArgs fullstack;
       };
       wasmOptCompat =
@@ -102,6 +111,7 @@
     package ? null,
     binary ? null,
     profile ? "release",
+    debugSymbols ? profile != "release",
     noDefaultFeatures ? true,
     sharedFeatures ? [],
     webFeatures ? ["web"],
@@ -127,14 +137,14 @@
     extraArgs = builtins.removeAttrs args [
       "src" "pkgs" "cargoLock" "pname" "version" "rustToolchain" "craneLib"
       "cargoVendorDir" "outputHashes" "overrideVendorGitCheckout" "package" "binary"
-      "profile" "noDefaultFeatures" "sharedFeatures" "webFeatures" "serverFeatures"
+      "profile" "debugSymbols" "noDefaultFeatures" "sharedFeatures" "webFeatures" "serverFeatures"
       "wasmTarget" "features" "wasmSplit" "cargoArgs" "wasmBindgenCli"
       "allowWasmBindgenMismatch" "dioxusCli" "wasmOptPackage" "wasmOptArgs"
       "installSubdir" "nativeBuildInputs" "fullstack"
     ];
     c = common {
       inherit src pkgs cargoLock pname version rustToolchain craneLib cargoVendorDir
-        outputHashes overrideVendorGitCheckout package binary profile noDefaultFeatures
+        outputHashes overrideVendorGitCheckout package binary profile debugSymbols noDefaultFeatures
         sharedFeatures serverFeatures wasmTarget wasmSplit cargoArgs wasmBindgenCli
         allowWasmBindgenMismatch dioxusCli wasmOptPackage wasmOptArgs nativeBuildInputs
         fullstack;
@@ -150,6 +160,7 @@
         export CARGO_HOME="$TMPDIR/cargo-home"
         export CARGO_TARGET_DIR="$TMPDIR/cargo-target"
         export CARGO_NET_OFFLINE=true
+        export RS_HARBOR_DIOXUS_WASM_OPT_FAILURE="$TMPDIR/wasm-opt-failed"
         mkdir -p "$HOME" "$CARGO_HOME" "$CARGO_TARGET_DIR" .cargo
         if [ -f .cargo/config.toml ]; then
           cp .cargo/config.toml "$TMPDIR/project-cargo-config.toml"
@@ -160,6 +171,11 @@
         chmod u+w .cargo/config.toml
         cat "$TMPDIR/project-cargo-config.toml" >> .cargo/config.toml
         dx ${pkgs.lib.escapeShellArgs c.plan.dxCommon} --out-dir "$TMPDIR/dioxus-out" ${pkgs.lib.escapeShellArgs c.plan.dxSuffix}
+        if [ -e "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" ]; then
+          cat "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" >&2
+          echo "rs-harbor: Dioxus ignored a failed wasm-opt invocation" >&2
+          exit 1
+        fi
         test -s "$TMPDIR/dioxus-out/public/index.html"
         runHook postBuild
       '';
@@ -189,7 +205,7 @@
         inputs = [(toString src)];
         metadata = {
           helper = "mkDioxusWebPackage";
-          inherit (c.plan.metadata) platform features wasmSplit;
+          inherit (c.plan.metadata) platform features wasmSplit debugSymbols;
           wasmBindgenVersion = c.resolvedWasmBindgen.version;
         };
       };
@@ -211,6 +227,7 @@
     serverInstallName ? pname,
     serverBinary ? "server",
     profile ? "release",
+    debugSymbols ? profile != "release",
     noDefaultFeatures ? true,
     sharedFeatures ? [],
     webFeatures ? ["web"],
@@ -231,14 +248,14 @@
     extraArgs = builtins.removeAttrs args [
       "src" "pkgs" "cargoLock" "pname" "version" "rustToolchain" "craneLib"
       "cargoVendorDir" "outputHashes" "overrideVendorGitCheckout" "package" "binary"
-      "serverInstallName" "serverBinary" "profile" "noDefaultFeatures" "sharedFeatures"
+      "serverInstallName" "serverBinary" "profile" "debugSymbols" "noDefaultFeatures" "sharedFeatures"
       "webFeatures" "serverFeatures" "wasmTarget" "wasmSplit" "cargoArgs"
       "wasmBindgenCli" "allowWasmBindgenMismatch" "dioxusCli" "wasmOptPackage"
       "wasmOptArgs" "publicSubdir" "wrapServer" "nativeBuildInputs"
     ];
     c = common {
       inherit src pkgs cargoLock pname version rustToolchain craneLib cargoVendorDir
-        outputHashes overrideVendorGitCheckout package binary profile noDefaultFeatures
+        outputHashes overrideVendorGitCheckout package binary profile debugSymbols noDefaultFeatures
         sharedFeatures webFeatures serverFeatures wasmTarget wasmSplit cargoArgs
         wasmBindgenCli allowWasmBindgenMismatch dioxusCli wasmOptPackage wasmOptArgs
         nativeBuildInputs;
@@ -254,6 +271,7 @@
         export CARGO_HOME="$TMPDIR/cargo-home"
         export CARGO_TARGET_DIR="$TMPDIR/cargo-target"
         export CARGO_NET_OFFLINE=true
+        export RS_HARBOR_DIOXUS_WASM_OPT_FAILURE="$TMPDIR/wasm-opt-failed"
         mkdir -p "$HOME" "$CARGO_HOME" "$CARGO_TARGET_DIR" .cargo
         if [ -f .cargo/config.toml ]; then
           cp .cargo/config.toml "$TMPDIR/project-cargo-config.toml"
@@ -264,6 +282,11 @@
         chmod u+w .cargo/config.toml
         cat "$TMPDIR/project-cargo-config.toml" >> .cargo/config.toml
         dx ${pkgs.lib.escapeShellArgs c.plan.dxCommon} --out-dir "$TMPDIR/dioxus-out" ${pkgs.lib.escapeShellArgs c.plan.dxSuffix}
+        if [ -e "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" ]; then
+          cat "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" >&2
+          echo "rs-harbor: Dioxus ignored a failed wasm-opt invocation" >&2
+          exit 1
+        fi
         test -s "$TMPDIR/dioxus-out/public/index.html"
         test -x "$TMPDIR/dioxus-out/${serverBinary}"
         runHook postBuild
@@ -309,7 +332,7 @@
         inputs = [(toString src)];
         metadata = {
           helper = "mkDioxusFullstackPackage";
-          inherit (c.plan.metadata) platform features wasmSplit;
+          inherit (c.plan.metadata) platform features wasmSplit debugSymbols;
           wasmBindgenVersion = c.resolvedWasmBindgen.version;
           serverProgram = "bin/${serverInstallName}";
         };
