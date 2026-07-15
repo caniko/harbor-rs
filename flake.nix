@@ -56,6 +56,7 @@
         nixosModules = {
           macosSdk = import ./nix/nixos-module.nix;
           sccache = import ./nix/sccache-module.nix;
+          buildCache = import ./nix/build-cache-module.nix;
         };
 
         homeManagerModules.sccache = import ./nix/sccache-home.nix;
@@ -108,6 +109,10 @@
         {
           packages =
             {
+              # Consumers use this build-platform package to keep the
+              # compiler-cache executable and version identical across the
+              # Atlas fleet and every rs-harbor builder.
+              sccache = pkgs.sccache;
               validate-macos-sdk = validateMacosSdk;
               stage-macos-universal = macosStaging.stager;
               bootstrap-cmds-mig = bootstrapCmdsMig;

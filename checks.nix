@@ -3365,4 +3365,51 @@ in
       assert envAttrs.RUSTC_WRAPPER == envVars.RUSTC_WRAPPER;
       assert disabledWrapped == pkgs.hello;
         pkgs.runCommand "check-sccache-wrapRustPackageWithSccache-shapes" {} "touch $out";
+
+    build-cache-policy-contract = let
+      policy = self.lib.mkBuildCachePolicy {
+        inherit pkgs;
+        cacheRoot = "/tmp/sccache";
+        namespaceScope = "test-rust";
+        namespaceGeneration = 7;
+      };
+    in
+      assert policy.contract.schemaVersion == 1;
+      assert policy.contract.namespace == "test-rust-v7-sccache-${pkgs.sccache.version}";
+      assert policy.contract.sccacheVersion == pkgs.sccache.version;
+      assert policy.contract.rustToolchain.channel == "nightly-2026-02-28";
+      assert policy.sharedCacheDir == "/tmp/sccache/test-rust-v7-sccache-${pkgs.sccache.version}";
+        pkgs.runCommand "check-build-cache-policy-contract" {} "touch $out";
+
+    build-cache-policy-builder-shapes = let
+      policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      rust = policy.withRustCache {package = pkgs.hello;};
+      dioxus = policy.withDioxusCache {package = pkgs.hello;};
+      rustAttrs = (rust.drvAttrs.env or {}) // rust.drvAttrs;
+      dioxusAttrs = (dioxus.drvAttrs.env or {}) // dioxus.drvAttrs;
+    in
+      assert rustAttrs.RUSTC_WRAPPER == policy.wrapperPath;
+      assert rustAttrs.CARGO_INCREMENTAL == "0";
+      assert rust.passthru.rsHarborBuildCacheWrapped;
+      assert dioxusAttrs.RUSTC_WORKSPACE_WRAPPER == policy.wrapperPath;
+      assert !(dioxusAttrs ? RUSTC_WRAPPER);
+        pkgs.runCommand "check-build-cache-policy-builder-shapes" {} "touch $out";
+
+    build-cache-policy-cross-shape = let
+      policy = self.lib.mkBuildCachePolicy {
+        inherit pkgs;
+        buildPackageSet = pkgs.buildPackages;
+      };
+      wrapped = policy.withCrossRust {
+        package = pkgs.hello;
+        buildPackageSet' = pkgs.buildPackages;
+      };
+      attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
+      target = pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
+      targetUpper = pkgs.lib.toUpper (pkgs.lib.replaceStrings ["-"] ["_"] target);
+    in
+      assert attrs.RUSTC_WRAPPER == policy.wrapperPath;
+      assert attrs ? "CARGO_TARGET_${targetUpper}_LINKER";
+      assert attrs."CARGO_TARGET_${targetUpper}_LINKER" == "${pkgs.buildPackages.stdenv.cc}/bin/cc";
+        pkgs.runCommand "check-build-cache-policy-cross-shape" {} "touch $out";
   }

@@ -48,6 +48,19 @@
   sccacheDefault = import ../lib/generated/sccache-default.nix;
   cfg = config.programs.rsHarbor.sccache;
   sccacheLib = import ../lib/sccache.nix {};
+  sandboxPolicy =
+    if cfg.sandboxCacheDir != null && !cfg.daemon.enable
+    then
+      (import ../lib/build-cache.nix {}).mkBuildCachePolicy {
+        inherit pkgs;
+        buildPackageSet = pkgs.buildPackages;
+        sccachePackage = cfg.package;
+        cacheRoot = cfg.sandboxCacheDir;
+        namespaceScope = cfg.cacheNamespaceScope;
+        namespaceGeneration = cfg.cacheNamespaceGeneration;
+        connectTimeout = cfg.connectTimeout;
+      }
+    else null;
 
   socketParentDir = builtins.dirOf cfg.daemon.socketPath;
 
@@ -74,9 +87,9 @@
       // (if cfg.secretAccessKey != null then {
         AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
       } else {})
-      // (if cfg.sandboxCacheDir != null && !cfg.daemon.enable then {
-        SCCACHE_DIR = cfg.sandboxCacheDir;
-        XDG_CACHE_HOME = cfg.sandboxCacheDir;
+      // (if sandboxPolicy != null then {
+        SCCACHE_DIR = sandboxPolicy.sharedCacheDir;
+        XDG_CACHE_HOME = sandboxPolicy.sharedCacheDir;
       } else {})
       // (if cfg.daemon.enable then {
         SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
@@ -172,6 +185,18 @@ in {
         sets SCCACHE_DIR. Example: "/tmp/sccache".
       '';
       example = "/tmp/sccache";
+    };
+
+    cacheNamespaceScope = mkOption {
+      type = types.str;
+      default = "rs-harbor-rust";
+      description = "Stable compiler-cache namespace scope used by sandbox-local wrappers.";
+    };
+
+    cacheNamespaceGeneration = mkOption {
+      type = types.ints.positive;
+      default = 1;
+      description = "Manual namespace generation for sandbox wrapper or ABI changes.";
     };
 
     # List of package attribute names to automatically inject sccache
@@ -303,10 +328,10 @@ in {
     nix.settings = mkMerge [
       (mkIf (cfg.sandboxCacheDir != null && !cfg.daemon.enable) {
         extra-sandbox-paths = [cfg.sandboxCacheDir];
-        impure-env = [
-          "SCCACHE_DIR=${cfg.sandboxCacheDir}"
-          "XDG_CACHE_HOME=${cfg.sandboxCacheDir}"
-        ];
+        # Keep XDG_CACHE_HOME out of the global Nix sandbox environment.  The
+        # derivation policy scopes it inside the sccache wrapper so unrelated
+        # tools cannot share mutable host state.
+        impure-env = ["SCCACHE_DIR=${cfg.sandboxCacheDir}"];
         experimental-features = ["configurable-impure-env"];
       })
       (mkIf cfg.daemon.enable {
@@ -337,11 +362,14 @@ in {
         (acc: name:
           if prev ? ${name}
           then acc // {
-            ${name} = sccacheLib.wrapRustPackageWithSccache {
-              package = prev.${name};
-              sccachePackage = cfg.package;
-              envVars = computedEnvVars;
-            };
+            ${name} =
+              if sandboxPolicy != null
+              then sandboxPolicy.withRustCache {package = prev.${name};}
+              else sccacheLib.wrapRustPackageWithSccache {
+                package = prev.${name};
+                sccachePackage = cfg.package;
+                envVars = computedEnvVars;
+              };
           }
           else acc)
         {}

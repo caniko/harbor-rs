@@ -104,6 +104,20 @@ the web builder and copy its `public/` output into that process's static
 tree instead. The compatibility `mkDioxusPackage` name remains available for
 one migration cycle.
 
+### Compiler-cache policy
+
+`rs-harbor.lib.mkBuildCachePolicy` is the canonical compiler-cache contract
+for Rust, Dioxus, CMake, and cross builders. It derives a versioned namespace
+from the selected build-platform `sccache` package, scopes `XDG_CACHE_HOME`
+inside the sandbox wrapper, and scrubs daemon/S3 credentials before invoking
+the compiler cache. Hosts provide the writable sandbox mount and transport
+credentials through `nixosModules.buildCache` and `nixosModules.sccache`.
+
+Cross builds must instantiate the policy with the build package set. A target
+`aarch64-linux` machine is never a compiler builder: evaluate and realize its
+outputs from the x86_64 Atlas/Crossbow path, and keep target-native recovery
+explicit rather than silently falling back to a native target build.
+
 ## macOS SDK Init
 
 Initialize the SDK once per host, using a host-local archive path:

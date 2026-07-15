@@ -1,8 +1,8 @@
 # Reproducible Dioxus web and fullstack builders.
 #
-# Product flakes own source filtering, application dependencies, wrappers,
-# caches, and deployment policy. rs-harbor owns the offline DX/Cargo/WASM
-# mechanics and the output contract shared by those products.
+# Product flakes own source filtering, application dependencies, and deployment
+# policy. rs-harbor owns the offline DX/Cargo/WASM mechanics, the compiler-cache
+# policy, and the output contract shared by those products.
 {packageTests}: let
   buildPlan = import ./dioxus-build-plan.nix;
   resolveWasmBindgenCli = import ./wasm-bindgen.nix;
@@ -54,6 +54,7 @@
     wasmOptArgs,
     nativeBuildInputs,
     fullstack,
+    buildCache ? null,
   }:
     let
       lib = pkgs.lib;
@@ -91,8 +92,10 @@
         ++ lib.optional pkgs.stdenv.isLinux pkgs.mold
         ++ lib.optional (wasmOptCompat != null) wasmOptCompat
         ++ [pkgs.esbuild]
+        ++ lib.optional (buildCache != null) buildCache.wrapper
         ++ nativeBuildInputs;
     in {
+      cacheEnv = if buildCache == null then {} else buildCache.dioxusEnv;
       inherit plan resolvedWasmBindgen effectiveCargoVendorDir nativeInputs;
       inherit lib lockPath;
     };
@@ -131,6 +134,7 @@
     installSubdir ? "share/${pname}",
     nativeBuildInputs ? [],
     fullstack ? false,
+    buildCache ? null,
     ...
   }: let
     effectiveWebFeatures = if features == null then webFeatures else features;
@@ -140,19 +144,20 @@
       "profile" "debugSymbols" "noDefaultFeatures" "sharedFeatures" "webFeatures" "serverFeatures"
       "wasmTarget" "features" "wasmSplit" "cargoArgs" "wasmBindgenCli"
       "allowWasmBindgenMismatch" "dioxusCli" "wasmOptPackage" "wasmOptArgs"
-      "installSubdir" "nativeBuildInputs" "fullstack"
+      "installSubdir" "nativeBuildInputs" "fullstack" "buildCache"
     ];
     c = common {
       inherit src pkgs cargoLock pname version rustToolchain craneLib cargoVendorDir
         outputHashes overrideVendorGitCheckout package binary profile debugSymbols noDefaultFeatures
         sharedFeatures serverFeatures wasmTarget wasmSplit cargoArgs wasmBindgenCli
         allowWasmBindgenMismatch dioxusCli wasmOptPackage wasmOptArgs nativeBuildInputs
-        fullstack;
+        fullstack buildCache;
       webFeatures = effectiveWebFeatures;
     };
     packageDrv = pkgs.stdenvNoCC.mkDerivation ({
       inherit src pname version;
       nativeBuildInputs = c.nativeInputs;
+      env = c.cacheEnv;
       dontConfigure = true;
       buildPhase = ''
         runHook preBuild
@@ -243,6 +248,7 @@
     publicSubdir ? "share/${pname}/public",
     wrapServer ? true,
     nativeBuildInputs ? [],
+    buildCache ? null,
     ...
   }: let
     extraArgs = builtins.removeAttrs args [
@@ -251,19 +257,20 @@
       "serverInstallName" "serverBinary" "profile" "debugSymbols" "noDefaultFeatures" "sharedFeatures"
       "webFeatures" "serverFeatures" "wasmTarget" "wasmSplit" "cargoArgs"
       "wasmBindgenCli" "allowWasmBindgenMismatch" "dioxusCli" "wasmOptPackage"
-      "wasmOptArgs" "publicSubdir" "wrapServer" "nativeBuildInputs"
+      "wasmOptArgs" "publicSubdir" "wrapServer" "nativeBuildInputs" "buildCache"
     ];
     c = common {
       inherit src pkgs cargoLock pname version rustToolchain craneLib cargoVendorDir
         outputHashes overrideVendorGitCheckout package binary profile debugSymbols noDefaultFeatures
         sharedFeatures webFeatures serverFeatures wasmTarget wasmSplit cargoArgs
         wasmBindgenCli allowWasmBindgenMismatch dioxusCli wasmOptPackage wasmOptArgs
-        nativeBuildInputs;
+        nativeBuildInputs buildCache;
       fullstack = true;
     };
     packageDrv = pkgs.stdenvNoCC.mkDerivation ({
       inherit src pname version;
       nativeBuildInputs = c.nativeInputs;
+      env = c.cacheEnv;
       dontConfigure = true;
       buildPhase = ''
         runHook preBuild

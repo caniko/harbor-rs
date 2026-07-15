@@ -7,6 +7,7 @@
 #   targets ? [ "native" ],   # subset of the supported target names
 #   targetArgs ? {},          # per-target extra crane args, merged LAST
 #   toolchainArgs ? {},       # mkToolchain args for non-native targets
+#   buildCache ? null,        # rs-harbor.lib.mkBuildCachePolicy result
 # } -> attrset of derivations keyed by OUTPUT ATTR NAME:
 #        "native"         -> attr "${pname}"
 #        "aarch64-linux"  -> attr "${pname}-aarch64-linux"
@@ -32,6 +33,7 @@
   targets ? ["native"],
   targetArgs ? {},
   toolchainArgs ? {},
+  buildCache ? null,
 }: let
   lib = pkgs.lib;
 
@@ -62,8 +64,12 @@ in
       // {inherit pname;}
       // extraFor "native";
     nativeCargoArtifacts = craneLib.buildDepsOnly nativeArgs;
-    nativePkg = craneLib.buildPackage (nativeArgs
+    nativePkgRaw = craneLib.buildPackage (nativeArgs
       // {cargoArtifacts = nativeCargoArtifacts;});
+    nativePkg =
+      if buildCache == null
+      then nativePkgRaw
+      else buildCache.withRustCache {package = nativePkgRaw;};
 
     # --- aarch64-linux ------------------------------------------------------
     aarch64LinuxTarget = "aarch64-unknown-linux-gnu";
@@ -85,8 +91,15 @@ in
       }
       // extraFor "aarch64-linux";
     aarch64LinuxCargoArtifacts = craneLibAarch64.buildDepsOnly aarch64LinuxArgs;
-    aarch64LinuxPkg = craneLibAarch64.buildPackage (aarch64LinuxArgs
+    aarch64LinuxPkgRaw = craneLibAarch64.buildPackage (aarch64LinuxArgs
       // {cargoArtifacts = aarch64LinuxCargoArtifacts;});
+    aarch64LinuxPkg =
+      if buildCache == null
+      then aarch64LinuxPkgRaw
+      else buildCache.withCrossRust {
+        package = aarch64LinuxPkgRaw;
+        buildPackageSet' = cross.linuxAarch64.pkgsCross.buildPackages;
+      };
 
     # --- windows (x86_64-pc-windows-gnu via MinGW) --------------------------
     windowsTarget = "x86_64-pc-windows-gnu";
@@ -104,8 +117,12 @@ in
       }
       // extraFor "windows";
     windowsCargoArtifacts = craneLib.buildDepsOnly windowsArgs;
-    windowsPkg = craneLib.buildPackage (windowsArgs
+    windowsPkgRaw = craneLib.buildPackage (windowsArgs
       // {cargoArtifacts = windowsCargoArtifacts;});
+    windowsPkg =
+      if buildCache == null
+      then windowsPkgRaw
+      else buildCache.withRustCache {package = windowsPkgRaw;};
 
     # --- darwin (osxcross) --------------------------------------------------
     mkDarwinUnavailable = name:
@@ -136,9 +153,13 @@ in
         else null;
     in
       if builder != null
-      then
-        builder.buildPackage (args
-          // {cargoArtifacts = builder.buildDepsOnly args;})
+      then let
+        raw = builder.buildPackage (args
+          // {cargoArtifacts = builder.buildDepsOnly args;});
+      in
+        if buildCache == null
+        then raw
+        else buildCache.withRustCache {package = raw;}
       else mkDarwinUnavailable darwinPname;
 
     # Map of every supported output attr name -> derivation thunk.
