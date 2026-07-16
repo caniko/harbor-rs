@@ -2,7 +2,7 @@
 //!
 //! Goblin only needs valid header magic + a coherent load-command stream
 //! to surface `macho.libs`. We build a 64-bit thin Mach-O with one
-//! LC_ID_DYLIB and N LC_LOAD_DYLIBs; goblin reads the dependency strings
+//! `LC_ID_DYLIB` and N `LC_LOAD_DYLIBs`; goblin reads the dependency strings
 //! out of those load commands and that's all `audit macho` inspects.
 
 use std::io::Write;
@@ -46,7 +46,7 @@ fn dylib_command(cmd: u32, name: &str) -> Vec<u8> {
 }
 
 /// Build a minimal Mach-O 64-bit thin dylib with `id` as the install
-/// name and `loads` as the LC_LOAD_DYLIB dependencies.
+/// name and `loads` as the `LC_LOAD_DYLIB` dependencies.
 pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
     let mut commands = Vec::new();
     commands.extend(dylib_command(LC_ID_DYLIB, id));
@@ -57,7 +57,7 @@ pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
 }
 
 /// Build a minimal Mach-O 64-bit thin executable with `loads` as the
-/// LC_LOAD_DYLIB dependencies. Executables carry no LC_ID_DYLIB, so
+/// `LC_LOAD_DYLIB` dependencies. Executables carry no `LC_ID_DYLIB`, so
 /// goblin leaves `libs[0]` as the literal placeholder `"self"`.
 pub fn build_thin_executable(loads: &[&str]) -> Vec<u8> {
     let mut commands = Vec::new();

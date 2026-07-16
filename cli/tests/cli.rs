@@ -211,7 +211,7 @@ fn steam_runtime_exec_fails_when_runner_missing() {
 }
 
 /// The dev-built `rs-harbor` binary itself is a real ELF DYN with real
-/// DT_NEEDED entries, so we can use it as a fixture to exercise goblin
+/// `DT_NEEDED` entries, so we can use it as a fixture to exercise goblin
 /// parsing + regex matching + Report semantics end-to-end.
 fn rs_harbor_path() -> String {
     env!("CARGO_BIN_EXE_rs-harbor").to_string()
