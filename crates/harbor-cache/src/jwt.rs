@@ -97,13 +97,10 @@ pub fn format_duration(d: Duration) -> String {
 #[must_use]
 pub fn format_timestamp(ts: i64) -> String {
     use chrono::TimeZone;
-    chrono::Utc
-        .timestamp_opt(ts, 0)
-        .single()
-        .map_or_else(
-            || format!("ts={ts}"),
-            |dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
-        )
+    chrono::Utc.timestamp_opt(ts, 0).single().map_or_else(
+        || format!("ts={ts}"),
+        |dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+    )
 }
 
 #[cfg(test)]
