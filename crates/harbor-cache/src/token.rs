@@ -58,6 +58,10 @@ fn ensure_success(program: &str, output: &Output) -> Result<()> {
     bail!("{program} exited with {}: {}", output.status, stderr.trim())
 }
 
+fn render_attic_subject(subject_prefix: &str, project: &str) -> String {
+    format!("{subject_prefix}{project}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::render_attic_subject;
@@ -66,8 +70,4 @@ mod tests {
     fn renders_subject_prefix() {
         assert_eq!(render_attic_subject("canix-", "proj"), "canix-proj");
     }
-}
-
-fn render_attic_subject(subject_prefix: &str, project: &str) -> String {
-    format!("{subject_prefix}{project}")
 }

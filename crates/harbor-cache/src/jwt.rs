@@ -61,23 +61,25 @@ pub fn decode_payload(token: &str) -> Result<JwtPayload> {
 ///
 /// `now` is a Unix timestamp in seconds (typically `Utc::now().timestamp()`).
 /// Keeping it injectable lets callers pin time in tests.
+#[must_use]
 pub fn status(payload: &JwtPayload, now: i64) -> JwtStatus {
     if payload.nbf > now {
         return JwtStatus::NotYetValid {
-            in_: Duration::from_secs((payload.nbf - now) as u64),
+            in_: Duration::from_secs((payload.nbf - now).cast_unsigned()),
         };
     }
     if payload.exp <= now {
         return JwtStatus::Expired {
-            ago: Duration::from_secs((now - payload.exp) as u64),
+            ago: Duration::from_secs((now - payload.exp).cast_unsigned()),
         };
     }
     JwtStatus::Valid {
-        expires_in: Duration::from_secs((payload.exp - now) as u64),
+        expires_in: Duration::from_secs((payload.exp - now).cast_unsigned()),
     }
 }
 
 /// Format a `Duration` for human-display (e.g. "3 days 2 hours").
+#[must_use]
 pub fn format_duration(d: Duration) -> String {
     let total_secs = d.as_secs();
     let days = total_secs / 86400;
@@ -92,13 +94,16 @@ pub fn format_duration(d: Duration) -> String {
 }
 
 /// Format a Unix timestamp for display (e.g. "2026-06-15 14:30").
+#[must_use]
 pub fn format_timestamp(ts: i64) -> String {
     use chrono::TimeZone;
     chrono::Utc
         .timestamp_opt(ts, 0)
         .single()
-        .map(|dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string())
-        .unwrap_or_else(|| format!("ts={ts}"))
+        .map_or_else(
+            || format!("ts={ts}"),
+            |dt| dt.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        )
 }
 
 #[cfg(test)]
@@ -114,18 +119,18 @@ mod tests {
     fn decode_valid_jwt() {
         let payload = decode_payload(VALID_JWT).unwrap();
         assert_eq!(payload.sub, "test-user");
-        assert_eq!(payload.exp, 1893456000);
-        assert_eq!(payload.nbf, 1672537200);
+        assert_eq!(payload.exp, 1_893_456_000);
+        assert_eq!(payload.nbf, 1_672_537_200);
     }
 
     #[test]
     fn status_valid() {
         let payload = decode_payload(VALID_JWT).unwrap();
-        let s = status(&payload, 1700000000);
+        let s = status(&payload, 1_700_000_000);
         assert_eq!(
             s,
             JwtStatus::Valid {
-                expires_in: Duration::from_secs(193456000)
+                expires_in: Duration::from_secs(193_456_000)
             }
         );
     }
@@ -133,7 +138,7 @@ mod tests {
     #[test]
     fn status_expired() {
         let payload = decode_payload(VALID_JWT).unwrap();
-        let s = status(&payload, 1893456001);
+        let s = status(&payload, 1_893_456_001);
         assert_eq!(
             s,
             JwtStatus::Expired {
@@ -145,11 +150,11 @@ mod tests {
     #[test]
     fn status_not_yet_valid() {
         let payload = decode_payload(VALID_JWT).unwrap();
-        let s = status(&payload, 1000000000);
+        let s = status(&payload, 1_000_000_000);
         assert_eq!(
             s,
             JwtStatus::NotYetValid {
-                in_: Duration::from_secs(672537200)
+                in_: Duration::from_secs(672_537_200)
             }
         );
     }
@@ -169,7 +174,7 @@ mod tests {
 
     #[test]
     fn format_duration_days() {
-        assert_eq!(format_duration(Duration::from_secs(90000)), "1d 1h");
-        assert_eq!(format_duration(Duration::from_secs(604800)), "7d 0h");
+        assert_eq!(format_duration(Duration::from_hours(25)), "1d 1h");
+        assert_eq!(format_duration(Duration::from_hours(168)), "7d 0h");
     }
 }
