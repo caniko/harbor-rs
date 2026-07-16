@@ -122,21 +122,36 @@ mod tests {
     fn status_valid() {
         let payload = decode_payload(VALID_JWT).unwrap();
         let s = status(&payload, 1700000000);
-        assert_eq!(s, JwtStatus::Valid { expires_in: Duration::from_secs(193456000) });
+        assert_eq!(
+            s,
+            JwtStatus::Valid {
+                expires_in: Duration::from_secs(193456000)
+            }
+        );
     }
 
     #[test]
     fn status_expired() {
         let payload = decode_payload(VALID_JWT).unwrap();
         let s = status(&payload, 1893456001);
-        assert_eq!(s, JwtStatus::Expired { ago: Duration::from_secs(1) });
+        assert_eq!(
+            s,
+            JwtStatus::Expired {
+                ago: Duration::from_secs(1)
+            }
+        );
     }
 
     #[test]
     fn status_not_yet_valid() {
         let payload = decode_payload(VALID_JWT).unwrap();
         let s = status(&payload, 1000000000);
-        assert_eq!(s, JwtStatus::NotYetValid { in_: Duration::from_secs(672537200) });
+        assert_eq!(
+            s,
+            JwtStatus::NotYetValid {
+                in_: Duration::from_secs(672537200)
+            }
+        );
     }
 
     #[test]
