@@ -1,7 +1,9 @@
 # rs-harbor
 
 <!-- simit:badges:start -->
+
 ![CI](https://img.shields.io/badge/CI-managed-2088ff) [![Nix](https://img.shields.io/badge/Nix-managed-5277c3)](flake.nix) [![docs](https://img.shields.io/badge/docs-enabled-6f42c1)](docs) [![crates.io](https://img.shields.io/badge/crates.io-ready-f46623)](https://crates.io/crates/harbor-cache)
+
 <!-- simit:badges:end -->
 
 Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
