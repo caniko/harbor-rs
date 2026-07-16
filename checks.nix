@@ -60,10 +60,6 @@ in
     # Nix store.
     craneLib-path-patch-filtered-source-evaluates = let
       originalSrc = ./tests/fixtures/path-patch-fixture;
-      staticContextSrc = builtins.path {
-        path = originalSrc;
-        name = "path-context-cargo-source";
-      };
       filteredSrc = pkgs.lib.cleanSourceWith {
         src = originalSrc;
         filter = _path: _type: true;
@@ -74,7 +70,7 @@ in
           # Model an accessor whose filtered output is not usable yet. The
           # detector must inspect origSrc, not depend on outPath contents.
           outPath = pkgs.emptyDirectory;
-          origSrc = staticContextSrc;
+          origSrc = originalSrc;
         };
       pkg = toolchain.craneLib.buildPackage {
         src = fixtureSrc;
@@ -87,6 +83,44 @@ in
       assert pkg ? cargoArtifacts;
       assert pkg.cargoArtifacts == null;
         pkgs.runCommand "check-craneLib-path-patch-filtered-source-evaluates" {} "touch $out";
+
+    mkGradlePackage-shape = let
+      fixture = self.lib.mkGradlePackage {
+        inherit pkgs;
+        pname = "gradle-fixture";
+        version = "0.1.0";
+        src = ./tests/fixtures/gradle-fixture;
+        depsJson = ./tests/fixtures/gradle-fixture/deps.json;
+        artifactPath = "build/libs/gradle-fixture-0.1.0.jar";
+      };
+    in
+      assert pkgs.lib.isDerivation fixture;
+      assert fixture ? mitmCache;
+      assert fixture.rsHarbor.helper == "mkGradlePackage";
+      assert fixture.rsHarbor.artifactPath == "build/libs/gradle-fixture-0.1.0.jar";
+        pkgs.runCommand "check-mkGradlePackage-shape" {} "touch $out";
+
+    mkGradlePackage-rejects-traversal = let
+      result = builtins.tryEval (self.lib.mkGradlePackage {
+        inherit pkgs;
+        pname = "gradle-fixture";
+        version = "0.1.0";
+        src = ./tests/fixtures/gradle-fixture;
+        depsJson = ./tests/fixtures/gradle-fixture/deps.json;
+        artifactPath = "../artifact.jar";
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkGradlePackage-rejects-traversal" {} "touch $out";
+
+    mkGradlePackage-build = self.lib.mkGradlePackage {
+      inherit pkgs;
+      pname = "gradle-fixture";
+      version = "0.1.0";
+      src = ./tests/fixtures/gradle-fixture;
+      depsJson = ./tests/fixtures/gradle-fixture/deps.json;
+      artifactPath = "build/libs/gradle-fixture-0.1.0.jar";
+    };
 
     # Generated sources are not safe to inspect during evaluation: their
     # output may or may not exist depending on prior store state.
@@ -945,7 +979,7 @@ in
     # Invalid committed hash data is a broken foundational input, not a cache
     # miss. Reject it during evaluation with findLocalMavenCache's clear error.
     findLocalMavenCache-rejects-invalid-hash = let
-      invalidHash = builtins.toFile "invalid-gradle-cache.sha256" "not-a-sha256\n";
+      invalidHash = ./tests/fixtures/android-maven-cache/invalid.sha256;
       result = builtins.tryEval (self.lib.findLocalMavenCache {
         sha256Path = invalidHash;
         hostPath = ./tests/fixtures/android-maven-cache/cache.tar;

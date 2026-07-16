@@ -74,6 +74,7 @@ assert lib.assertMsg (builtins.isBool recursive)
         toHashFormat = "sri";
       };
 in
+  assert hash == null || validHash || throw "rs-harbor: findLocalMavenCache `${toString sha256Path}` does not contain a valid SHA-256 hash";
   if hash == null || !(builtins.pathExists hostPath)
   then null
   else

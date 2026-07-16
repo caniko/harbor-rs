@@ -40,6 +40,7 @@ in {
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
 
   mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
+  mkGradlePackage = import ./gradle-package.nix;
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
   inherit (dioxusLib) mkDioxusPackage mkDioxusWebPackage mkDioxusFullstackPackage;
   mkDioxusBuildPlan = import ./dioxus-build-plan.nix;
