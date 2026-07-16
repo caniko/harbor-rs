@@ -3412,4 +3412,20 @@ in
       assert attrs ? "CARGO_TARGET_${targetUpper}_LINKER";
       assert attrs."CARGO_TARGET_${targetUpper}_LINKER" == "${pkgs.buildPackages.stdenv.cc}/bin/cc";
         pkgs.runCommand "check-build-cache-policy-cross-shape" {} "touch $out";
+
+    # Direct crane arguments such as RUSTC_WRAPPER must remain compatible with
+    # the policy wrapper. Nix rejects duplicating those names inside `env`.
+    build-cache-policy-preserves-direct-env = let
+      policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      direct = pkgs.hello.overrideAttrs (_: {
+        RUSTC_WRAPPER = "/direct/sccache";
+        CARGO_INCREMENTAL = "0";
+      });
+      wrapped = policy.withRustCache {package = direct;};
+      attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
+    in
+      assert attrs.RUSTC_WRAPPER == "/direct/sccache";
+      assert attrs.CARGO_INCREMENTAL == "0";
+      assert wrapped.passthru.rsHarborBuildCacheWrapped;
+        pkgs.runCommand "check-build-cache-policy-preserves-direct-env" {} "touch $out";
   }

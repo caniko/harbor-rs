@@ -165,15 +165,23 @@ let
         env,
         nativeInputs ? commonNativeInputs,
       }:
-        package.overrideAttrs (old:
-          if (old.passthru or {}).rsHarborBuildCacheWrapped or false
-          then { }
-          else
-            {
-              nativeBuildInputs = (old.nativeBuildInputs or []) ++ nativeInputs;
-              env = (old.env or {}) // env;
-            }
-            // markWrapped old);
+        let
+          # Crane callers commonly pass cache variables as direct derivation
+          # arguments. Nix rejects repeating those names inside `env`, so
+          # preserve the direct value and only inject names that are not
+          # already present on the package.
+          directEnvNames = builtins.filter (name: builtins.hasAttr name package) (builtins.attrNames env);
+          effectiveEnv = builtins.removeAttrs env directEnvNames;
+        in
+          package.overrideAttrs (old:
+            if (old.passthru or {}).rsHarborBuildCacheWrapped or false
+            then { }
+            else
+              {
+                nativeBuildInputs = (old.nativeBuildInputs or []) ++ nativeInputs;
+                env = (old.env or {}) // effectiveEnv;
+              }
+              // markWrapped old);
 
       withRustCache = {
         package,
