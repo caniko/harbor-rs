@@ -137,6 +137,10 @@
               type = "app";
               program = "${macosStaging.stager}/bin/stage-macos-universal";
             };
+            generate-jetbrains-signing-material = {
+              type = "app";
+              program = "${self.lib.mkJetBrainsSigningMaterial {inherit pkgs;}}/bin/generate-jetbrains-signing-material";
+            };
           };
 
           devShells = import ./nix/dev-shells.nix {

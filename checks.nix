@@ -122,6 +122,43 @@ in
       artifactPath = "build/libs/gradle-fixture-0.1.0.jar";
     };
 
+    mkJetBrainsPlugin-shape = let
+      fixture = self.lib.mkJetBrainsPlugin {
+        inherit pkgs;
+        pname = "gradle-fixture";
+        version = "0.1.0";
+        src = ./tests/fixtures/gradle-fixture;
+        depsJson = ./tests/fixtures/gradle-fixture/deps.json;
+        artifactPath = "build/libs/gradle-fixture-0.1.0.jar";
+        pluginXmlId = "com.example.fixture";
+      };
+    in
+      assert pkgs.lib.isDerivation fixture;
+      assert fixture.rsHarbor.helper == "mkJetBrainsPlugin";
+      assert fixture.rsHarbor.pluginXmlId == "com.example.fixture";
+        pkgs.runCommand "check-mkJetBrainsPlugin-shape" {} "touch $out";
+
+    mkJetBrainsPlugin-rejects-empty-id = let
+      result = builtins.tryEval (self.lib.mkJetBrainsPlugin {
+        inherit pkgs;
+        pname = "gradle-fixture";
+        version = "0.1.0";
+        src = ./tests/fixtures/gradle-fixture;
+        depsJson = ./tests/fixtures/gradle-fixture/deps.json;
+        artifactPath = "build/libs/gradle-fixture-0.1.0.jar";
+        pluginXmlId = "";
+      });
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkJetBrainsPlugin-rejects-empty-id" {} "touch $out";
+
+    mkJetBrainsSigningMaterial-shape = let
+      helper = self.lib.mkJetBrainsSigningMaterial {inherit pkgs;};
+    in
+      assert pkgs.lib.isDerivation helper;
+      assert helper.name == "generate-jetbrains-signing-material";
+        pkgs.runCommand "check-mkJetBrainsSigningMaterial-shape" {} "touch $out";
+
     # Generated sources are not safe to inspect during evaluation: their
     # output may or may not exist depending on prior store state.
     craneLib-path-patch-generated-source-rejected = let
