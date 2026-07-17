@@ -19,6 +19,20 @@ let
     "AWS_SESSION_TOKEN"
   ];
 
+  # These variables are safe to pass into a Nix sandbox when the cache
+  # transport is a host-mounted Unix socket.  Credentials are deliberately
+  # absent from this list and remain scrubbed from derivations.
+  sharedTransportEnvNames = [
+    "SCCACHE_REDIS_ENDPOINT"
+    "SCCACHE_REDIS_CLUSTER_ENDPOINTS"
+    "SCCACHE_REDIS_DB"
+    "SCCACHE_REDIS_KEY_PREFIX"
+    "SCCACHE_REDIS_RW_MODE"
+    "SCCACHE_MULTILEVEL_CHAIN"
+    "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY"
+    "SCCACHE_BASEDIRS"
+  ];
+
   mkBuildCachePolicy = {
     pkgs,
     # Cross consumers may pass the build package set explicitly.  The cache
@@ -64,6 +78,7 @@ let
 
           state_root="''${NIX_BUILD_TOP:-''${TMPDIR:-/tmp}}"
           fallback_cache_dir="$state_root/rs-harbor-sccache"
+          compiler_socket="$state_root/rs-harbor-sccache-server.sock"
           configured_cache_dir=${lib.escapeShellArg wrapperCacheDir}
 
           shared_cache_is_admissible() {
@@ -102,10 +117,19 @@ let
             [ "$((8#$mode & 0777))" -eq "$((0770))" ]
           }
 
-          # Sandbox builds must never send Garage credentials or a host daemon
-          # socket through the compiler wrapper.  The host-mounted disk cache
-          # is the only shared state this execution model admits.
+          # Sandbox builds must never send Garage credentials or a host compiler
+          # daemon socket through the compiler wrapper.  Redis is different:
+          # it stores opaque compiler artifacts and does not execute rustc, so
+          # it is safe to expose through a host-mounted Unix socket.
           unset ${lib.escapeShellArgs remoteCacheEnvNames}
+          unset SCCACHE_SERVER_UDS
+
+          if [ -n "''${SCCACHE_REDIS_ENDPOINT:-}" ] || [ -n "''${SCCACHE_REDIS_CLUSTER_ENDPOINTS:-}" ]; then
+            unset SCCACHE_DIR XDG_CACHE_HOME
+            export SCCACHE_SERVER_UDS="$compiler_socket"
+            exec ${realSccache}/bin/sccache "$@"
+          fi
+
           unset XDG_CACHE_HOME
 
           umask 0007
@@ -136,6 +160,28 @@ let
       });
       wrapper = markSandboxWrapper (mkSandboxWrapper buildPackages);
       wrapperPath = "${wrapper}/bin/rs-harbor-sandbox-sccache";
+      dioxusDispatcher = buildPackages.writeShellScriptBin "rs-harbor-dioxus-sccache" ''
+        set -eu
+
+        # Cargo invokes RUSTC_WRAPPER as:
+        #   wrapper rustc [args...]
+        # or, for Dioxus workspace crates:
+        #   wrapper dx rustc [args...]
+        # Dioxus must remain the workspace wrapper so it can capture asset and
+        # linker arguments.  Dependencies, however, should go through
+        # sccache.  A patched Dioxus CLI also consumes DX_RUSTC_INNER_WRAPPER
+        # for its direct rustc replay path.
+        compiler="''${1:-}"
+        case "$compiler" in
+          */dx|dx)
+            exec "$@"
+            ;;
+          *)
+            exec ${wrapperPath} "$@"
+            ;;
+        esac
+      '';
+      dioxusDispatcherPath = "${dioxusDispatcher}/bin/rs-harbor-dioxus-sccache";
       commonNativeInputs = [wrapper canonicalSccachePackage];
 
       rustEnv = {
@@ -143,9 +189,12 @@ let
         CARGO_INCREMENTAL = "0";
       };
       dioxusEnv = {
-        # Dioxus installs a compiler shim in RUSTC_WRAPPER.  Workspace
-        # wrapping sees the real rustc invocation beneath that shim.
-        RUSTC_WORKSPACE_WRAPPER = wrapperPath;
+        # Dioxus installs its own compiler shim in RUSTC_WORKSPACE_WRAPPER.
+        # The dispatcher caches ordinary dependency crates while preserving
+        # Dioxus' workspace argument capture.  Newer patched dx binaries also
+        # use the inner wrapper for their direct rustc replay path.
+        RUSTC_WRAPPER = dioxusDispatcherPath;
+        DX_RUSTC_INNER_WRAPPER = wrapperPath;
         CARGO_INCREMENTAL = "0";
       };
 
@@ -223,7 +272,11 @@ let
       }:
         if !enable
         then package
-        else withEnv {inherit package; env = dioxusEnv;};
+        else withEnv {
+          inherit package;
+          env = dioxusEnv;
+          nativeInputs = commonNativeInputs ++ [dioxusDispatcher];
+        };
 
       hostLinkerEnvFor = buildPackageSet': let
         target =
@@ -330,7 +383,7 @@ let
             (builtins.foldl' (name: acc: applyRust name acc) {} rustPackages)
             // (builtins.foldl' (name: acc: applyCmake name acc) {} cmakePackages);
     in {
-      inherit namespace sharedCacheDir wrapper wrapperPath rustEnv dioxusEnv;
+      inherit namespace sharedCacheDir wrapper wrapperPath dioxusDispatcher dioxusDispatcherPath rustEnv dioxusEnv;
       inherit withRustCache withDioxusCache withCrossRust withCrossLinker withCmakeCache mkOverlay;
       contract = {
         schemaVersion = 1;

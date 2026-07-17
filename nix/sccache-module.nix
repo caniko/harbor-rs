@@ -176,6 +176,16 @@ in {
       description = "Additional environment variables to set alongside sccache vars. Merged last.";
     };
 
+    sandboxExtraPaths = mkOption {
+      type = types.listOf types.path;
+      default = [];
+      description = ''
+        Host paths to expose to Nix sandboxes for cache transports.  Use this
+        for a Redis/Valkey Unix-socket directory; never expose credential
+        files through this option.
+      '';
+    };
+
     sandboxCacheDir = mkOption {
       type = types.nullOr types.str;
       default = null;
@@ -327,7 +337,7 @@ in {
     #   2. daemon socket — dedicated RuntimeDirectory at socketParentDir
     nix.settings = mkMerge [
       (mkIf (cfg.sandboxCacheDir != null && !cfg.daemon.enable) {
-        extra-sandbox-paths = [cfg.sandboxCacheDir];
+        extra-sandbox-paths = [cfg.sandboxCacheDir] ++ cfg.sandboxExtraPaths;
         # Keep XDG_CACHE_HOME out of the global Nix sandbox environment.  The
         # derivation policy scopes it inside the sccache wrapper so unrelated
         # tools cannot share mutable host state.
@@ -335,8 +345,12 @@ in {
         experimental-features = ["configurable-impure-env"];
       })
       (mkIf cfg.daemon.enable {
-        extra-sandbox-paths = [socketParentDir];
+        extra-sandbox-paths = [socketParentDir] ++ cfg.sandboxExtraPaths;
         impure-env = ["SCCACHE_SERVER_UDS=${cfg.daemon.socketPath}"];
+        experimental-features = ["configurable-impure-env"];
+      })
+      (mkIf (cfg.sandboxExtraPaths != []) {
+        extra-sandbox-paths = cfg.sandboxExtraPaths;
         experimental-features = ["configurable-impure-env"];
       })
     ];
