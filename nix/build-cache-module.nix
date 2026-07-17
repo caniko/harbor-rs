@@ -31,9 +31,9 @@ in {
     };
 
     cacheRoot = lib.mkOption {
-      type = lib.types.path;
+      type = lib.types.nullOr lib.types.path;
       default = "/tmp/sccache";
-      description = "Writable host-mounted root for sandbox-local compiler caches.";
+      description = "Optional writable host-mounted root for local caches; null selects a remote transport such as Redis.";
     };
 
     namespaceScope = lib.mkOption {
@@ -101,12 +101,12 @@ in {
     _module.args.rsHarborBuildCache = policy;
 
     nix.settings = {
-      extra-sandbox-paths = lib.mkAfter [cfg.cacheRoot];
-      "impure-env" = lib.mkAfter ["SCCACHE_DIR=${policy.sharedCacheDir}"];
+      extra-sandbox-paths = lib.mkIf (cfg.cacheRoot != null) (lib.mkAfter [cfg.cacheRoot]);
+      "impure-env" = lib.mkIf (cfg.cacheRoot != null) (lib.mkAfter ["SCCACHE_DIR=${policy.sharedCacheDir}"]);
       experimental-features = ["configurable-impure-env"];
     };
 
-    systemd.tmpfiles.rules = [
+    systemd.tmpfiles.rules = lib.mkIf (cfg.cacheRoot != null) [
       "d ${policy.sharedCacheDir} 2770 root nixbld -"
     ];
 
