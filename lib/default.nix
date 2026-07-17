@@ -45,6 +45,7 @@ in {
   mkJetBrainsSigningMaterial = import ./jetbrains-signing.nix;
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
   inherit (dioxusLib) mkDioxusPackage mkDioxusWebPackage mkDioxusFullstackPackage;
+  mkDioxusCli = import ./dioxus-cli.nix;
   mkDioxusBuildPlan = import ./dioxus-build-plan.nix;
   mkDioxusAssetLinker = import ./dioxus-asset-linker.nix;
   resolveWasmBindgenCli = import ./wasm-bindgen.nix;

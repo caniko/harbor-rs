@@ -3462,8 +3462,9 @@ in
       assert rustAttrs.RUSTC_WRAPPER == policy.wrapperPath;
       assert rustAttrs.CARGO_INCREMENTAL == "0";
       assert rust.passthru.rsHarborBuildCacheWrapped;
-      assert dioxusAttrs.RUSTC_WORKSPACE_WRAPPER == policy.wrapperPath;
-      assert !(dioxusAttrs ? RUSTC_WRAPPER);
+      assert dioxusAttrs.RUSTC_WRAPPER == policy.dioxusDispatcherPath;
+      assert dioxusAttrs.DX_RUSTC_INNER_WRAPPER == policy.wrapperPath;
+      assert dioxusAttrs.CARGO_INCREMENTAL == "0";
         pkgs.runCommand "check-build-cache-policy-builder-shapes" {} "touch $out";
 
     build-cache-policy-cross-shape = let
