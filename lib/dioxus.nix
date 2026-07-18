@@ -54,7 +54,7 @@
     wasmOptArgs,
     nativeBuildInputs,
     fullstack,
-    buildCache ? null,
+    buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
   }:
     let
       lib = pkgs.lib;
@@ -134,7 +134,7 @@
     installSubdir ? "share/${pname}",
     nativeBuildInputs ? [],
     fullstack ? false,
-    buildCache ? null,
+    buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
     ...
   }: let
     effectiveWebFeatures = if features == null then webFeatures else features;
@@ -248,7 +248,7 @@
     publicSubdir ? "share/${pname}/public",
     wrapServer ? true,
     nativeBuildInputs ? [],
-    buildCache ? null,
+    buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
     ...
   }: let
     extraArgs = builtins.removeAttrs args [

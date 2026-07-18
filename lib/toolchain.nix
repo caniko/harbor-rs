@@ -1,8 +1,8 @@
-# mkToolchain :: { pkgs, channel?, date?, extensions?, withRustAnalyzer?, crossTargets? }
-#             -> { rustToolchain, craneLib, crossTargets }
+# mkToolchain :: { pkgs, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, cache? }
+#             -> { rustToolchain, craneLib, rawCraneLib, buildCache, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
-{crane}: {
+{crane, mkBuildCachePolicy}: {
   pkgs,
   channel ? "nightly",
   # Preserve the historical channel default for downstream stable consumers.
@@ -18,6 +18,10 @@
     "x86_64-apple-darwin"
     "aarch64-apple-darwin"
   ],
+  # Compiler caching is enabled by default for every crane derivation. The
+  # policy is deliberately configurable so projects with an exceptional
+  # build can opt out explicitly without reintroducing hand-wrapped packages.
+  cache ? {},
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
 "rs-harbor: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
@@ -155,33 +159,95 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     Use craneLib.buildPackage (args // { cargoArtifacts = null; }) to build with real sources, remove the path patch, or vendor the dependency in a way that does not rely on [patch.crates-io]. If this project is known to tolerate dummy path patches, pass rsHarborAllowPathPatchBuildDepsOnly = true.
   '';
 
+  cacheEnabled = cache.enable or true;
+  buildCache =
+    if cacheEnabled
+    then
+      mkBuildCachePolicy {
+        inherit pkgs;
+        buildPackageSet = pkgs.buildPackages;
+        sccachePackage = cache.sccachePackage or null;
+        cacheRoot = cache.cacheRoot or null;
+        namespaceScope = cache.namespaceScope or "canix-rust";
+        namespaceGeneration = cache.namespaceGeneration or 5;
+        connectTimeout = cache.connectTimeout or "2";
+        executionModel = cache.executionModel or "sandbox-local";
+        redisSocketPath = cache.redisSocketPath or "/run/redis-sccache/redis.sock";
+      }
+    else null;
+
+  # Keep rs-harbor's path-patch safety checks at the crane scope boundary.
+  # The cache wrapper is applied in the same scope so every crane helper that
+  # constructs a Cargo derivation inherits it automatically.
   craneLib =
-    upstreamCraneLib
-    // {
-      buildDepsOnly = args: let
-        allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
-        pathPatches =
-          if allow
-          then []
-          else patchCratesIoPathPatches args;
-      in
+    (upstreamCraneLib.overrideScope (_final: prev: {
+    mkCargoDerivation =
+      if buildCache == null
+      then prev.mkCargoDerivation
+      else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
+
+    buildDepsOnly = args: let
+      allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+      pathPatches =
+        if allow
+        then []
+        else patchCratesIoPathPatches args;
+      raw =
         if pathPatches != []
         then throw (pathPatchBuildDepsOnlyError pathPatches)
-        else upstreamCraneLib.buildDepsOnly (stripRsHarborCraneArgs args);
+        else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+    in
+      if buildCache == null
+      then raw
+      else buildCache.withRustCache {package = raw;};
 
-      buildPackage = args: let
-        pathPatches =
-          if args ? cargoArtifacts
-          then []
-          else patchCratesIoPathPatches args;
-        args' = stripRsHarborCraneArgs args;
-      in
-        upstreamCraneLib.buildPackage (
-          if pathPatches != [] && !(args ? cargoArtifacts)
-          then args' // {cargoArtifacts = null;}
-          else args'
-        );
+    buildPackage = args: let
+      pathPatches =
+        if args ? cargoArtifacts
+        then []
+        else patchCratesIoPathPatches args;
+      args' = stripRsHarborCraneArgs args;
+      raw = prev.buildPackage (
+        if pathPatches != [] && !(args ? cargoArtifacts)
+        then args' // {cargoArtifacts = null;}
+        else args'
+      );
+    in
+      if buildCache == null
+      then raw
+      else buildCache.withRustCache {package = raw;};
+    }))
+    // {
+      # Dioxus and cross helpers use this marker to inherit the same policy
+      # without requiring every consumer to thread it through manually.
+      rsHarborBuildCachePolicy = buildCache;
     };
+
+  rawCraneLib = upstreamCraneLib.overrideScope (_final: prev: {
+    buildDepsOnly = args: let
+      allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+      pathPatches =
+        if allow
+        then []
+        else patchCratesIoPathPatches args;
+    in
+      if pathPatches != []
+      then throw (pathPatchBuildDepsOnlyError pathPatches)
+      else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+
+    buildPackage = args: let
+      pathPatches =
+        if args ? cargoArtifacts
+        then []
+        else patchCratesIoPathPatches args;
+      args' = stripRsHarborCraneArgs args;
+    in
+      prev.buildPackage (
+        if pathPatches != [] && !(args ? cargoArtifacts)
+        then args' // {cargoArtifacts = null;}
+        else args'
+      );
+  });
 in {
-  inherit rustToolchain craneLib crossTargets;
+  inherit rustToolchain craneLib rawCraneLib buildCache crossTargets;
 }
