@@ -2,25 +2,33 @@
 
 let
   sccacheDefault = import ../lib/generated/sccache-default.nix;
+  sccacheService = import ../lib/sccache-service.nix {inherit pkgs;};
   inherit (lib) mkIf mkOption types;
 
   osSccache = lib.attrByPath [ "programs" "rsHarbor" "sccache" ] { } osConfig;
   osSccacheEnabled = osConfig != null && (osSccache.enable or false);
-  osSccacheEnv = osSccache.envVars or { };
+  osSccacheRemoteEnv = osSccache.remoteEnvVars or { };
 
   cfg = config.programs.rsHarbor.sccache.userDaemon;
+  reservedUserEnvironment = [
+    "RUSTC_WRAPPER"
+    "SCCACHE_SERVER_UDS"
+    "SCCACHE_DIR"
+    "XDG_CACHE_HOME"
+    "SCCACHE_START_SERVER"
+    "SCCACHE_NO_DAEMON"
+  ];
 
   serviceEnv =
-    builtins.removeAttrs osSccacheEnv [
-      "RUSTC_WRAPPER"
-      "SCCACHE_SERVER_UDS"
-      "SCCACHE_DIR"
-      "XDG_CACHE_HOME"
-    ]
+    osSccacheRemoteEnv
+    // cfg.environment
     // {
       SCCACHE_SERVER_UDS = "%t/${sccacheDefault.userSocketRel}";
       SCCACHE_DIR = "${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}";
       SCCACHE_IDLE_TIMEOUT = toString cfg.idleTimeout;
+      SCCACHE_START_SERVER = "1";
+      SCCACHE_NO_DAEMON = "1";
+      SCCACHE_LOG = "warn";
     };
 
   serviceEnvironment = lib.mapAttrsToList (name: value: "${name}=${value}") serviceEnv;
@@ -29,16 +37,31 @@ let
     set -eu
 
     runtime_dir="''${XDG_RUNTIME_DIR:-/run/user/$(${pkgs.coreutils}/bin/id -u)}"
+    export XDG_RUNTIME_DIR="$runtime_dir"
+    if [ -z "''${DBUS_SESSION_BUS_ADDRESS:-}" ]; then
+      export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
+    fi
     socket_path="$runtime_dir/${sccacheDefault.userSocketRel}"
     cache_dir="''${XDG_CACHE_HOME:-$HOME/.cache}/${sccacheDefault.userCacheRel}"
 
-    if [ ! -S "$socket_path" ]; then
-      ${pkgs.systemd}/bin/systemctl --user start sccache-user-daemon.service
+    service_ready() {
+      ${pkgs.systemd}/bin/systemctl --user is-active --quiet sccache-user-daemon.service \
+        && [ -S "$socket_path" ]
+    }
+
+    if ! service_ready; then
+      if ! ${pkgs.coreutils}/bin/timeout ${toString (sccacheDefault.startupTimeout + 5)}s \
+        ${pkgs.systemd}/bin/systemctl --user start sccache-user-daemon.service; then
+        echo "sccache-rustc-wrapper: managed sccache service could not start; build refused" >&2
+        ${pkgs.systemd}/bin/systemctl --user status sccache-user-daemon.service --no-pager -l >&2 || true
+        exit 75
+      fi
     fi
 
-    if [ ! -S "$socket_path" ]; then
-      echo "sccache-rustc-wrapper: $socket_path was not created by sccache-user-daemon.service" >&2
-      exit 1
+    if ! service_ready; then
+      echo "sccache-rustc-wrapper: managed sccache socket is not ready; build refused" >&2
+      ${pkgs.systemd}/bin/journalctl --user-unit=sccache-user-daemon.service --no-pager -n 80 >&2 || true
+      exit 75
     fi
 
     export SCCACHE_SERVER_UDS="$socket_path"
@@ -67,6 +90,15 @@ in {
       default = sccacheDefault.idleTimeout;
       description = "Seconds before the user sccache daemon shuts down when idle. 0 = never.";
     };
+
+    environment = mkOption {
+      type = types.attrsOf types.str;
+      default = {};
+      description = ''
+        Explicit interactive-daemon environment additions. Sandbox-only
+        transport variables are never inherited implicitly.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -79,11 +111,19 @@ in {
         '';
       }
       {
-        assertion = osSccacheEnv ? SCCACHE_BUCKET && osSccacheEnv ? SCCACHE_ENDPOINT;
+        assertion = osSccacheRemoteEnv ? SCCACHE_BUCKET && osSccacheRemoteEnv ? SCCACHE_ENDPOINT;
         message = ''
           programs.rsHarbor.sccache.userDaemon.enable requires an S3-backed
           rs-harbor sccache configuration; refusing to silently fall back to
           local-only interactive caching.
+        '';
+      }
+      {
+        assertion = builtins.all (name: !(builtins.hasAttr name cfg.environment)) reservedUserEnvironment;
+        message = ''
+          programs.rsHarbor.sccache.userDaemon.environment contains a
+          reserved lifecycle variable. Configure cache transport through the
+          rs-harbor sccache module instead.
         '';
       }
     ];
@@ -104,19 +144,26 @@ in {
     };
 
     systemd.user.services.sccache-user-daemon = {
-      Unit.Description = "User sccache compilation cache daemon";
+      Unit = {
+        Description = "User sccache compilation cache daemon";
+        StartLimitIntervalSec = "${toString sccacheDefault.restartWindow}s";
+        StartLimitBurst = sccacheDefault.restartBurst;
+      };
       Service = {
-        Type = "oneshot";
-        RemainAfterExit = true;
+        Type = "exec";
         Restart = "on-failure";
-        RestartSec = "5";
+        RestartSec = "${toString sccacheDefault.restartDelay}s";
+        TimeoutStartSec = "${toString sccacheDefault.startupTimeout}s";
+        TimeoutStopSec = "10s";
         Environment = serviceEnvironment;
         ExecStartPre = [
           "${pkgs.coreutils}/bin/mkdir -p %t/${builtins.dirOf sccacheDefault.userSocketRel} ${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}"
-          "-${pkgs.coreutils}/bin/rm -f %t/${sccacheDefault.userSocketRel}"
+          "${sccacheService.repairSocket} %t/${sccacheDefault.userSocketRel}"
         ];
-        ExecStart = "${cfg.package}/bin/sccache --start-server";
-        ExecStop = "${cfg.package}/bin/sccache --stop-server";
+        ExecStart = "${cfg.package}/bin/sccache";
+        ExecStartPost = "${sccacheService.waitForSocket} %t/${sccacheDefault.userSocketRel} ${toString sccacheDefault.startupTimeout}";
+        ExecStop = "${pkgs.coreutils}/bin/env -u SCCACHE_START_SERVER ${cfg.package}/bin/sccache --stop-server";
+        KillMode = "control-group";
       };
       Install.WantedBy = [ "default.target" ];
     };

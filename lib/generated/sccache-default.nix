@@ -7,4 +7,8 @@
   cacheRegion = "auto";
   cacheUseSsl = false;
   idleTimeout = 0;
+  startupTimeout = 20;
+  restartDelay = 5;
+  restartBurst = 3;
+  restartWindow = 300;
 }

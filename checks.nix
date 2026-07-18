@@ -22,10 +22,56 @@ in
     in
       assert t ? rustToolchain;
       assert t ? craneLib;
+      assert t ? rawCraneLib;
+      assert t ? buildCache;
+      assert t.buildCache != null;
+      assert t.buildCache.contract.namespace == "canix-rust-v5-sccache-${pkgs.sccache.version}";
+      assert t.craneLib.rsHarborBuildCachePolicy.contract == t.buildCache.contract;
       assert t ? crossTargets;
       assert builtins.isList t.crossTargets;
       assert builtins.length t.crossTargets > 0;
         pkgs.runCommand "check-mkToolchain-shape" {} "touch $out";
+
+    # The cache policy is applied at Crane's derivation-construction boundary,
+    # so ordinary and dependency-only builds cannot silently bypass it.
+    mkToolchain-crane-builders-are-cached = let
+      t = self.lib.mkToolchain {inherit pkgs;};
+      src = t.craneLib.cleanCargoSource ./tests/fixtures/cross-package-fixture;
+      deps = t.craneLib.buildDepsOnly {
+        inherit src;
+        pname = "mk-toolchain-cache-fixture";
+        version = "0.1.0";
+        doCheck = false;
+      };
+      package = t.craneLib.buildPackage {
+        inherit src;
+        pname = "mk-toolchain-cache-fixture";
+        version = "0.1.0";
+        cargoArtifacts = deps;
+        doCheck = false;
+      };
+    in
+      assert deps.passthru.rsHarborBuildCacheWrapped;
+      assert package.passthru.rsHarborBuildCacheWrapped;
+        pkgs.runCommand "check-mkToolchain-crane-builders-are-cached" {} "touch $out";
+
+    # Exceptional derivations can opt out explicitly, while retaining the raw
+    # Crane scope for callers that need unwrapped construction.
+    mkToolchain-cache-opt-out = let
+      t = self.lib.mkToolchain {
+        inherit pkgs;
+        cache.enable = false;
+      };
+      package = t.craneLib.buildPackage {
+        src = ./tests/fixtures/cross-package-fixture;
+        pname = "mk-toolchain-cache-opt-out";
+        version = "0.1.0";
+        doCheck = false;
+      };
+    in
+      assert t.buildCache == null;
+      assert !(package.passthru.rsHarborBuildCacheWrapped or false);
+        pkgs.runCommand "check-mkToolchain-cache-opt-out" {} "touch $out";
 
     # stable channel works
     mkToolchain-stable = let
@@ -1390,6 +1436,7 @@ in
       assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
       assert drv.artifactBuilder.metadata.wasmSplit == false;
       assert drv.passthru.dioxus.wasmBindgenVersion == "0.2.126";
+      assert drv.drvAttrs.RUSTC_WRAPPER == toolchain.buildCache.dioxusDispatcherPath;
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
 
     mkDioxusAssetLinker-shape = let
@@ -3082,6 +3129,7 @@ in
         specialArgs = {inherit pkgs;};
       };
       env = evaluated.config.programs.rsHarbor.sccache.envVars;
+      remote = evaluated.config.programs.rsHarbor.sccache.remoteEnvVars;
     in
       assert env ? RUSTC_WRAPPER;
       assert env ? SCCACHE_BUCKET;
@@ -3092,6 +3140,10 @@ in
       assert env.AWS_ACCESS_KEY_ID == "GKkey";
       assert env.AWS_SECRET_ACCESS_KEY == "secret";
       assert env.SCCACHE_CONNECT_TIMEOUT == "2";
+      assert remote.SCCACHE_BUCKET == "sccache";
+      assert remote.AWS_ACCESS_KEY_ID == "GKkey";
+      assert !(remote ? SCCACHE_REDIS_ENDPOINT);
+      assert !(remote ? SCCACHE_SERVER_UDS);
         pkgs.runCommand "check-sccache-module-env-vars" {} "touch $out";
 
     # NixOS module daemon shape — socket in RuntimeDirectory, not /tmp/sccache
@@ -3167,6 +3219,11 @@ in
       assert settings."impure-env" == ["SCCACHE_SERVER_UDS=/run/sccache/sock"];
       assert svc.serviceConfig.RuntimeDirectory == "sccache";
       assert svc.serviceConfig.RuntimeDirectoryMode == "0755";
+      assert svc.serviceConfig.Type == "exec";
+      assert svc.serviceConfig.Restart == "on-failure";
+      assert svc.environment.SCCACHE_START_SERVER == "1";
+      assert svc.environment.SCCACHE_NO_DAEMON == "1";
+      assert builtins.any (entry: pkgs.lib.hasInfix "rs-harbor-sccache-wait-for-socket" entry) svc.serviceConfig.ExecStartPost;
         pkgs.runCommand "check-sccache-module-daemon-shape" {} "touch $out";
 
     # NixOS module can disable interactive global env without breaking daemon env
@@ -3467,6 +3524,20 @@ in
       assert dioxusAttrs.DX_RUSTC_INNER_WRAPPER == policy.wrapperPath;
       assert dioxusAttrs.CARGO_INCREMENTAL == "0";
         pkgs.runCommand "check-build-cache-policy-builder-shapes" {} "touch $out";
+
+    build-cache-policy-fail-closed = let
+      policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
+    in
+      pkgs.runCommand "check-build-cache-policy-fail-closed" {} ''
+        ${pkgs.gnugrep}/bin/grep -F 'refusing an uncached build' ${policy.wrapperPath} >/dev/null
+        ${pkgs.gnugrep}/bin/grep -F 'no managed cache transport is available' ${policy.wrapperPath} >/dev/null
+        ${pkgs.gnugrep}/bin/grep -F 'managed server failed to become ready' ${policy.wrapperPath} >/dev/null
+        if ${pkgs.gnugrep}/bin/grep -F 'exec "$compiler" "$@"' ${policy.wrapperPath} >/dev/null; then
+          echo 'rs-harbor sandbox wrapper must not bypass sccache' >&2
+          exit 1
+        fi
+        touch "$out"
+      '';
 
     build-cache-policy-cross-shape = let
       policy = self.lib.mkBuildCachePolicy {

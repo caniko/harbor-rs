@@ -27,6 +27,18 @@ class SccacheDefault {
 
   /// Daemon idle timeout in seconds (0 = never shut down).
   idleTimeout: Int = 0
+
+  /// Maximum seconds allowed for a managed daemon to expose its socket.
+  startupTimeout: Int = 20
+
+  /// Delay between bounded managed-daemon restart attempts.
+  restartDelay: Int = 5
+
+  /// Number of managed-daemon starts permitted within the restart window.
+  restartBurst: Int = 3
+
+  /// Window, in seconds, used by systemd's restart limiter.
+  restartWindow: Int = 300
 }
 
 defaults: SccacheDefault = new SccacheDefault {}

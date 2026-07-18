@@ -81,7 +81,6 @@ let
           set -eu
 
           state_root="''${NIX_BUILD_TOP:-''${TMPDIR:-/tmp}}"
-          fallback_cache_dir="$state_root/rs-harbor-sccache"
           compiler_socket="$state_root/rs-harbor-sccache-server.sock"
           configured_cache_dir=${lib.escapeShellArg wrapperCacheDir}
 
@@ -159,25 +158,73 @@ let
             fi
             unset SCCACHE_DIR XDG_CACHE_HOME
             export SCCACHE_SERVER_UDS="$compiler_socket"
-            exec ${realSccache}/bin/sccache "$@"
-          fi
-
-          unset XDG_CACHE_HOME
-
-          umask 0007
-          if [ -n "$configured_cache_dir" ] && shared_cache_is_admissible; then
-            cache_dir="$configured_cache_dir"
-          elif [ -n "''${SCCACHE_DIR:-}" ] && [ -d "''${SCCACHE_DIR}" ] && [ -w "''${SCCACHE_DIR}" ]; then
-            cache_dir="$SCCACHE_DIR"
           else
-            umask 0077
-            cache_dir="$fallback_cache_dir"
-            ${packageSet.coreutils}/bin/mkdir -p "$cache_dir"
+            unset XDG_CACHE_HOME
+
+            umask 0007
+            if [ -n "$configured_cache_dir" ]; then
+              if ! shared_cache_is_admissible; then
+                echo "rs-harbor sccache: configured sandbox cache is not admissible; refusing an uncached build" >&2
+                exit 75
+              fi
+              cache_dir="$configured_cache_dir"
+            elif [ -n "''${SCCACHE_DIR:-}" ] && [ -d "''${SCCACHE_DIR}" ] && [ -w "''${SCCACHE_DIR}" ]; then
+              cache_dir="$SCCACHE_DIR"
+            else
+              echo "rs-harbor sccache: no managed cache transport is available; refusing an uncached build" >&2
+              exit 75
+            fi
+
+            export SCCACHE_DIR="$cache_dir"
+            export XDG_CACHE_HOME="$cache_dir"
           fi
 
-          export SCCACHE_DIR="$cache_dir"
-          export XDG_CACHE_HOME="$cache_dir"
+          export SCCACHE_SERVER_UDS="$compiler_socket"
           export SCCACHE_CONNECT_TIMEOUT=${lib.escapeShellArg connectTimeout}
+
+          # Start exactly one server per sandbox.  The launcher is bounded by
+          # the atomic lock and the socket check; a failed backend check is a
+          # hard build failure instead of an implicit uncached compiler run.
+          ready="$state_root/rs-harbor-sccache-ready"
+          startup_lock="$state_root/rs-harbor-sccache-startup.lock"
+          startup_log="$state_root/rs-harbor-sccache-startup.log"
+          attempts=0
+          while [ ! -d "$ready" ] && [ "$attempts" -lt 200 ]; do
+            if ${packageSet.coreutils}/bin/mkdir "$startup_lock" 2>/dev/null; then
+              cleanup_startup_lock() {
+                ${packageSet.coreutils}/bin/rmdir "$startup_lock" 2>/dev/null || true
+              }
+              trap cleanup_startup_lock EXIT
+              trap 'cleanup_startup_lock; exit 1' HUP INT TERM
+
+              previous_umask=$(umask)
+              umask 0007
+              if ${realSccache}/bin/sccache --start-server >"$startup_log" 2>&1 \
+                && [ -S "$compiler_socket" ]; then
+                ${packageSet.coreutils}/bin/mkdir "$ready"
+              else
+                ${packageSet.coreutils}/bin/cat "$startup_log" >&2 || true
+                echo "rs-harbor sccache: managed server failed to become ready; refusing an uncached build" >&2
+                cleanup_startup_lock
+                trap - EXIT HUP INT TERM
+                exit 75
+              fi
+              umask "$previous_umask"
+
+              cleanup_startup_lock
+              trap - EXIT HUP INT TERM
+              break
+            fi
+
+            ${packageSet.coreutils}/bin/sleep 0.01
+            attempts=$((attempts + 1))
+          done
+
+          if [ ! -d "$ready" ] || [ ! -S "$compiler_socket" ]; then
+            echo "rs-harbor sccache: timed out waiting for the managed server; refusing an uncached build" >&2
+            exit 75
+          fi
+
           exec ${realSccache}/bin/sccache "$@"
         '';
 

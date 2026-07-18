@@ -46,6 +46,7 @@
 }: let
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
   sccacheDefault = import ../lib/generated/sccache-default.nix;
+  sccacheService = import ../lib/sccache-service.nix {inherit pkgs;};
   cfg = config.programs.rsHarbor.sccache;
   sccacheLib = import ../lib/sccache.nix {};
   sandboxPolicy =
@@ -64,14 +65,12 @@
 
   socketParentDir = builtins.dirOf cfg.daemon.socketPath;
 
-  # Compute envVars so the option definition and environment.variables
-  # share the same logic without eval-order issues.
-  computedEnvVars =
+  # This is the only environment an interactive user daemon receives by
+  # default. Sandbox transport variables are deliberately not included.
+  remoteEnvVars =
     if cfg.enable
     then
-      { RUSTC_WRAPPER = "${cfg.package}/bin/sccache";
-        SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout;
-      }
+      { SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout; }
       // (if cfg.cacheEndpoint != null && cfg.cacheBucket != null then {
         SCCACHE_BUCKET = cfg.cacheBucket;
         SCCACHE_ENDPOINT = cfg.cacheEndpoint;
@@ -87,6 +86,17 @@
       // (if cfg.secretAccessKey != null then {
         AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
       } else {})
+    else {};
+
+  # Compute envVars so the option definition and environment.variables
+  # share the same logic without eval-order issues. This remains the full
+  # derivation-facing environment for compatibility; Home Manager consumes
+  # remoteEnvVars instead.
+  computedEnvVars =
+    if cfg.enable
+    then
+      remoteEnvVars
+      // { RUSTC_WRAPPER = "${cfg.package}/bin/sccache"; }
       // (if sandboxPolicy != null then {
         SCCACHE_DIR = sandboxPolicy.sharedCacheDir;
         XDG_CACHE_HOME = sandboxPolicy.sharedCacheDir;
@@ -94,9 +104,15 @@
       // (if cfg.daemon.enable then {
         SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
       } else {})
-      // cfg.extraEnv
+      // cfg.sandboxExtraEnv
     else {};
 in {
+  imports = [
+    (lib.mkRenamedOptionModule
+      [ "programs" "rsHarbor" "sccache" "extraEnv" ]
+      [ "programs" "rsHarbor" "sccache" "sandboxExtraEnv" ])
+  ];
+
   options.programs.rsHarbor.sccache = {
     enable = lib.mkEnableOption "sccache shared compilation cache";
 
@@ -170,10 +186,14 @@ in {
       description = "S3 secret access key for sccache. Sets AWS_SECRET_ACCESS_KEY when non-null.";
     };
 
-    extraEnv = mkOption {
+    sandboxExtraEnv = mkOption {
       type = types.attrsOf (types.nullOr types.str);
       default = {};
-      description = "Additional environment variables to set alongside sccache vars. Merged last.";
+      description = ''
+        Additional environment variables for sandbox and derivation-facing
+        sccache invocations. These variables are never copied into the
+        interactive Home Manager daemon unless explicitly configured there.
+      '';
     };
 
     sandboxExtraPaths = mkOption {
@@ -297,6 +317,13 @@ in {
       readOnly = true;
       description = "Computed sccache environment variables. Read from config.programs.rsHarbor.sccache.envVars.";
     };
+
+    remoteEnvVars = mkOption {
+      type = types.attrsOf types.str;
+      internal = true;
+      readOnly = true;
+      description = "S3-backed environment reserved for interactive daemons.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -316,6 +343,7 @@ in {
     }];
 
     programs.rsHarbor.sccache.envVars = computedEnvVars;
+    programs.rsHarbor.sccache.remoteEnvVars = remoteEnvVars;
 
     environment.systemPackages = [cfg.package];
 
@@ -413,13 +441,22 @@ in {
         SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
         SCCACHE_DIR = cfg.daemon.diskCacheDir;
         SCCACHE_IDLE_TIMEOUT = toString cfg.daemon.idleTimeout;
+        SCCACHE_START_SERVER = "1";
+        SCCACHE_NO_DAEMON = "1";
+        SCCACHE_LOG = "warn";
+      };
+
+      unitConfig = {
+        StartLimitIntervalSec = "${toString sccacheDefault.restartWindow}s";
+        StartLimitBurst = sccacheDefault.restartBurst;
       };
 
       serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
+        Type = "exec";
         Restart = "on-failure";
-        RestartSec = "5";
+        RestartSec = "${toString sccacheDefault.restartDelay}s";
+        TimeoutStartSec = "${toString sccacheDefault.startupTimeout}s";
+        TimeoutStopSec = "10s";
         User = "sccache";
         Group = "sccache";
         RuntimeDirectory = "sccache";
@@ -429,10 +466,16 @@ in {
         ReadWritePaths = [
           cfg.daemon.diskCacheDir
         ];
-        ExecStartPre = "-${pkgs.coreutils}/bin/rm -f ${cfg.daemon.socketPath}";
-        ExecStart = "${cfg.package}/bin/sccache --start-server";
-        ExecStartPost = "${pkgs.coreutils}/bin/chmod 0666 ${cfg.daemon.socketPath}";
-        ExecStop = "${cfg.package}/bin/sccache --stop-server";
+        ExecStartPre = [
+          "${sccacheService.repairSocket} ${cfg.daemon.socketPath}"
+        ];
+        ExecStart = "${cfg.package}/bin/sccache";
+        ExecStartPost = [
+          "${sccacheService.waitForSocket} ${cfg.daemon.socketPath} ${toString sccacheDefault.startupTimeout}"
+          "${pkgs.coreutils}/bin/chmod 0666 ${cfg.daemon.socketPath}"
+        ];
+        ExecStop = "${pkgs.coreutils}/bin/env -u SCCACHE_START_SERVER ${cfg.package}/bin/sccache --stop-server";
+        KillMode = "control-group";
         ProtectSystem = "full";
         ProtectHome = true;
       };
