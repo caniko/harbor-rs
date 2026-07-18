@@ -3571,6 +3571,22 @@ in
       assert attrs."CARGO_TARGET_${targetUpper}_LINKER" == "${pkgs.buildPackages.stdenv.cc}/bin/cc";
         pkgs.runCommand "check-build-cache-policy-cross-shape" {} "touch $out";
 
+    build-cache-policy-cross-shape-overrides-direct-linker = let
+      policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      target = pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
+      targetUpper = pkgs.lib.toUpper (pkgs.lib.replaceStrings ["-"] ["_"] target);
+      direct = pkgs.hello.overrideAttrs (_: {
+        "__CRANE_EXPORT_CARGO_TARGET_${targetUpper}_LINKER" = "cc";
+      });
+      wrapped = policy.withCrossRust {
+        package = direct;
+        buildPackageSet' = pkgs.buildPackages;
+      };
+      attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
+    in
+      assert attrs."__CRANE_EXPORT_CARGO_TARGET_${targetUpper}_LINKER" == "${pkgs.buildPackages.stdenv.cc}/bin/cc";
+        pkgs.runCommand "check-build-cache-policy-cross-shape-overrides-direct-linker" {} "touch $out";
+
     # Direct crane arguments such as RUSTC_WRAPPER must remain compatible with
     # the policy wrapper. Nix rejects duplicating those names inside `env`.
     build-cache-policy-preserves-direct-env = let

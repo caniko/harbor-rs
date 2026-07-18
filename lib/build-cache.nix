@@ -291,6 +291,7 @@ let
       withEnv = {
         package,
         env,
+        directEnvOverrides ? {},
         nativeInputs ? commonNativeInputs,
       }:
         let
@@ -299,7 +300,7 @@ let
           # preserve the direct value and only inject names that are not
           # already present on the package.
           directEnvNames = builtins.filter (name: builtins.hasAttr name package) (builtins.attrNames env);
-          effectiveEnv = builtins.removeAttrs env directEnvNames;
+          effectiveEnv = builtins.removeAttrs env (directEnvNames ++ builtins.attrNames directEnvOverrides);
         in
           package.overrideAttrs (old:
             if (old.passthru or {}).rsHarborBuildCacheWrapped or false
@@ -307,8 +308,9 @@ let
             else
               {
                 nativeBuildInputs = (old.nativeBuildInputs or []) ++ nativeInputs;
-                env = (old.env or {}) // effectiveEnv;
+                env = (builtins.removeAttrs (old.env or {}) (builtins.attrNames directEnvOverrides)) // effectiveEnv;
               }
+              // directEnvOverrides
               // markWrapped old);
 
       withRustCache = {
@@ -327,6 +329,7 @@ let
           wrapped = withEnv {
             inherit package;
             env = rustEnv // extraEnv // linkerEnv;
+            directEnvOverrides = linkerEnv;
           };
         in
           wrapped.overrideAttrs (old:
@@ -338,6 +341,7 @@ let
                 then withEnv {
                   package = old.cargoArtifacts;
                   env = rustEnv // extraEnv // linkerEnv;
+                  directEnvOverrides = linkerEnv;
                 }
                 else old.cargoArtifacts or null;
               passthru =
@@ -368,6 +372,14 @@ let
         "CC_${targetUpper}" = hostCc;
         HOST_CC = hostCc;
         CC_FOR_BUILD = hostCc;
+        # Crane serializes direct Cargo arguments as __CRANE_EXPORT_* values.
+        # Keep those exports aligned too: an env-only override is deliberately
+        # filtered when the original derivation already has the direct name,
+        # but the setup hook consumes the export form for cargoArtifacts.
+        "__CRANE_EXPORT_${linkerEnv}" = hostCc;
+        "__CRANE_EXPORT_CC_${targetUpper}" = hostCc;
+        __CRANE_EXPORT_HOST_CC = hostCc;
+        __CRANE_EXPORT_CC_FOR_BUILD = hostCc;
       };
 
       withCrossRust = {
@@ -379,9 +391,7 @@ let
         then package
         else
           withRustCache {
-            package = package.overrideAttrs (old: {
-              env = (old.env or {}) // hostLinkerEnvFor buildPackageSet';
-            });
+            inherit package;
             linkerPackageSet = buildPackageSet';
           };
 
