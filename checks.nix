@@ -3511,6 +3511,19 @@ in
       assert policy.sharedCacheDir == "/tmp/sccache/test-rust-v7-sccache-${pkgs.sccache.version}";
         pkgs.runCommand "check-build-cache-policy-contract" {} "touch $out";
 
+    build-cache-policy-cross-platform-wrapper = let
+      targetPkgs = pkgs.pkgsCross.aarch64-multiplatform;
+      policy = self.lib.mkBuildCachePolicy {
+        pkgs = targetPkgs;
+        buildPackageSet = pkgs;
+        sccachePackage = pkgs.sccache;
+        cacheRoot = "/tmp/sccache";
+      };
+    in
+      assert policy.wrapper.stdenv.buildPlatform.system == pkgs.system;
+      assert policy.wrapper.stdenv.hostPlatform.system == pkgs.system;
+        pkgs.runCommand "check-build-cache-policy-cross-platform-wrapper" {} "touch $out";
+
     build-cache-policy-builder-shapes = let
       policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
       rust = policy.withRustCache {package = pkgs.hello;};

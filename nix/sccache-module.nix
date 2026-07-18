@@ -42,6 +42,7 @@
   config,
   lib,
   pkgs,
+  rsHarborBuildPkgs ? pkgs.buildPackages,
   ...
 }: let
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
@@ -54,7 +55,7 @@
     then
       (import ../lib/build-cache.nix {}).mkBuildCachePolicy {
         inherit pkgs;
-        buildPackageSet = pkgs.buildPackages;
+        buildPackageSet = rsHarborBuildPkgs;
         sccachePackage = cfg.package;
         cacheRoot = cfg.sandboxCacheDir;
         namespaceScope = cfg.cacheNamespaceScope;

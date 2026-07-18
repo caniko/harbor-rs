@@ -3,12 +3,12 @@
 # The sccache module owns transport and credentials.  This module owns the
 # writable sandbox mount and exposes the same pure policy object to NixOS
 # consumers and Crossbow assembly modules.
-{config, lib, pkgs, ...}: let
+{config, lib, pkgs, rsHarborBuildPkgs ? pkgs.buildPackages, ...}: let
   cfg = config.programs.rsHarbor.buildCache;
   policy =
     (import ../lib/build-cache.nix {}).mkBuildCachePolicy {
       inherit pkgs;
-      buildPackageSet = pkgs.buildPackages;
+      buildPackageSet = rsHarborBuildPkgs;
       sccachePackage = cfg.package;
       cacheRoot = cfg.cacheRoot;
       namespaceScope = cfg.namespaceScope;
