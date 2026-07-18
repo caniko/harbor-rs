@@ -405,9 +405,15 @@ let
       }:
         if !enable
         then package
-        else package.overrideAttrs (old: {
-          env = (old.env or {}) // hostLinkerEnvFor buildPackageSet';
-        });
+        else let
+          linkerEnv = hostLinkerEnvFor buildPackageSet';
+        in
+          withEnv {
+            inherit package;
+            env = linkerEnv;
+            directEnvOverrides = linkerEnv;
+            nativeInputs = [];
+          };
 
       withCmakeCache = {
         package,
