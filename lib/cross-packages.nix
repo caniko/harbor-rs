@@ -7,7 +7,8 @@
 #   targets ? [ "native" ],   # subset of the supported target names
 #   targetArgs ? {},          # per-target extra crane args, merged LAST
 #   toolchainArgs ? {},       # mkToolchain args for non-native targets
-#   buildCache ? null,        # rs-harbor.lib.mkBuildCachePolicy result
+#   buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
+#                              # explicit policy override/opt-out
 # } -> attrset of derivations keyed by OUTPUT ATTR NAME:
 #        "native"         -> attr "${pname}"
 #        "aarch64-linux"  -> attr "${pname}-aarch64-linux"
@@ -33,7 +34,7 @@
   targets ? ["native"],
   targetArgs ? {},
   toolchainArgs ? {},
-  buildCache ? null,
+  buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
 }: let
   lib = pkgs.lib;
 
