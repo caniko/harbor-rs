@@ -336,7 +336,7 @@ let
           };
         in
           wrapped.overrideAttrs (old:
-            if (old.passthru or {}).rsHarborBuildCacheArtifactsWrapped or false
+            if ((old.passthru or {}).rsHarborBuildCacheArtifactsWrapped or false) && linkerEnv == {}
             then { }
             else {
               cargoArtifacts =
