@@ -303,11 +303,14 @@ let
           effectiveEnv = builtins.removeAttrs env (directEnvNames ++ builtins.attrNames directEnvOverrides);
         in
           package.overrideAttrs (old:
-            if (old.passthru or {}).rsHarborBuildCacheWrapped or false
+            if ((old.passthru or {}).rsHarborBuildCacheWrapped or false) && directEnvOverrides == {}
             then { }
             else
               {
-                nativeBuildInputs = (old.nativeBuildInputs or []) ++ nativeInputs;
+                nativeBuildInputs =
+                  if (old.passthru or {}).rsHarborBuildCacheWrapped or false
+                  then old.nativeBuildInputs or []
+                  else (old.nativeBuildInputs or []) ++ nativeInputs;
                 env = (builtins.removeAttrs (old.env or {}) (builtins.attrNames directEnvOverrides)) // effectiveEnv;
               }
               // directEnvOverrides
