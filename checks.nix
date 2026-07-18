@@ -25,6 +25,7 @@ in
       assert t ? rawCraneLib;
       assert t ? buildCache;
       assert t.buildCache != null;
+      assert pkgs.sccache.version == "0.16.0";
       assert t.buildCache.contract.namespace == "canix-rust-v5-sccache-${pkgs.sccache.version}";
       assert t.craneLib.rsHarborBuildCachePolicy.contract == t.buildCache.contract;
       assert t ? crossTargets;
