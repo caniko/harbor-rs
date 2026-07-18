@@ -45,6 +45,10 @@ let
     namespaceGeneration ? 1,
     connectTimeout ? "2",
     executionModel ? "sandbox-local",
+    # Atlas mounts this socket into Nix sandboxes.  The wrapper discovers it
+    # at runtime so every consumer using rs-harbor gets the host transport
+    # without copying host-specific Redis settings into project flakes.
+    redisSocketPath ? "/run/redis-sccache/redis.sock",
   }:
     let
       lib = pkgs.lib;
@@ -124,7 +128,35 @@ let
           unset ${lib.escapeShellArgs remoteCacheEnvNames}
           unset SCCACHE_SERVER_UDS
 
+          # Nix's impure-env setting is not inherited by ordinary derivations;
+          # it only affects fixed-output builders.  Discover the canonical
+          # host-mounted Redis socket here instead of silently falling back to
+          # a private $NIX_BUILD_TOP cache when a project uses cacheRoot=null.
+          if [ -z "''${SCCACHE_REDIS_ENDPOINT:-}" ] \
+            && [ -z "''${SCCACHE_REDIS_CLUSTER_ENDPOINTS:-}" ] \
+            && [ -S ${lib.escapeShellArg redisSocketPath} ]; then
+            # redis-rs 0.32 accepts the Unix socket when the URI has an
+            # authority component; the authority is ignored for the socket
+            # path but avoids its `invalid format` rejection of an empty one.
+            export SCCACHE_REDIS_ENDPOINT=${lib.escapeShellArg "redis+unix://localhost${redisSocketPath}"}
+          fi
+
           if [ -n "''${SCCACHE_REDIS_ENDPOINT:-}" ] || [ -n "''${SCCACHE_REDIS_CLUSTER_ENDPOINTS:-}" ]; then
+            if [ -z "''${SCCACHE_REDIS_KEY_PREFIX:-}" ]; then
+              export SCCACHE_REDIS_KEY_PREFIX=${lib.escapeShellArg "canix/${namespace}"}
+            fi
+            if [ -z "''${SCCACHE_REDIS_RW_MODE:-}" ]; then
+              export SCCACHE_REDIS_RW_MODE=READ_WRITE
+            fi
+            if [ -z "''${SCCACHE_MULTILEVEL_CHAIN:-}" ]; then
+              export SCCACHE_MULTILEVEL_CHAIN=redis
+            fi
+            if [ -z "''${SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY:-}" ]; then
+              export SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore
+            fi
+            if [ -z "''${SCCACHE_BASEDIRS:-}" ]; then
+              export SCCACHE_BASEDIRS=/build
+            fi
             unset SCCACHE_DIR XDG_CACHE_HOME
             export SCCACHE_SERVER_UDS="$compiler_socket"
             exec ${realSccache}/bin/sccache "$@"
@@ -387,7 +419,7 @@ let
       inherit withRustCache withDioxusCache withCrossRust withCrossLinker withCmakeCache mkOverlay;
       contract = {
         schemaVersion = 1;
-        inherit namespaceScope namespaceGeneration namespace sccacheVersion executionModel;
+        inherit namespaceScope namespaceGeneration namespace sccacheVersion executionModel redisSocketPath;
         rustToolchain = buildContract.toolchain.toolchain;
       };
     };

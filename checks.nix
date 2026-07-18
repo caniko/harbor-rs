@@ -3449,6 +3449,7 @@ in
       assert policy.contract.namespace == "test-rust-v7-sccache-${pkgs.sccache.version}";
       assert policy.contract.sccacheVersion == pkgs.sccache.version;
       assert policy.contract.rustToolchain.channel == "nightly-2026-02-28";
+      assert policy.contract.redisSocketPath == "/run/redis-sccache/redis.sock";
       assert policy.sharedCacheDir == "/tmp/sccache/test-rust-v7-sccache-${pkgs.sccache.version}";
         pkgs.runCommand "check-build-cache-policy-contract" {} "touch $out";
 
