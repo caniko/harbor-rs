@@ -42,6 +42,7 @@ in
         inherit src;
         pname = "mk-toolchain-cache-fixture";
         version = "0.1.0";
+        rsHarborCacheReuseKey = "mk-toolchain-cache-fixture";
         doCheck = false;
       };
       package = t.craneLib.buildPackage {
@@ -49,11 +50,16 @@ in
         pname = "mk-toolchain-cache-fixture";
         version = "0.1.0";
         cargoArtifacts = deps;
+        rsHarborCacheReuseKey = "mk-toolchain-cache-fixture";
         doCheck = false;
       };
     in
       assert deps.passthru.rsHarborBuildCacheWrapped;
       assert package.passthru.rsHarborBuildCacheWrapped;
+      assert deps.drvAttrs.RS_HARBOR_SCCACHE_WORKLOAD_KIND == "dependency-artifacts";
+      assert deps.drvAttrs.RS_HARBOR_SCCACHE_REUSE_KEY == "mk-toolchain-cache-fixture";
+      assert package.drvAttrs.RS_HARBOR_SCCACHE_WORKLOAD_KIND == "package";
+      assert package.drvAttrs.RS_HARBOR_SCCACHE_REUSE_KEY == "mk-toolchain-cache-fixture";
         pkgs.runCommand "check-mkToolchain-crane-builders-are-cached" {} "touch $out";
 
     # Exceptional derivations can opt out explicitly, while retaining the raw
@@ -3067,6 +3073,81 @@ in
         pkgs.runCommand "check-sccache-crane-env-daemon-uds" {} "touch $out";
 
     # NixOS module exports envVars with credentials
+    sccache-home-runtime-basedirs = let
+      evaluated = pkgs.lib.evalModules {
+        specialArgs = {
+          inherit pkgs;
+          osConfig = {
+            users.users.can.uid = 1000;
+            programs.rsHarbor.sccache = {
+              enable = true;
+              remoteEnvVars = {
+                SCCACHE_BUCKET = "sccache";
+                SCCACHE_ENDPOINT = "http://garage.test";
+              };
+            };
+          };
+        };
+        modules = [
+          self.homeManagerModules.sccache
+          ({lib, ...}: {
+            options = {
+              assertions = lib.mkOption {type = lib.types.listOf lib.types.unspecified;};
+              home.username = lib.mkOption {type = lib.types.str;};
+              home.homeDirectory = lib.mkOption {type = lib.types.str;};
+              home.packages = lib.mkOption {type = lib.types.listOf lib.types.package;};
+              home.sessionVariables = lib.mkOption {type = lib.types.attrsOf lib.types.str;};
+              programs.nushell.environmentVariables = lib.mkOption {type = lib.types.attrsOf lib.types.str;};
+              systemd.user.services = lib.mkOption {type = lib.types.attrsOf lib.types.unspecified;};
+              systemd.user.sessionVariables = lib.mkOption {type = lib.types.attrsOf lib.types.str;};
+              xdg.cacheHome = lib.mkOption {type = lib.types.str;};
+            };
+            config = {
+              assertions = [];
+              home = {
+                username = "can";
+                homeDirectory = "/home/can";
+                packages = [];
+                sessionVariables = {};
+              };
+              programs = {
+                nushell.environmentVariables = {};
+                rsHarbor.sccache.userDaemon = {
+                  enable = true;
+                  basedirs = ["/build" "/workspace"];
+                  basedirsFile = "/run/user/1000/canix/sccache-basedirs";
+                  multiLevelChain = "disk,redis,s3";
+                  redisEndpoint = "redis+unix://localhost/run/redis-sccache/redis.sock";
+                  redisKeyPrefix = "canix/test-rust-v1-sccache-0.16.0";
+                  redisRwMode = "READ_WRITE";
+                  multiLevelWriteErrorPolicy = "ignore";
+                  environment.SCCACHE_CACHE_SIZE = "10G";
+                };
+              };
+              systemd.user = {
+                services = {};
+                sessionVariables = {};
+              };
+              xdg.cacheHome = "/home/can/.cache";
+            };
+          })
+        ];
+      };
+      cfg = evaluated.config;
+      service = cfg.systemd.user.services.sccache-user-daemon.Service;
+    in
+      assert builtins.elem "SCCACHE_BASEDIRS=/build:/workspace" service.Environment;
+      assert builtins.elem "SCCACHE_MULTILEVEL_CHAIN=disk,redis,s3" service.Environment;
+      assert builtins.elem "SCCACHE_REDIS_ENDPOINT=redis+unix://localhost/run/redis-sccache/redis.sock" service.Environment;
+      assert builtins.elem "SCCACHE_REDIS_KEY_PREFIX=canix/test-rust-v1-sccache-0.16.0" service.Environment;
+      assert builtins.elem "SCCACHE_REDIS_RW_MODE=READ_WRITE" service.Environment;
+      assert builtins.elem "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore" service.Environment;
+      assert builtins.elem "SCCACHE_CACHE_SIZE=10G" service.Environment;
+      assert pkgs.lib.hasInfix "sccache-user-daemon-launcher" service.ExecStart;
+      assert cfg.home.sessionVariables.CARGO_INCREMENTAL == "0";
+      assert cfg.systemd.user.sessionVariables.CARGO_INCREMENTAL == "0";
+        pkgs.runCommand "check-sccache-home-runtime-basedirs" {} "touch $out";
+
     sccache-module-env-vars = let
       evaluated = pkgs.lib.evalModules {
         modules = [
@@ -3503,7 +3584,9 @@ in
         namespaceGeneration = 7;
       };
     in
-      assert policy.contract.schemaVersion == 1;
+      assert policy.contract.schemaVersion == 2;
+      assert policy.contract.telemetrySchemaVersion == 1;
+      assert policy.contract.telemetryMarker == "RS_HARBOR_SCCACHE_STATS_V1";
       assert policy.contract.namespace == "test-rust-v7-sccache-${pkgs.sccache.version}";
       assert policy.contract.sccacheVersion == pkgs.sccache.version;
       assert policy.contract.rustToolchain.channel == "nightly-2026-02-28";
@@ -3558,17 +3641,30 @@ in
         inherit pkgs;
         buildPackageSet = pkgs.buildPackages;
       };
-      wrapped = policy.withCrossRust {
+      linked = policy.withCrossLinker {
         package = pkgs.hello;
         buildPackageSet' = pkgs.buildPackages;
+      };
+      wrapped = policy.withRustCache {
+        package = linked;
+        linkerPackageSet = pkgs.buildPackages;
       };
       attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
       target = pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
       targetUpper = pkgs.lib.toUpper (pkgs.lib.replaceStrings ["-"] ["_"] target);
+      cacheWrappers = builtins.filter
+        (input: input.rsHarborSandboxLocalSccache or false)
+        (wrapped.drvAttrs.nativeBuildInputs or []);
+      telemetryHooks = builtins.filter
+        (input: pkgs.lib.hasPrefix "rs-harbor-sccache-telemetry-hook" (input.name or ""))
+        (wrapped.drvAttrs.nativeBuildInputs or []);
     in
+      assert !(linked.rsHarborBuildCacheWrapped or false);
       assert attrs.RUSTC_WRAPPER == policy.wrapperPath;
       assert attrs ? "CARGO_TARGET_${targetUpper}_LINKER";
       assert attrs."CARGO_TARGET_${targetUpper}_LINKER" == "${pkgs.buildPackages.stdenv.cc}/bin/cc";
+      assert builtins.length cacheWrappers == 1;
+      assert builtins.length telemetryHooks == 1;
         pkgs.runCommand "check-build-cache-policy-cross-shape" {} "touch $out";
 
     build-cache-policy-cross-shape-overrides-direct-linker = let

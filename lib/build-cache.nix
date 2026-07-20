@@ -261,7 +261,67 @@ let
         esac
       '';
       dioxusDispatcherPath = "${dioxusDispatcher}/bin/rs-harbor-dioxus-sccache";
-      commonNativeInputs = [wrapper canonicalSccachePackage];
+      telemetryHook = buildPackages.writeTextFile {
+        name = "rs-harbor-sccache-telemetry-hook";
+        destination = "/nix-support/setup-hook";
+        text = ''
+          if [ -z "''${RS_HARBOR_SCCACHE_TELEMETRY_LOADED:-}" ]; then
+            export RS_HARBOR_SCCACHE_TELEMETRY_LOADED=1
+
+            rs_harbor_sccache_telemetry_start() {
+              if [ "''${RS_HARBOR_SCCACHE_TELEMETRY_STARTED:-0}" = 1 ]; then
+                return 0
+              fi
+              ${wrapperPath} --zero-stats >/dev/null 2>&1 || return 0
+              export RS_HARBOR_SCCACHE_TELEMETRY_STARTED=1
+              export RS_HARBOR_SCCACHE_TELEMETRY_STARTED_AT="$(${buildPackages.coreutils}/bin/date +%s)"
+            }
+
+            rs_harbor_sccache_telemetry_emit() {
+              outcome="$1"
+              exit_code="''${2:-0}"
+              [ "''${RS_HARBOR_SCCACHE_TELEMETRY_STARTED:-0}" = 1 ] || return 0
+              stats="$(${wrapperPath} --show-adv-stats --stats-format json 2>/dev/null || printf '{}')"
+              ${buildPackages.jq}/bin/jq -c \
+                --arg outcome "$outcome" \
+                --arg exitCode "$exit_code" \
+                --arg name "''${name:-unknown}" \
+                --arg workloadKind "''${RS_HARBOR_SCCACHE_WORKLOAD_KIND:-unknown}" \
+                --arg reuseKey "''${RS_HARBOR_SCCACHE_REUSE_KEY:-}" \
+                --arg startedAt "''${RS_HARBOR_SCCACHE_TELEMETRY_STARTED_AT:-}" \
+                --arg emittedAt "$(${buildPackages.coreutils}/bin/date +%s)" \
+                --arg namespace ${lib.escapeShellArg namespace} \
+                --arg sccacheVersion ${lib.escapeShellArg sccacheVersion} \
+                'if (.stats | type) != "object" then empty else . + {
+                  rsHarborTelemetrySchemaVersion: 1,
+                  rsHarborOutcome: $outcome,
+                  rsHarborExitCode: ($exitCode | tonumber),
+                  rsHarborDerivation: $name,
+                  rsHarborWorkloadKind: $workloadKind,
+                  rsHarborReuseKey: $reuseKey,
+                  rsHarborStartedAt: ($startedAt | tonumber),
+                  rsHarborEmittedAt: ($emittedAt | tonumber),
+                  rsHarborNamespace: $namespace,
+                  rsHarborSccacheVersion: $sccacheVersion
+                } end' <<<"$stats" \
+                | sed 's/^/RS_HARBOR_SCCACHE_STATS_V1 /'
+              ${wrapperPath} --stop-server >/dev/null 2>&1 || true
+            }
+            rs_harbor_sccache_telemetry_success() {
+              rs_harbor_sccache_telemetry_emit success "''${exitCode:-0}"
+            }
+            rs_harbor_sccache_telemetry_failure() {
+              rs_harbor_sccache_telemetry_emit failure "''${exitCode:-1}"
+            }
+
+            preConfigureHooks+=(rs_harbor_sccache_telemetry_start)
+            preBuildHooks+=(rs_harbor_sccache_telemetry_start)
+            exitHooks+=(rs_harbor_sccache_telemetry_success)
+            failureHooks+=(rs_harbor_sccache_telemetry_failure)
+          fi
+        '';
+      };
+      commonNativeInputs = [wrapper canonicalSccachePackage telemetryHook buildPackages.jq];
 
       rustEnv = {
         RUSTC_WRAPPER = wrapperPath;
@@ -293,6 +353,7 @@ let
         env,
         directEnvOverrides ? {},
         nativeInputs ? commonNativeInputs,
+        markCacheWrapped ? true,
       }:
         let
           # Crane callers commonly pass cache variables as direct derivation
@@ -304,7 +365,13 @@ let
         in
           package.overrideAttrs (old:
             if ((old.passthru or {}).rsHarborBuildCacheWrapped or false) && directEnvOverrides == {}
-            then { }
+            then {
+              # Crane can wrap mkCargoDerivation before buildDepsOnly or
+              # buildPackage applies its phase-specific telemetry context.
+              # Preserve the existing native inputs while allowing the outer
+              # boundary to update workload metadata.
+              env = (old.env or {}) // effectiveEnv;
+            }
             else
               {
                 nativeBuildInputs =
@@ -314,13 +381,14 @@ let
                 env = (builtins.removeAttrs (old.env or {}) (builtins.attrNames directEnvOverrides)) // effectiveEnv;
               }
               // directEnvOverrides
-              // markWrapped old);
+              // lib.optionalAttrs markCacheWrapped (markWrapped old));
 
       withRustCache = {
         package,
         enable ? true,
         extraEnv ? {},
         linkerPackageSet ? null,
+        telemetry ? {},
       }:
         if !enable
         then package
@@ -329,10 +397,18 @@ let
             if linkerPackageSet == null
             then {}
             else hostLinkerEnvFor linkerPackageSet;
+          telemetryEnv = {
+            RS_HARBOR_SCCACHE_WORKLOAD_KIND = telemetry.workloadKind or "unknown";
+            RS_HARBOR_SCCACHE_REUSE_KEY = telemetry.reuseKey or "";
+          };
           wrapped = withEnv {
             inherit package;
-            env = rustEnv // extraEnv // linkerEnv;
-            directEnvOverrides = linkerEnv;
+            env = rustEnv // extraEnv // linkerEnv // telemetryEnv;
+            # mkCargoDerivation installs placeholder telemetry before Crane's
+            # phase-specific builders run.  Override those direct derivation
+            # attributes here so buildDepsOnly/buildPackage do not retain the
+            # inner "unknown"/empty values.
+            directEnvOverrides = linkerEnv // telemetryEnv;
           };
         in
           wrapped.overrideAttrs (old:
@@ -343,8 +419,8 @@ let
                 if (old.cargoArtifacts or null) != null
                 then withEnv {
                   package = old.cargoArtifacts;
-                  env = rustEnv // extraEnv // linkerEnv;
-                  directEnvOverrides = linkerEnv;
+                  env = rustEnv // extraEnv // linkerEnv // telemetryEnv;
+                  directEnvOverrides = linkerEnv // telemetryEnv;
                 }
                 else old.cargoArtifacts or null;
               passthru =
@@ -413,6 +489,11 @@ let
             env = linkerEnv;
             directEnvOverrides = linkerEnv;
             nativeInputs = [];
+            # Linker selection is only the first half of canix's Crossbow
+            # composition.  Do not claim that the cache wrapper and setup
+            # hooks are present: the following withRustCache call must still
+            # install those inputs.
+            markCacheWrapped = false;
           };
 
       withCmakeCache = {
@@ -484,7 +565,9 @@ let
       inherit namespace sharedCacheDir wrapper wrapperPath dioxusDispatcher dioxusDispatcherPath rustEnv dioxusEnv;
       inherit withRustCache withDioxusCache withCrossRust withCrossLinker withCmakeCache mkOverlay;
       contract = {
-        schemaVersion = 1;
+        schemaVersion = 2;
+        telemetrySchemaVersion = 1;
+        telemetryMarker = "RS_HARBOR_SCCACHE_STATS_V1";
         inherit namespaceScope namespaceGeneration namespace sccacheVersion executionModel redisSocketPath;
         rustToolchain = buildContract.toolchain.toolchain;
       };

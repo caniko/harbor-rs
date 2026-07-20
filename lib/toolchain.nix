@@ -149,6 +149,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     builtins.removeAttrs args [
       "rsHarborAllowPathPatchBuildDepsOnly"
       "rsHarborCargoTomlContents"
+      "rsHarborCacheReuseKey"
     ];
 
   pathPatchBuildDepsOnlyError = pathPatches: ''
@@ -199,7 +200,13 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     in
       if buildCache == null
       then raw
-      else buildCache.withRustCache {package = raw;};
+      else buildCache.withRustCache {
+        package = raw;
+        telemetry = {
+          workloadKind = "dependency-artifacts";
+          reuseKey = args.rsHarborCacheReuseKey or "";
+        };
+      };
 
     buildPackage = args: let
       pathPatches =
@@ -215,7 +222,13 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     in
       if buildCache == null
       then raw
-      else buildCache.withRustCache {package = raw;};
+      else buildCache.withRustCache {
+        package = raw;
+        telemetry = {
+          workloadKind = "package";
+          reuseKey = args.rsHarborCacheReuseKey or "";
+        };
+      };
     }))
     // {
       # Dioxus and cross helpers use this marker to inherit the same policy
