@@ -5,8 +5,9 @@
 ## Parameters
 
 - `pkgs` (required): nixpkgs with `rust-overlay` applied
+- `toolchainFile`: optional path to a standard `rust-toolchain.toml`; when set, its channel, components, and targets are authoritative
 - `channel`: `"nightly"` or `"stable"`; defaults to `"nightly"`
-- `date`: `"latest"` or a pinned date such as `"2025-12-01"`
+- `date`: `"latest"` or a pinned date such as `"2025-12-01"`; only used without `toolchainFile`
 - `extensions`: extra Rust components to install. Defaults to `["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"]`. `llvm-tools-preview` provides `llvm-cov`/`llvm-profdata`, which `cargo-llvm-cov`-based coverage CI requires.
 - `withRustAnalyzer`: whether to include `rust-analyzer` in the toolchain extensions; defaults to `true`
 - `crossTargets`: list of target triples to include in the toolchain
@@ -64,3 +65,16 @@ toolchain = rs-harbor.lib.mkToolchain {
 ```
 
 Most downstream projects only need `craneLib` from the result. Pair it with [mkCargoConfig](./cargo-config.md) and [mkDevShell and mkDevShells](./dev-shells.md) for a complete local environment.
+
+Projects with a checked-in Rust toolchain file can consume it directly:
+
+```nix
+toolchain = rs-harbor.lib.mkToolchain {
+  inherit pkgs;
+  toolchainFile = ./rust-toolchain.toml;
+  cache.enable = false;
+};
+```
+
+In file mode, `channel` and `date` must be omitted. Explicit `extensions` and
+`crossTargets` are added to the components and targets declared by the file.

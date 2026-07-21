@@ -1,23 +1,21 @@
-# mkToolchain :: { pkgs, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, cache? }
+# mkToolchain :: { pkgs, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, cache? }
 #             -> { rustToolchain, craneLib, rawCraneLib, buildCache, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
 {crane, mkBuildCachePolicy}: {
   pkgs,
-  channel ? "nightly",
+  # When set, the standard rust-toolchain.toml is authoritative for the
+  # compiler channel, components, and targets. The legacy channel/date mode
+  # remains the default when this is null.
+  toolchainFile ? null,
+  channel ? null,
   # Preserve the historical channel default for downstream stable consumers.
   # Projects that need the fleet-pinned nightly read `rust-toolchain.toml` and
   # pass its date explicitly; a stable channel has no nightly date attribute.
-  date ? "latest",
-  extensions ? ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"],
+  date ? null,
+  extensions ? null,
   withRustAnalyzer ? true,
-  crossTargets ? [
-    "x86_64-unknown-linux-gnu"
-    "aarch64-unknown-linux-gnu"
-    "x86_64-pc-windows-gnu"
-    "x86_64-apple-darwin"
-    "aarch64-apple-darwin"
-  ],
+  crossTargets ? null,
   # Compiler caching is enabled by default for every crane derivation. The
   # policy is deliberately configurable so projects with an exceptional
   # build can opt out explicitly without reintroducing hand-wrapped packages.
@@ -25,29 +23,63 @@
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
 "rs-harbor: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
-assert pkgs.lib.assertMsg (builtins.elem channel ["nightly" "stable"])
-"rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${channel}\"";
+assert pkgs.lib.assertMsg (toolchainFile == null || (channel == null && date == null))
+"rs-harbor: mkToolchain 'toolchainFile' cannot be combined with 'channel' or 'date'";
+assert pkgs.lib.assertMsg (channel == null || builtins.elem channel ["nightly" "stable"])
+"rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${toString channel}\"";
 assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
-"rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${date}\""; let
-  extensions' =
+"rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${toString date}\""; let
+  legacyExtensions = if extensions == null then ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"] else extensions;
+  legacyCrossTargets = if crossTargets == null then [
+    "x86_64-unknown-linux-gnu"
+    "aarch64-unknown-linux-gnu"
+    "x86_64-pc-windows-gnu"
+    "x86_64-apple-darwin"
+    "aarch64-apple-darwin"
+  ] else crossTargets;
+  toolchainManifest =
+    if toolchainFile == null
+    then {}
+    else builtins.fromTOML (builtins.readFile toolchainFile);
+  manifestToolchain = toolchainManifest.toolchain or {};
+  manifestComponents = manifestToolchain.components or [];
+  manifestTargets = manifestToolchain.targets or [];
+  fileExtensions =
+    manifestComponents
+    ++ (if extensions == null then [] else extensions)
+    ++ (if withRustAnalyzer && !(builtins.elem "rust-analyzer" (manifestComponents ++ (if extensions == null then [] else extensions))) then ["rust-analyzer"] else []);
+  fileTargets = manifestTargets ++ (if crossTargets == null then [] else crossTargets);
+  resolvedCrossTargets = if toolchainFile != null then fileTargets else legacyCrossTargets;
+  legacyExtensions' =
     if withRustAnalyzer
     then
-      if builtins.elem "rust-analyzer" extensions
-      then extensions
-      else extensions ++ ["rust-analyzer"]
-    else extensions;
+      if builtins.elem "rust-analyzer" legacyExtensions
+      then legacyExtensions
+      else legacyExtensions ++ ["rust-analyzer"]
+    else legacyExtensions;
+  legacyChannel = if channel == null then "nightly" else channel;
+  legacyDate = if date == null then "latest" else date;
   channelSet =
-    if channel == "nightly"
+    if legacyChannel == "nightly"
     then pkgs.rust-bin.nightly
     else pkgs.rust-bin.stable;
   dateSet =
-    if date == null || date == "latest"
+    if legacyDate == "latest"
     then channelSet.latest
-    else channelSet.${date};
-  rustToolchain = dateSet.default.override {
-    extensions = extensions';
-    targets = crossTargets;
-  };
+    else channelSet.${legacyDate};
+  rustToolchain =
+    if toolchainFile != null
+    then
+      assert pkgs.lib.assertMsg (manifestToolchain ? channel)
+        "rs-harbor: mkToolchain 'toolchainFile' must contain [toolchain].channel";
+      (pkgs.rust-bin.fromRustupToolchainFile toolchainFile).override {
+        extensions = fileExtensions;
+        targets = fileTargets;
+      }
+    else dateSet.default.override {
+      extensions = legacyExtensions';
+      targets = legacyCrossTargets;
+    };
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
@@ -262,5 +294,6 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       );
   });
 in {
-  inherit rustToolchain craneLib rawCraneLib buildCache crossTargets;
+  inherit rustToolchain craneLib rawCraneLib buildCache;
+  crossTargets = resolvedCrossTargets;
 }
