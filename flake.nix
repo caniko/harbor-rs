@@ -28,6 +28,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    sccache = {
+      url = "path:./sccache";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
   };
 
   outputs =
@@ -40,6 +45,7 @@
       osxcross,
       meta-harbor,
       nix-opencode-lsp,
+      sccache,
       ...
     }:
     flake-parts.lib.mkFlake { inherit inputs; } {
@@ -52,6 +58,8 @@
         };
       in {
         inherit lib;
+
+        sccache = sccache.lib;
 
         nixosModules = {
           macosSdk = import ./nix/nixos-module.nix;
@@ -82,6 +90,7 @@
           toolchain = self.lib.mkToolchain { inherit pkgs; };
           cross = self.lib.mkCross { inherit pkgs system; };
           cargoConfig = self.lib.mkCargoConfig { inherit pkgs; };
+          rsHarborVersion = (builtins.fromTOML (builtins.readFile ./cli/Cargo.toml)).package.version;
 
           bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {
             inherit pkgs;
@@ -91,7 +100,82 @@
             inherit pkgs;
             inherit (toolchain) craneLib;
             src = ./.;
+            version = rsHarborVersion;
           };
+
+          rsHarborStaticPackages =
+            if system == "x86_64-linux"
+            then
+              self.lib.mkCrossPackages {
+                inherit pkgs cross;
+                inherit (toolchain) craneLib;
+                pname = "rs-harbor";
+                commonArgs = {
+                  src = ./.;
+                  version = rsHarborVersion;
+                  strictDeps = true;
+                  doCheck = false;
+                  nativeBuildInputs = [pkgs.clang pkgs.mold];
+                  nativeCheckInputs = [pkgs.git];
+                };
+                targets = ["x86_64-linux-musl" "aarch64-linux-musl"];
+              }
+            else {};
+
+          rsHarborBinaryRelease =
+            if system == "x86_64-linux"
+            then
+              self.lib.mkBinaryRelease {
+                inherit pkgs;
+                pname = "rs-harbor";
+                version = rsHarborVersion;
+                artifacts = {
+                  x86_64-linux-musl = {
+                    package = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
+                    system = "x86_64-linux";
+                    rustTarget = "x86_64-unknown-linux-musl";
+                    binutils = pkgs.pkgsStatic.stdenv.cc.bintools;
+                    strip = "${pkgs.pkgsStatic.stdenv.cc.bintools}/bin/x86_64-unknown-linux-musl-strip";
+                    readelf = "${pkgs.pkgsStatic.stdenv.cc.bintools.bintools}/bin/x86_64-unknown-linux-musl-readelf";
+                    binaries = ["rs-harbor"];
+                  };
+                  aarch64-linux-musl = {
+                    package = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
+                    system = "aarch64-linux";
+                    rustTarget = "aarch64-unknown-linux-musl";
+                    binutils = pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools;
+                    strip = "${pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools}/bin/aarch64-unknown-linux-musl-strip";
+                    readelf = "${pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools.bintools}/bin/aarch64-unknown-linux-musl-readelf";
+                    binaries = ["rs-harbor"];
+                  };
+                };
+              }
+            else null;
+
+          rsHarborReleaseBundle =
+            if rsHarborBinaryRelease != null
+            then
+              self.lib.mkReleaseBundle {
+                inherit pkgs;
+                pname = "rs-harbor";
+                version = rsHarborVersion;
+                artifacts = pkgs.lib.mapAttrs (system: archive:
+                  self.lib.mkReleaseArtifact {
+                    inherit pkgs;
+                    pname = "rs-harbor";
+                    version = rsHarborVersion;
+                    name = "rs-harbor-${rsHarborVersion}-${system}-musl.tar.gz";
+                    source = archive;
+                    sourcePath = "rs-harbor-${rsHarborVersion}-${system}-musl.tar.gz";
+                    kind = "binary-archive";
+                    format = "tar.gz";
+                    inherit system;
+                    rustTarget = "${system}-musl";
+                    validation = "static-archive";
+                    consumable = true;
+                  }) rsHarborBinaryRelease.archives;
+              }
+            else null;
 
           macosStaging = self.lib.mkMacosUniversalStager {
             inherit pkgs rsHarborCli;
@@ -118,7 +202,14 @@
               bootstrap-cmds-mig = bootstrapCmdsMig;
               steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
               rs-harbor = rsHarborCli;
-            };
+            }
+            // (if rsHarborBinaryRelease != null then {
+              rs-harbor-x86_64-linux-musl = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
+              rs-harbor-aarch64-linux-musl = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
+              rs-harbor-release-bundle = rsHarborBinaryRelease.bundle;
+              release-bundle = rsHarborReleaseBundle;
+            } else {})
+            // (sccache.packages.${system} or {});
 
           apps = {
             publish-macos-sdk = {

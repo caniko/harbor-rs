@@ -111,19 +111,13 @@ rec {
     cargoConfigHook =
       if cargoConfig != null
       then ''
-        RS_HARBOR_CARGO_HOME="$(mktemp -d -t rs-harbor-cargo-XXXXXX)"
-        export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
+        __rs_harbor_cfg_hash="$(${pkgs.coreutils}/bin/sha256sum ${cargoConfig.configPath} | ${pkgs.coreutils}/bin/cut -c1-16)"
+        RS_HARBOR_CARGO_HOME="''${XDG_CACHE_HOME:-$HOME/.cache}/rs-harbor/cargo-config-$__rs_harbor_cfg_hash"
+        if [ -z "''${CARGO_HOME:-}" ]; then
+          export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
+        fi
         mkdir -p "$RS_HARBOR_CARGO_HOME"
         install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml"
-        # Chain cargo cleanup with any existing EXIT trap (e.g. direnv's __dump_at_exit)
-        # to avoid overwriting it. direnv's __main__ sets an EXIT trap to capture the
-        # environment; overwriting it would prevent PATH changes from being exported.
-        __rs_harbor_prev_exit=$(trap -p EXIT | sed "s/^trap -- '\\(.*\\)' EXIT$/\\1/")
-        if [[ -n $__rs_harbor_prev_exit ]]; then
-          trap "rm -rf \"\$RS_HARBOR_CARGO_HOME\"; $__rs_harbor_prev_exit" EXIT
-        else
-          trap 'rm -rf "$RS_HARBOR_CARGO_HOME"' EXIT
-        fi
         echo "rs-harbor: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
       ''
       else "";

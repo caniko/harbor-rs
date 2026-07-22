@@ -9,6 +9,73 @@
   isLinux = builtins.match ".*-linux" system != null;
 in
   {
+    binary-release-helper-shape = let
+      fixturePackage = pkgs.runCommand "binary-release-fixture" {} ''
+        mkdir -p "$out/bin"
+        printf '#!/bin/sh\necho fixture\n' > "$out/bin/fixture"
+        chmod 0755 "$out/bin/fixture"
+      '';
+      release = self.lib.mkBinaryRelease {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts.x86_64-linux = {
+          package = fixturePackage;
+          system = "x86_64-linux";
+          rustTarget = "x86_64-unknown-linux-musl";
+          binaries = ["fixture"];
+        };
+      };
+      consumer = self.lib.mkReleaseBinaryPackage {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        sources.${system} = fixturePackage;
+        binaries = ["fixture"];
+      };
+    in
+      assert release.archives ? "x86_64-linux";
+      assert pkgs.lib.isDerivation release.bundle;
+      assert pkgs.lib.isDerivation consumer;
+        pkgs.runCommand "check-binary-release-helper-shape" {} "touch $out";
+
+    binary-release-consumer-rejects-missing-system = let
+      result = builtins.tryEval ((self.lib.mkReleaseBinaryPackage {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        sources = {};
+        binaries = ["fixture"];
+      }).drvPath);
+    in
+      assert !result.success;
+        pkgs.runCommand "check-binary-release-consumer-rejects-missing-system" {} "touch $out";
+
+    generic-release-artifact-contract = let
+      source = pkgs.writeText "generic-release-source" "artifact";
+      artifact = self.lib.mkReleaseArtifact {
+        inherit pkgs source;
+        pname = "fixture";
+        version = "0.1.0";
+        name = "fixture.tar.gz";
+        kind = "binary-archive";
+        format = "tar.gz";
+        system = "x86_64-linux";
+        rustTarget = "x86_64-unknown-linux-musl";
+        consumable = true;
+      };
+      bundle = self.lib.mkReleaseBundle {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts = {inherit artifact;};
+      };
+    in
+      assert artifact.rsHarborReleaseArtifact.schemaVersion == 2;
+      assert artifact.rsHarborReleaseArtifact.consumable;
+      assert bundle.rsHarborReleaseBundle;
+        pkgs.runCommand "check-generic-release-artifact-contract" {} "touch $out";
+
     # The reusable library flake must not acquire a consumer-site input. The
     # optional Pages publisher lives in ./site, keeping the dependency graph
     # one-way when Plinth consumes rs-harbor.
@@ -1018,15 +1085,25 @@ in
           inherit pkgs cross commonArgs;
           inherit (toolchain) craneLib;
           pname = "fixture";
-          targets = ["aarch64-linux" "darwin-x86_64" "darwin-aarch64"];
+          targets = [
+            "aarch64-linux"
+            "x86_64-linux-musl"
+            "aarch64-linux-musl"
+            "darwin-x86_64"
+            "darwin-aarch64"
+          ];
         };
       in
         assert out ? "fixture-aarch64-linux";
+        assert out ? "fixture-x86_64-linux-musl";
+        assert out ? "fixture-aarch64-linux-musl";
         assert out ? "fixture-darwin-x86_64";
         assert out ? "fixture-darwin-aarch64";
         assert !(out ? "fixture");
         assert !(out ? "fixture-windows");
         assert pkgs.lib.isDerivation out."fixture-aarch64-linux";
+        assert pkgs.lib.isDerivation out."fixture-x86_64-linux-musl";
+        assert pkgs.lib.isDerivation out."fixture-aarch64-linux-musl";
         assert builtins.isString out."fixture-aarch64-linux".drvPath;
         # Without a realized SDK in pure eval, darwin outputs are the
         # mkDarwinUnavailable runCommand placeholders, which still evaluate.

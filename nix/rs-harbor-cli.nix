@@ -2,6 +2,7 @@
   pkgs,
   craneLib,
   src ? ../.,
+  version ? "0.1.0",
 }: let
   rsHarborSrc = pkgs.lib.cleanSourceWith {
     inherit src;
@@ -16,7 +17,7 @@
 in
   craneLib.buildPackage {
     pname = "rs-harbor";
-    version = "0.1.0";
+    inherit version;
     src = rsHarborSrc;
     strictDeps = true;
     doCheck = true;

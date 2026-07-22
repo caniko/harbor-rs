@@ -32,6 +32,24 @@ in {
   mkCrossPackageOutputs = import ./cross-package-outputs.nix {
     mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   };
+  mkBinaryRelease = args:
+    (import ./binary-release.nix {pkgs = args.pkgs;}).mkBinaryRelease
+      (builtins.removeAttrs args ["pkgs"]);
+  mkReleaseBinaryPackage = args:
+    (import ./binary-release.nix {pkgs = args.pkgs;}).mkReleaseBinaryPackage
+      (builtins.removeAttrs args ["pkgs"]);
+  mkReleaseArtifact = args:
+    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseArtifact
+      (builtins.removeAttrs args ["pkgs"]);
+  mkReleaseArchive = args:
+    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseArchive
+      (builtins.removeAttrs args ["pkgs"]);
+  mkReleaseBundle = args:
+    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseBundle
+      (builtins.removeAttrs args ["pkgs"]);
+  mkPrebuiltFlake = args:
+    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkPrebuiltFlake
+      (builtins.removeAttrs args ["pkgs"]);
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;

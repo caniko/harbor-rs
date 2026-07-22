@@ -129,6 +129,13 @@ let
     exec ${cfg.package}/bin/sccache "$@"
   '';
 
+  effectiveWrapper =
+    if cfg.wrapperPackage != null
+    then cfg.wrapperPackage
+    else wrapper;
+
+  effectiveWrapperBinary = "${effectiveWrapper}/bin/${cfg.wrapperBinaryName}";
+
   uid = osConfig.users.users.${config.home.username}.uid;
 in {
   options.programs.rsHarbor.sccache.userDaemon = {
@@ -144,6 +151,27 @@ in {
     };
 
     package = lib.mkPackageOption pkgs "sccache" { };
+
+    wrapperPackage = mkOption {
+      type = types.nullOr types.package;
+      default = null;
+      description = ''
+        Override the sccache user-daemon client wrapper package. When null, uses
+        the built-in wrapper that starts the service via systemctl --user and
+        exits 75 on failure. Set to the sccache sub-flake's
+        sccache-user-daemon-client for a maintained standalone version.
+      '';
+    };
+
+    wrapperBinaryName = mkOption {
+      type = types.str;
+      default = "sccache-rustc-wrapper";
+      description = ''
+        Binary name inside the wrapper package. Change when using a custom
+        wrapperPackage with a different entry point (e.g.
+        "sccache-user-daemon-client" for the sub-flake wrapper).
+      '';
+    };
 
     idleTimeout = mkOption {
       type = types.int;
@@ -280,17 +308,17 @@ in {
 
     home.packages = [
       cfg.package
-      wrapper
+      effectiveWrapper
     ];
 
     home.sessionVariables = {
-      RUSTC_WRAPPER = "${wrapper}/bin/sccache-rustc-wrapper";
+      RUSTC_WRAPPER = effectiveWrapperBinary;
       SCCACHE_SERVER_UDS = "/run/user/${toString uid}/${sccacheDefault.userSocketRel}";
       CARGO_INCREMENTAL = "0";
     };
 
     programs.nushell.environmentVariables = {
-      RUSTC_WRAPPER = "${wrapper}/bin/sccache-rustc-wrapper";
+      RUSTC_WRAPPER = effectiveWrapperBinary;
       SCCACHE_SERVER_UDS = "/run/user/${toString uid}/${sccacheDefault.userSocketRel}";
       CARGO_INCREMENTAL = "0";
     };

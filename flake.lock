@@ -191,7 +191,8 @@
         "nix-opencode-lsp": "nix-opencode-lsp",
         "nixpkgs": "nixpkgs",
         "osxcross": "osxcross",
-        "rust-overlay": "rust-overlay"
+        "rust-overlay": "rust-overlay",
+        "sccache": "sccache"
       }
     },
     "rust-overlay": {
@@ -213,6 +214,22 @@
         "repo": "rust-overlay",
         "type": "github"
       }
+    },
+    "sccache": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "path": "./sccache",
+        "type": "path"
+      },
+      "original": {
+        "path": "./sccache",
+        "type": "path"
+      },
+      "parent": []
     },
     "systems": {
       "locked": {

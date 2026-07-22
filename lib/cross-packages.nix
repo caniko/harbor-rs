@@ -13,6 +13,8 @@
 #        "native"         -> attr "${pname}"
 #        "aarch64-linux"  -> attr "${pname}-aarch64-linux"
 #        "windows"        -> attr "${pname}-windows"
+#        "x86_64-linux-musl" -> attr "${pname}-x86_64-linux-musl"
+#        "aarch64-linux-musl" -> attr "${pname}-aarch64-linux-musl"
 #        "darwin-x86_64"  -> attr "${pname}-darwin-x86_64"
 #        "darwin-aarch64" -> attr "${pname}-darwin-aarch64"
 #
@@ -42,6 +44,8 @@
     "native"
     "aarch64-linux"
     "windows"
+    "x86_64-linux-musl"
+    "aarch64-linux-musl"
     "darwin-x86_64"
     "darwin-aarch64"
   ];
@@ -125,6 +129,51 @@ in
       then windowsPkgRaw
       else buildCache.withRustCache {package = windowsPkgRaw;};
 
+    # Static Linux targets use the build-host rust toolchain with a target
+    # extension and the corresponding nixpkgs MUSL linker. This keeps the
+    # compiler native to the Atlas runner while making the resulting archive
+    # independent of glibc and the Nix store.
+    mkMuslPkg = {
+      attrName,
+      rustTarget,
+      targetPkgs,
+    }:
+      let
+        cc = targetPkgs.stdenv.cc;
+        linkerVar = "CARGO_TARGET_${lib.toUpper (lib.replaceStrings ["-"] ["_"] rustTarget)}_LINKER";
+        toolchainMusl = mkToolchain ({
+          inherit pkgs;
+          crossTargets = [rustTarget];
+        } // toolchainArgs);
+        craneLibMusl = toolchainMusl.craneLib;
+        args =
+          commonArgs
+          // {
+            pname = "${pname}-${attrName}";
+            CARGO_BUILD_TARGET = rustTarget;
+            PKG_CONFIG_ALLOW_CROSS = "1";
+            depsBuildBuild = [cc];
+            ${linkerVar} = "${cc}/bin/${cc.targetPrefix}cc";
+          }
+          // extraFor attrName;
+        cargoArtifacts = craneLibMusl.buildDepsOnly args;
+        package = craneLibMusl.buildPackage (args // {inherit cargoArtifacts;});
+      in
+        if buildCache == null
+        then package
+        else buildCache.withRustCache {inherit package;};
+
+    x86_64LinuxMuslPkg = mkMuslPkg {
+      attrName = "x86_64-linux-musl";
+      rustTarget = "x86_64-unknown-linux-musl";
+      targetPkgs = pkgs.pkgsStatic;
+    };
+    aarch64LinuxMuslPkg = mkMuslPkg {
+      attrName = "aarch64-linux-musl";
+      rustTarget = "aarch64-unknown-linux-musl";
+      targetPkgs = pkgs.pkgsCross.aarch64-multiplatform-musl;
+    };
+
     # --- darwin (osxcross) --------------------------------------------------
     mkDarwinUnavailable = name:
       pkgs.runCommand name {} ''
@@ -168,6 +217,8 @@ in
       "native" = {"${pname}" = nativePkg;};
       "aarch64-linux" = {"${pname}-aarch64-linux" = aarch64LinuxPkg;};
       "windows" = {"${pname}-windows" = windowsPkg;};
+      "x86_64-linux-musl" = {"${pname}-x86_64-linux-musl" = x86_64LinuxMuslPkg;};
+      "aarch64-linux-musl" = {"${pname}-aarch64-linux-musl" = aarch64LinuxMuslPkg;};
       "darwin-x86_64" = {"${pname}-darwin-x86_64" = mkDarwinPkg "darwin-x86_64" "x86_64-apple-darwin";};
       "darwin-aarch64" = {"${pname}-darwin-aarch64" = mkDarwinPkg "darwin-aarch64" "aarch64-apple-darwin";};
     };
