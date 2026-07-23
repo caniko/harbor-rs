@@ -252,7 +252,7 @@ let
         # for its direct rustc replay path.
         compiler="''${1:-}"
         case "$compiler" in
-          */dx|dx)
+          */dx|dx|*/.dx-wrapped|.dx-wrapped)
             exec "$@"
             ;;
           *)
