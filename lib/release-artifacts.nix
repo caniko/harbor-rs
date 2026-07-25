@@ -7,15 +7,8 @@
 let
   lib = pkgs.lib;
   inherit (lib) concatStringsSep escapeShellArg optionalString;
-
-  require = label: value:
-    assert lib.assertMsg (value != null) "rs-harbor: release ${label} is required";
-      value;
-
-  requireString = label: value:
-    assert lib.assertMsg (builtins.isString value && value != "")
-      "rs-harbor: release ${label} must be a non-empty string";
-      value;
+  common = import ./release-common.nix {inherit lib;};
+  inherit (common) expectedMachine require requireString staticElfValidation deterministicTarFlags;
 
   descriptor = {
     pname,
@@ -71,13 +64,6 @@ let
         install -m${if executable then "0755" else "0644"} ${escapeShellArg sourceArg} "$out/${fileName}"
       '';
 
-  expectedMachine = system:
-    if system == "x86_64-linux"
-    then "Advanced Micro Devices X86-64"
-    else if system == "aarch64-linux"
-    then "AArch64"
-    else throw "rs-harbor: unsupported release ELF system '${system}'";
-
   mkArchive = {
     pname,
     version,
@@ -110,15 +96,18 @@ let
           assert lib.assertMsg (system != null) "rs-harbor: static-elf artifacts require system";
           ''
             for binary in ${entryArgs}; do
-              readelf -h "$stage/$binary" | grep -F ${escapeShellArg (expectedMachine system)} >/dev/null
-              ! readelf -l "$stage/$binary" | grep -q INTERP
-              ! readelf -d "$stage/$binary" | grep -q NEEDED
+              ${staticElfValidation {
+                readelf = "readelf";
+                grep = "grep";
+                path = "\"$stage/$binary\"";
+                machine = expectedMachine {inherit system;};
+              }}
             done
           ''
         else "";
       archiveCommand =
         if format == "tar.gz"
-        then ''tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='@0' -czf "$out/${archiveName}" -C "$stage" .''
+        then ''tar ${deterministicTarFlags} --mtime='@0' -czf "$out/${archiveName}" -C "$stage" .''
         else if format == "zip"
         then ''cd "$stage" && zip -X -q "$out/${archiveName}" $(find . -type f -print | LC_ALL=C sort)''
         else throw "rs-harbor: unsupported release archive format '${format}'";
@@ -184,56 +173,8 @@ let
           "$out/${pname}-${version}-release-manifest.json" >/dev/null
       '';
 
-  mkPrebuiltFlake = {
-    pname,
-    version,
-    packages,
-    description ? "${pname} prebuilt release",
-  }:
-    let
-      systems = builtins.attrNames packages;
-      packageFiles = lib.mapAttrsToList (system: spec: {
-        inherit system;
-        binary = spec.binary;
-        source = toString spec.source;
-      }) packages;
-      fileCopies = concatStringsSep "\n" (map (spec: ''
-        mkdir -p "$stage/${spec.system}/bin"
-        install -m0755 ${escapeShellArg "${spec.source}/bin/${spec.binary}"} "$stage/${spec.system}/bin/${spec.binary}"
-      '') packageFiles);
-      packageAttrs = concatStringsSep "\n" (map (spec: ''
-        ${builtins.toJSON spec.system} = let pkgs = import nixpkgs {system = ${builtins.toJSON spec.system};}; in {
-          default = pkgs.stdenvNoCC.mkDerivation {
-            pname = ${builtins.toJSON "${pname}-prebuilt"};
-            version = ${builtins.toJSON version};
-            src = ./${spec.system};
-            dontUnpack = true;
-            installPhase = "mkdir -p $out/bin; install -m0755 $src/bin/${spec.binary} $out/bin/${spec.binary}";
-          };
-        };
-      '') packageFiles);
-      flake = ''
-        {
-          description = ${builtins.toJSON description};
-          inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-          outputs = {self, nixpkgs}: {
-            packages = {
-              ${packageAttrs}
-            };
-          };
-        }
-      '';
-    in
-      pkgs.runCommand "${pname}-${version}-prebuilt-flake" {nativeBuildInputs = [pkgs.coreutils pkgs.gnutar pkgs.gzip];} ''
-        set -euo pipefail
-        stage="$TMPDIR/stage"
-        mkdir -p "$stage"
-        ${fileCopies}
-        printf '%s\n' ${escapeShellArg flake} > "$stage/flake.nix"
-        tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='@0' -czf "$out" -C "$stage" .
-      '';
 in {
-  inherit mkFile mkArchive mkReleaseBundle mkPrebuiltFlake;
+  inherit mkFile mkArchive mkReleaseBundle;
   mkReleaseArtifact = mkFile;
   mkReleaseArchive = mkArchive;
 }

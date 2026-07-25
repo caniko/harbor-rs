@@ -2,6 +2,7 @@
   crane,
   osxcross,
   meta-harbor ? null,
+  nixBundle ? null,
 }: let
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
@@ -38,6 +39,23 @@ in {
   mkReleaseBinaryPackage = args:
     (import ./binary-release.nix {pkgs = args.pkgs;}).mkReleaseBinaryPackage
       (builtins.removeAttrs args ["pkgs"]);
+  mkPortableBinaryRelease = args:
+    (import ./portable-release.nix {
+      pkgs = args.pkgs;
+      bundlers =
+        if args ? bundlers
+        then args.bundlers
+        else if nixBundle != null
+        then builtins.mapAttrs (_: value: value.nix-bundle) nixBundle.bundlers
+        else throw "rs-harbor: mkPortableBinaryRelease requires nixBundle or bundlers";
+    }).mkPortableBinaryRelease
+      (builtins.removeAttrs args ["pkgs" "bundlers"]);
+  mkPortableReleaseBinaryPackage = args:
+    (import ./portable-release.nix {
+      pkgs = args.pkgs;
+      bundlers = {};
+    }).mkPortableReleaseBinaryPackage
+      (builtins.removeAttrs args ["pkgs"]);
   mkReleaseArtifact = args:
     (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseArtifact
       (builtins.removeAttrs args ["pkgs"]);
@@ -46,9 +64,6 @@ in {
       (builtins.removeAttrs args ["pkgs"]);
   mkReleaseBundle = args:
     (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseBundle
-      (builtins.removeAttrs args ["pkgs"]);
-  mkPrebuiltFlake = args:
-    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkPrebuiltFlake
       (builtins.removeAttrs args ["pkgs"]);
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;

@@ -15,6 +15,8 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
 - `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets
 - `mkBinaryRelease` and `mkReleaseBinaryPackage` for signed Codeberg binary archives and locked prebuilt consumers
+- `mkPortableBinaryRelease` and `mkPortableReleaseBinaryPackage` for native applications bundled with pinned `nix-bundle`
+- `mkReleaseArtifact`, `mkReleaseArchive`, and `mkReleaseBundle` for generic flat release outputs with one versioned manifest
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning

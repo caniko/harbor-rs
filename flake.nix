@@ -28,6 +28,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nix-bundle = {
+      url = "github:nix-community/nix-bundle";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     sccache = {
       url = "path:./sccache";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -45,6 +50,7 @@
       osxcross,
       meta-harbor,
       nix-opencode-lsp,
+      nix-bundle,
       sccache,
       ...
     }:
@@ -55,6 +61,7 @@
         lib = import ./lib {
           inherit crane osxcross;
           meta-harbor = meta-harbor.lib;
+          nixBundle = nix-bundle;
         };
       in {
         inherit lib;
@@ -155,26 +162,7 @@
           rsHarborReleaseBundle =
             if rsHarborBinaryRelease != null
             then
-              self.lib.mkReleaseBundle {
-                inherit pkgs;
-                pname = "rs-harbor";
-                version = rsHarborVersion;
-                artifacts = pkgs.lib.mapAttrs (system: archive:
-                  self.lib.mkReleaseArtifact {
-                    inherit pkgs;
-                    pname = "rs-harbor";
-                    version = rsHarborVersion;
-                    name = "rs-harbor-${rsHarborVersion}-${system}-musl.tar.gz";
-                    source = archive;
-                    sourcePath = "rs-harbor-${rsHarborVersion}-${system}-musl.tar.gz";
-                    kind = "binary-archive";
-                    format = "tar.gz";
-                    inherit system;
-                    rustTarget = "${system}-musl";
-                    validation = "static-archive";
-                    consumable = true;
-                  }) rsHarborBinaryRelease.archives;
-              }
+              rsHarborBinaryRelease.releaseBundle
             else null;
 
           macosStaging = self.lib.mkMacosUniversalStager {
@@ -206,7 +194,6 @@
             // (if rsHarborBinaryRelease != null then {
               rs-harbor-x86_64-linux-musl = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
               rs-harbor-aarch64-linux-musl = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
-              rs-harbor-release-bundle = rsHarborBinaryRelease.bundle;
               release-bundle = rsHarborReleaseBundle;
             } else {})
             // (sccache.packages.${system} or {});

@@ -6,31 +6,16 @@
 let
   lib = pkgs.lib;
   inherit (lib) concatStringsSep escapeShellArg optional optionalString;
-
-  requireNonEmpty = name: value:
-    assert lib.assertMsg (lib.isString value && value != "")
-      "rs-harbor: binary release ${name} must be a non-empty string";
-      value;
-
-  requireBinaries = binaries:
-    assert lib.assertMsg (lib.isList binaries && binaries != [])
-      "rs-harbor: binary release binaries must be a non-empty list";
-      map (binary: requireNonEmpty "binary" binary) binaries;
-
-  expectedMachine = system:
-    if system == "x86_64-linux"
-    then "Advanced Micro Devices X86-64"
-    else if system == "aarch64-linux"
-    then "AArch64"
-    else throw "rs-harbor: unsupported binary release system '${system}'";
+  common = import ./release-common.nix {inherit lib;};
+  inherit (common) expectedMachine requireBinaries requireNonEmpty staticElfValidation deterministicTarFlags;
 
   mkArchive = target: spec:
     let
-      pname = requireNonEmpty "pname" spec.pname;
-      version = requireNonEmpty "version" spec.version;
-      system = requireNonEmpty "system" (spec.system or target);
-      rustTarget = requireNonEmpty "rustTarget" (spec.rustTarget or system);
-      binaries = requireBinaries spec.binaries;
+      pname = requireNonEmpty "binary release pname" spec.pname;
+      version = requireNonEmpty "binary release version" spec.version;
+      system = requireNonEmpty "binary release system" (spec.system or target);
+      rustTarget = requireNonEmpty "binary release rustTarget" (spec.rustTarget or system);
+      binaries = requireBinaries {binaries = spec.binaries;};
       binutils = spec.binutils or pkgs.binutils;
       strip = spec.strip or "${binutils}/bin/strip";
       readelf = spec.readelf or "${binutils}/bin/readelf";
@@ -76,19 +61,12 @@ let
           # Crane may leave debug paths in the executable. Strip before
           # validation so the published binary has no Nix-store references.
           ${strip} --strip-all "$stage/bin/$binary"
-          ${readelf} -h "$stage/bin/$binary" | \
-            ${pkgs.gnugrep}/bin/grep -F '${expectedMachine system}' >/dev/null || {
-              echo "release binary has the wrong ELF machine: $stage/bin/$binary" >&2
-              exit 1
-            }
-          if ${readelf} -l "$stage/bin/$binary" | ${pkgs.gnugrep}/bin/grep -q 'INTERP'; then
-            echo "release binary is dynamically linked (PT_INTERP): $stage/bin/$binary" >&2
-            exit 1
-          fi
-          if ${readelf} -d "$stage/bin/$binary" | ${pkgs.gnugrep}/bin/grep -q 'NEEDED'; then
-            echo "release binary has dynamic dependencies: $stage/bin/$binary" >&2
-            exit 1
-          fi
+          ${staticElfValidation {
+            inherit readelf;
+            grep = "${pkgs.gnugrep}/bin/grep";
+            path = "\"$stage/bin/$binary\"";
+            machine = expectedMachine {inherit system; context = "binary release";};
+          }}
         done
 
         cat > "$stage/manifest.json" <<'MANIFEST'
@@ -98,10 +76,7 @@ let
 
         mkdir -p "$out"
         ${pkgs.gnutar}/bin/tar \
-          --sort=name \
-          --owner=0 \
-          --group=0 \
-          --numeric-owner \
+          ${deterministicTarFlags} \
           --mtime='@1' \
           -czf "$out/${archiveName}" \
           -C "$stage" .
@@ -115,12 +90,35 @@ let
     let
       archives = lib.mapAttrs (target: spec:
         mkArchive target (spec // {inherit pname version;})) artifacts;
+      releaseArtifacts = lib.mapAttrs (target: archive:
+        let
+          spec = artifacts.${target};
+          system = spec.system or target;
+          archiveName = "${pname}-${version}-${system}-musl.tar.gz";
+        in
+          (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseArtifact {
+            inherit pname version system;
+            name = archiveName;
+            source = archive;
+            sourcePath = archiveName;
+            kind = "binary-archive";
+            format = "tar.gz";
+            rustTarget = spec.rustTarget or system;
+            validation = "static-archive";
+            consumable = true;
+          }) archives;
+      releaseBundle =
+        (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseBundle {
+          inherit pname version;
+          artifacts = releaseArtifacts;
+        };
     in {
       inherit archives;
       bundle = pkgs.symlinkJoin {
         name = "${pname}-${version}-release-bundle";
         paths = builtins.attrValues archives;
       };
+      inherit releaseBundle;
     };
 
   mkReleaseBinaryPackage = {
@@ -137,10 +135,10 @@ let
         if builtins.hasAttr system sources
         then sources.${system}
         else throw "rs-harbor: no prebuilt binary release source for system '${system}'";
-      expectedBinaries = requireBinaries binaries;
+      expectedBinaries = requireBinaries {inherit binaries;};
       binaryArgs = concatStringsSep " " (map escapeShellArg expectedBinaries);
       expectedJson = builtins.toJSON expectedBinaries;
-      expectedElfMachine = expectedMachine system;
+      expectedElfMachine = expectedMachine {inherit system; context = "binary release";};
     in
       pkgs.stdenvNoCC.mkDerivation {
         pname = "${pname}-prebuilt";
@@ -173,21 +171,13 @@ let
               echo "prebuilt release binary is missing or not executable: $source" >&2
               exit 1
             }
-            if ${pkgs.binutils}/bin/readelf -l "$source" | \
-              ${pkgs.gnugrep}/bin/grep -q 'INTERP'; then
-                echo "prebuilt release binary is dynamically linked: $source" >&2
-                exit 1
-            fi
-            ${pkgs.binutils}/bin/readelf -h "$source" | \
-              ${pkgs.gnugrep}/bin/grep -F ${escapeShellArg expectedElfMachine} >/dev/null || {
-                echo "prebuilt release binary has the wrong ELF machine: $source" >&2
-                exit 1
-            }
-            if ${pkgs.binutils}/bin/readelf -d "$source" | \
-              ${pkgs.gnugrep}/bin/grep -q 'NEEDED'; then
-                echo "prebuilt release binary has dynamic dependencies: $source" >&2
-                exit 1
-            fi
+            ${staticElfValidation {
+              readelf = "${pkgs.binutils}/bin/readelf";
+              grep = "${pkgs.gnugrep}/bin/grep";
+              path = "\"$source\"";
+              machine = expectedElfMachine;
+              label = "prebuilt release binary";
+            }}
             install -m0755 "$source" "$out/bin/$binary"
           done
         ''

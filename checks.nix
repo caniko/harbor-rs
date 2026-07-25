@@ -36,6 +36,7 @@ in
     in
       assert release.archives ? "x86_64-linux";
       assert pkgs.lib.isDerivation release.bundle;
+      assert pkgs.lib.isDerivation release.releaseBundle;
       assert pkgs.lib.isDerivation consumer;
         pkgs.runCommand "check-binary-release-helper-shape" {} "touch $out";
 
@@ -50,6 +51,66 @@ in
     in
       assert !result.success;
         pkgs.runCommand "check-binary-release-consumer-rejects-missing-system" {} "touch $out";
+
+    portable-release-helper-shape = let
+      fixturePackage = pkgs.runCommand "portable-release-fixture" {} ''
+        mkdir -p "$out/bin"
+        printf '#!/bin/sh\necho fixture\n' > "$out/bin/fixture"
+        chmod 0755 "$out/bin/fixture"
+      '';
+      fixtureBundle = pkgs.writeScript "portable-fixture-bundle" "#!/bin/sh\necho fixture\n";
+      release = self.lib.mkPortableBinaryRelease {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts.x86_64-linux = {
+          bundler = _: fixtureBundle;
+          entries.fixture.package = fixturePackage;
+        };
+      };
+      source = pkgs.runCommand "portable-release-source" {} ''
+        mkdir -p "$out/bin"
+        printf '#!/bin/sh\necho fixture\n' > "$out/bin/fixture"
+        chmod 0755 "$out/bin/fixture"
+        cat > "$out/manifest.json" <<'EOF'
+        {"schemaVersion":2,"name":"fixture","version":"0.1.0","system":"x86_64-linux","format":"nix-bundle","binaries":["fixture"]}
+        EOF
+      '';
+      consumer = self.lib.mkPortableReleaseBinaryPackage {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        sources.x86_64-linux = source;
+        binaries = ["fixture"];
+      };
+    in
+      assert pkgs.lib.isDerivation release.releaseBundle;
+      assert pkgs.lib.isDerivation consumer;
+        pkgs.runCommand "check-portable-release-helper-shape" {} "touch $out";
+
+    portable-release-consumer-rejects-missing-system = let
+      result = builtins.tryEval ((self.lib.mkPortableReleaseBinaryPackage {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        sources = {};
+        binaries = ["fixture"];
+      }).drvPath);
+    in
+      assert !result.success;
+        pkgs.runCommand "check-portable-release-consumer-rejects-missing-system" {} "touch $out";
+
+    portable-release-producer-rejects-empty-binaries = let
+      result = builtins.tryEval ((self.lib.mkPortableBinaryRelease {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts.x86_64-linux.entries = {};
+        artifacts.x86_64-linux.bundler = _: pkgs.writeScript "empty-fixture-bundle" "exit 1";
+      }).releaseBundle.drvPath);
+    in
+      assert !result.success;
+        pkgs.runCommand "check-portable-release-producer-rejects-empty-binaries" {} "touch $out";
 
     generic-release-artifact-contract = let
       source = pkgs.writeText "generic-release-source" "artifact";
@@ -3680,8 +3741,8 @@ in
         cacheRoot = "/tmp/sccache";
       };
     in
-      assert policy.wrapper.stdenv.buildPlatform.system == pkgs.system;
-      assert policy.wrapper.stdenv.hostPlatform.system == pkgs.system;
+      assert policy.wrapper.stdenv.buildPlatform.system == pkgs.stdenv.hostPlatform.system;
+      assert policy.wrapper.stdenv.hostPlatform.system == pkgs.stdenv.hostPlatform.system;
         pkgs.runCommand "check-build-cache-policy-cross-platform-wrapper" {} "touch $out";
 
     build-cache-policy-builder-shapes = let

@@ -1,11 +1,13 @@
 # Binary release archives
 
-`mkBinaryRelease` packages one or more already-built binaries into a
+The v1-compatible `mkBinaryRelease` packages one or more already-built binaries into a
 deterministic, static MUSL archive. The archive contains `bin/` and a
 `manifest.json` describing the package name, version, Nix system, Rust target,
 and exact binary list. `mkReleaseBinaryPackage` consumes an unpacked archive
 from a locked `flake = false` input and validates that contract before
-installing the binaries.
+installing the binaries. Keep this schema when existing consumers already
+consume v1 archives; new multi-format release wiring should use the generic
+v2 constructors below.
 
 The producer and consumer are deliberately separate. A project keeps its
 source-built package for development and exposes the prebuilt package as an
@@ -34,7 +36,7 @@ let
   };
 in
 {
-  packages.release-bundle = release.bundle;
+  packages.release-bundle = release.releaseBundle;
 }
 ```
 
@@ -70,14 +72,40 @@ project's signing key. Check the contract with
 `simit release secrets contract --json` and the Canix declaration with
 `canix release secrets check --project /path/to/rs-harbor`.
 
+## Portable native applications
+
+Applications that cannot satisfy the static ELF contract can use the pinned
+`nix-bundle` backend:
+
+```nix
+let
+  release = rs-harbor.lib.mkPortableBinaryRelease {
+    inherit pkgs;
+    pname = "my-app";
+    version = "1.2.3";
+    artifacts.x86_64-linux.entries.my-app.package = packages.my-app;
+  };
+in {
+  packages.release-bundle = release.releaseBundle;
+}
+```
+
+The resulting archive contains a self-extracting executable and a v2
+`manifest.json` with `format = "nix-bundle"`. Consumers use
+`mkPortableReleaseBinaryPackage` with a locked `flake = false` archive. The
+bundle remains dependent on the host kernel and hardware interfaces (for
+example GPU drivers or PipeWire), which must be smoke-tested before switching
+the production module.
+
 ## Generic release bundles
 
 Projects with more than one release format can use the format-neutral
 constructors. `mkReleaseArtifact` exposes one flat file, `mkReleaseArchive`
 stages named files into a deterministic `tar.gz` or `zip`, and
 `mkReleaseBundle` combines those outputs and writes one versioned
-`*-release-manifest.json`. The manifest is the explicit input consumed by
-Simit's `[release.artifacts].nix_bundle_attrs` list; project-specific
+`*-release-manifest.json`. The configured bundle set is the explicit input
+consumed by Simit's `[release.artifacts].nix_bundle_attrs` list and must
+produce exactly one versioned manifest; project-specific
 `build_commands` remain additive for formats that need extra signing or
 installer work.
 

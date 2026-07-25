@@ -8,7 +8,7 @@
   outputs =
     { self, nixpkgs }:
     let
-      sccacheDefault = import ./lib/generated/sccache-default.nix;
+      sccacheDefault = import ../lib/generated/sccache-default.nix;
       subLib = import ./lib { inherit nixpkgs sccacheDefault; };
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;

@@ -9,6 +9,8 @@ platform = "forgejo"
 [ci.pages]
 repo = "caniko/rs-harbor"
 canonical_domain = "rs-harbor.tartanoglu.com"
+site_output = "./site#site"
+deploy_app = "./site#deploy-pages"
 
 [release.codeberg]
 repo = "caniko/rs-harbor"
