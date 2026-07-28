@@ -219,6 +219,20 @@ in
       assert t ? craneLib;
         pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
 
+    # A checked-in rust-toolchain.toml is authoritative and must retain its
+    # declared wasm target while still adding the standard rust-analyzer
+    # component.
+    mkToolchain-toolchain-file = let
+      t = self.lib.mkToolchain {
+        inherit pkgs;
+        toolchainFile = ./rust-toolchain.toml;
+      };
+    in
+      assert t ? rustToolchain;
+      assert builtins.elem "wasm32-unknown-unknown" t.crossTargets;
+      assert t.rustToolchain != null;
+        pkgs.runCommand "check-mkToolchain-toolchain-file" {} "touch $out";
+
     # Path-patched crates under [patch.crates-io] must not be dummified by
     # Crane's dependency-only phase. Registry dependencies may compile against
     # those patched crates and require their real API.
