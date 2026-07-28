@@ -13,13 +13,15 @@ canonical_domain = "rs-harbor.tartanoglu.com"
 site_output = "./site#site"
 deploy_app = "./site#deploy-pages"
 
-[release.codeberg]
+[release.github]
 repo = "caniko/rs-harbor"
 target_branch = "trunk"
-token_secret = "CODEBERG_TOKEN"
+
+[release.changelog]
+auto_draft = true
 
 [release.artifacts]
-runner = "atlas-nix-trusted"
+runner = "ubuntu-24.04"
 substituters = ["https://attic.candee.baby/canix", "https://cache.nixos.org"]
 nix_bundle_attrs = ["release-bundle"]
 trusted_public_keys = [

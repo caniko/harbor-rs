@@ -142,6 +142,7 @@ let
         consumable = false;
         files = [];
       }) artifactValues;
+      descriptorNames = map (artifact: artifact.name) descriptors;
       manifest = builtins.toJSON {
         schemaVersion = 2;
         inherit pname version;
@@ -149,6 +150,9 @@ let
       };
       artifactArgs = concatStringsSep " " (map (artifact: escapeShellArg (toString artifact)) artifactValues);
     in
+      assert lib.assertMsg
+        (builtins.length descriptorNames == builtins.length (lib.unique descriptorNames))
+        "rs-harbor: release bundle artifact names must be unique";
       pkgs.runCommand "${pname}-${version}-release-bundle" {
         nativeBuildInputs = [pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq];
         passthru.rsHarborReleaseBundle = true;
