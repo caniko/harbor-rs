@@ -62,6 +62,9 @@ in
     # Per-target extra args injected by the consumer (buildInputs, postInstall,
     # cargoBuildExtraArgs, doCheck, ...). Merged LAST so they win over our env.
     extraFor = target: targetArgs.${target} or {};
+    targetToolchainArgs =
+      lib.optionalAttrs (buildCache == null) {cache.enable = false;}
+      // toolchainArgs;
 
     # --- native -------------------------------------------------------------
     nativeArgs =
@@ -82,7 +85,7 @@ in
       {
         pkgs = cross.linuxAarch64.pkgsCross;
       }
-      // toolchainArgs
+      // targetToolchainArgs
     );
     craneLibAarch64 = toolchainAarch64.craneLib;
     aarch64LinuxArgs =
@@ -144,7 +147,7 @@ in
         toolchainMusl = mkToolchain ({
           inherit pkgs;
           crossTargets = [rustTarget];
-        } // toolchainArgs);
+        } // targetToolchainArgs);
         craneLibMusl = toolchainMusl.craneLib;
         args =
           commonArgs
