@@ -33,11 +33,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    sccache = {
-      url = "path:./sccache";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
   };
 
   outputs =
@@ -51,9 +46,14 @@
       meta-harbor,
       nix-opencode-lsp,
       nix-bundle,
-      sccache,
       ...
     }:
+    let
+      sccacheLib = import ./sccache/lib {
+        inherit nixpkgs;
+        sccacheDefault = import ./lib/generated/sccache-default.nix;
+      };
+    in
     flake-parts.lib.mkFlake { inherit inputs; } {
       systems = [ "x86_64-linux" "aarch64-linux" ];
 
@@ -66,7 +66,7 @@
       in {
         inherit lib;
 
-        sccache = sccache.lib;
+        sccache = sccacheLib;
 
         nixosModules = {
           macosSdk = import ./nix/nixos-module.nix;
@@ -185,6 +185,10 @@
               # compiler-cache executable and version identical across the
               # Atlas fleet and every rs-harbor builder.
               sccache = pkgs.sccache;
+              sccache-user-daemon-client = sccacheLib.mkClientWrapper {
+                inherit pkgs;
+                sccachePackage = pkgs.sccache;
+              };
               validate-macos-sdk = validateMacosSdk;
               stage-macos-universal = macosStaging.stager;
               bootstrap-cmds-mig = bootstrapCmdsMig;
@@ -195,8 +199,7 @@
               rs-harbor-x86_64-linux-musl = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
               rs-harbor-aarch64-linux-musl = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
               release-bundle = rsHarborReleaseBundle;
-            } else {})
-            // (sccache.packages.${system} or {});
+            } else {});
 
           apps = {
             publish-macos-sdk = {
