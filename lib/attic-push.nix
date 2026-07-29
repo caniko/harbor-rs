@@ -20,14 +20,13 @@ in
     closures ? true,
   }:
     assert pkgs.lib.assertMsg (adapterLib.isHarborAdapter adapter)
-      "rs-harbor: mkAtticPush 'adapter' must be a harbor adapter (from mkAdapter)";
+    "rs-harbor: mkAtticPush 'adapter' must be a harbor adapter (from mkAdapter)";
     assert pkgs.lib.assertMsg (builtins.isList paths)
-      "rs-harbor: mkAtticPush 'paths' must be a list of derivations or store paths";
+    "rs-harbor: mkAtticPush 'paths' must be a list of derivations or store paths";
     assert pkgs.lib.assertMsg (builtins.length paths > 0)
-      "rs-harbor: mkAtticPush 'paths' must not be empty";
+    "rs-harbor: mkAtticPush 'paths' must not be empty";
     assert pkgs.lib.assertMsg (builtins.isBool closures)
-      "rs-harbor: mkAtticPush 'closures' must be a bool";
-    let
+    "rs-harbor: mkAtticPush 'closures' must be a bool"; let
       inherit (adapter.attic) endpoint cache tokenEnvVar serverName;
 
       pathStrings = map (p: "${p}") paths;

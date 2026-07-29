@@ -7,13 +7,12 @@ in {
     pkgs,
     namespaceScope ? "rs-harbor-rust",
     namespaceGeneration ? 1,
-  }:
-    {
-      schemaVersion = 1;
-      rustToolchain = toolchain.toolchain;
-      sccache = {
-        version = pkgs.sccache.version;
-        inherit namespaceScope namespaceGeneration;
-      };
+  }: {
+    schemaVersion = 1;
+    rustToolchain = toolchain.toolchain;
+    sccache = {
+      version = pkgs.sccache.version;
+      inherit namespaceScope namespaceGeneration;
     };
+  };
 }

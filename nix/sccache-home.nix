@@ -1,13 +1,17 @@
-{ config, lib, pkgs, osConfig ? null, ... }:
-
-let
+{
+  config,
+  lib,
+  pkgs,
+  osConfig ? null,
+  ...
+}: let
   sccacheDefault = import ../lib/generated/sccache-default.nix;
   sccacheService = import ../lib/sccache-service.nix {inherit pkgs;};
   inherit (lib) mkIf mkOption types;
 
-  osSccache = lib.attrByPath [ "programs" "rsHarbor" "sccache" ] { } osConfig;
+  osSccache = lib.attrByPath ["programs" "rsHarbor" "sccache"] {} osConfig;
   osSccacheEnabled = osConfig != null && (osSccache.enable or false);
-  osSccacheRemoteEnv = osSccache.remoteEnvVars or { };
+  osSccacheRemoteEnv = osSccache.remoteEnvVars or {};
 
   cfg = config.programs.rsHarbor.sccache.userDaemon;
   reservedUserEnvironment = [
@@ -142,7 +146,8 @@ in {
     enable = mkOption {
       type = types.bool;
       default = osSccacheEnabled;
-      defaultText = lib.literalExpression
+      defaultText =
+        lib.literalExpression
         "osConfig.programs.rsHarbor.sccache.enable";
       description = ''
         Enable a user-owned interactive sccache daemon and rustc wrapper.
@@ -150,7 +155,7 @@ in {
       '';
     };
 
-    package = lib.mkPackageOption pkgs "sccache" { };
+    package = lib.mkPackageOption pkgs "sccache" {};
 
     wrapperPackage = mkOption {
       type = types.nullOr types.package;
@@ -286,21 +291,24 @@ in {
       }
       {
         assertion =
-          cfg.multiLevelChain == null
+          cfg.multiLevelChain
+          == null
           || builtins.all (level: builtins.elem level ["disk" "redis" "s3"])
-            (lib.splitString "," cfg.multiLevelChain);
+          (lib.splitString "," cfg.multiLevelChain);
         message = "programs.rsHarbor.sccache.userDaemon.multiLevelChain must contain only disk, redis, and s3 levels.";
       }
       {
         assertion =
-          cfg.multiLevelChain == null
+          cfg.multiLevelChain
+          == null
           || !(builtins.elem "redis" (lib.splitString "," cfg.multiLevelChain))
           || cfg.redisEndpoint != null;
         message = "programs.rsHarbor.sccache.userDaemon.redisEndpoint is required when the multi-level chain contains redis.";
       }
       {
         assertion =
-          cfg.redisEndpoint == null
+          cfg.redisEndpoint
+          == null
           || cfg.redisKeyPrefix != null;
         message = "programs.rsHarbor.sccache.userDaemon.redisKeyPrefix is required when redisEndpoint is configured.";
       }
@@ -347,7 +355,7 @@ in {
         ExecStop = "${pkgs.coreutils}/bin/env -u SCCACHE_START_SERVER ${cfg.package}/bin/sccache --stop-server";
         KillMode = "control-group";
       };
-      Install.WantedBy = [ "default.target" ];
+      Install.WantedBy = ["default.target"];
     };
   };
 }

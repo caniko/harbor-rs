@@ -46,13 +46,13 @@ rs-harbor.lib.mkCrossPackages {
 
 It returns an attrset of derivations keyed by **output attribute name**:
 
-| target name      | output attr name        | builder                                                      |
-| ---------------- | ----------------------- | ------------------------------------------------------------ |
-| `native`         | `${pname}`              | native `craneLib.buildPackage`                               |
-| `aarch64-linux`  | `${pname}-aarch64-linux`| craneLib built from `pkgsCross.aarch64-multiplatform`        |
-| `windows`        | `${pname}-windows`      | native craneLib + `cross.windowsEnv` + MinGW                 |
-| `darwin-x86_64`  | `${pname}-darwin-x86_64`| `cross.osxcrossRustHelpers.mkCrossBuilder`                   |
-| `darwin-aarch64` | `${pname}-darwin-aarch64`| `cross.osxcrossRustHelpers.mkCrossBuilder`                  |
+| target name      | output attr name          | builder                                               |
+| ---------------- | ------------------------- | ----------------------------------------------------- |
+| `native`         | `${pname}`                | native `craneLib.buildPackage`                        |
+| `aarch64-linux`  | `${pname}-aarch64-linux`  | craneLib built from `pkgsCross.aarch64-multiplatform` |
+| `windows`        | `${pname}-windows`        | native craneLib + `cross.windowsEnv` + MinGW          |
+| `darwin-x86_64`  | `${pname}-darwin-x86_64`  | `cross.osxcrossRustHelpers.mkCrossBuilder`            |
+| `darwin-aarch64` | `${pname}-darwin-aarch64` | `cross.osxcrossRustHelpers.mkCrossBuilder`            |
 
 Only the requested targets' attrs are returned.
 
@@ -106,7 +106,7 @@ enables them, the unified darwin build links them and fails. Diagnose with
 Pick the lightest mitigation that fits:
 
 1. **Drop the default feature that pulls it.** If you only need a subset (e.g.
-   `git2` for *local* repository operations), set
+   `git2` for _local_ repository operations), set
    `git2 = { version = "…", default-features = false }` in the workspace-root
    `Cargo.toml`. This removes `openssl-sys`/`libssh2-sys` from **every** target,
    not just darwin, and is usually the cleanest fix. Watch for other deps

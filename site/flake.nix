@@ -16,49 +16,48 @@
     };
   };
 
-  outputs = { nixpkgs, plinth, rs-harbor, ... }:
-    let
-      systems = [ "x86_64-linux" "aarch64-linux" ];
+  outputs = {
+    nixpkgs,
+    plinth,
+    rs-harbor,
+    ...
+  }: let
+    systems = ["x86_64-linux" "aarch64-linux"];
 
-      forSystem = system:
-        let
-          pkgs = import nixpkgs { inherit system; };
-          projectSiteLib = import "${plinth}/nix/project-site.nix" {
-            inherit pkgs;
-            lib = nixpkgs.lib;
-            plinthProject = plinth.packages.${system}.plinth-project;
-          };
-          packages = import "${rs-harbor}/nix/site.nix" {
-            inherit pkgs projectSiteLib;
-            lib = nixpkgs.lib;
-          };
-        in
-        { inherit pkgs projectSiteLib packages; };
-    in
-    {
-      packages = nixpkgs.lib.genAttrs systems (system: (forSystem system).packages);
+    forSystem = system: let
+      pkgs = import nixpkgs {inherit system;};
+      projectSiteLib = import "${plinth}/nix/project-site.nix" {
+        inherit pkgs;
+        lib = nixpkgs.lib;
+        plinthProject = plinth.packages.${system}.plinth-project;
+      };
+      packages = import "${rs-harbor}/nix/site.nix" {
+        inherit pkgs projectSiteLib;
+        lib = nixpkgs.lib;
+      };
+    in {inherit pkgs projectSiteLib packages;};
+  in {
+    packages = nixpkgs.lib.genAttrs systems (system: (forSystem system).packages);
 
-      apps = nixpkgs.lib.genAttrs systems (system: {
-        deploy-pages = (forSystem system).projectSiteLib.mkDeployPagesApp {
-          domain = "rs-harbor.tartanoglu.com";
-        };
-      });
+    apps = nixpkgs.lib.genAttrs systems (system: {
+      deploy-pages = (forSystem system).projectSiteLib.mkDeployPagesApp {
+        domain = "rs-harbor.tartanoglu.com";
+      };
+    });
 
-      devShells = nixpkgs.lib.genAttrs systems (system:
-        let
-          env = forSystem system;
-        in
-        {
-          docs = env.pkgs.mkShell {
-            packages = [
-              env.pkgs.mdbook
-              plinth.packages.${system}.plinth-project
-            ];
-            shellHook = ''
-              echo "Project site: plinth-project serve --config website/plinth-project.toml --out website/.plinth-project/public"
-              echo "Documentation: mdbook serve docs"
-            '';
-          };
-        });
-    };
+    devShells = nixpkgs.lib.genAttrs systems (system: let
+      env = forSystem system;
+    in {
+      docs = env.pkgs.mkShell {
+        packages = [
+          env.pkgs.mdbook
+          plinth.packages.${system}.plinth-project
+        ];
+        shellHook = ''
+          echo "Project site: plinth-project serve --config website/plinth-project.toml --out website/.plinth-project/public"
+          echo "Documentation: mdbook serve docs"
+        '';
+      };
+    });
+  };
 }

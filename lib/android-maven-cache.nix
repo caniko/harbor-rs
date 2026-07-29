@@ -75,13 +75,13 @@ assert lib.assertMsg (builtins.isBool recursive)
       };
 in
   assert hash == null || validHash || throw "rs-harbor: findLocalMavenCache `${toString sha256Path}` does not contain a valid SHA-256 hash";
-  if hash == null || !(builtins.pathExists hostPath)
-  then null
-  else
-    assert lib.assertMsg (builtins.isPath hostPath || lib.hasPrefix "/" hostPathString)
-    "rs-harbor: findLocalMavenCache `hostPath` must be absolute when passed as a string";
-      builtins.path {
-        path = hostPath;
-        inherit name recursive;
-        sha256 = normalizedHash;
-      }
+    if hash == null || !(builtins.pathExists hostPath)
+    then null
+    else
+      assert lib.assertMsg (builtins.isPath hostPath || lib.hasPrefix "/" hostPathString)
+      "rs-harbor: findLocalMavenCache `hostPath` must be absolute when passed as a string";
+        builtins.path {
+          path = hostPath;
+          inherit name recursive;
+          sha256 = normalizedHash;
+        }

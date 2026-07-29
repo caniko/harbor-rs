@@ -6,12 +6,11 @@
   lib ? pkgs.lib,
 }:
 assert lib.assertMsg (builtins.isString url && url != "")
-  "rs-harbor: fetchMavenCache `url` must be a non-empty string";
+"rs-harbor: fetchMavenCache `url` must be a non-empty string";
 assert lib.assertMsg (builtins.isPath sha256Path || builtins.isString sha256Path)
-  "rs-harbor: fetchMavenCache `sha256Path` must be a path or string";
+"rs-harbor: fetchMavenCache `sha256Path` must be a path or string";
 assert lib.assertMsg (builtins.isString name && name != "")
-  "rs-harbor: fetchMavenCache `name` must be a non-empty string";
-let
+"rs-harbor: fetchMavenCache `name` must be a non-empty string"; let
   rawHash =
     if builtins.pathExists sha256Path
     then builtins.readFile sha256Path

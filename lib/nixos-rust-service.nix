@@ -21,12 +21,11 @@
   extraServiceConfig ? {},
 }:
 assert pkgs.lib.assertMsg (name != "")
-  "rs-harbor.mkRustServiceModule: 'name' is required";
+"rs-harbor.mkRustServiceModule: 'name' is required";
 assert pkgs.lib.assertMsg (binary != "")
-  "rs-harbor.mkRustServiceModule: 'binary' is required";
+"rs-harbor.mkRustServiceModule: 'binary' is required";
 assert pkgs.lib.assertMsg (args != "")
-  "rs-harbor.mkRustServiceModule: 'args' is required";
-let
+"rs-harbor.mkRustServiceModule: 'args' is required"; let
   inherit (builtins) filter concatStringsSep;
   inherit (pkgs.lib) optionalAttrs;
 
@@ -64,22 +63,25 @@ let
       RestrictAddressFamilies = addressFamilies;
     }
     // extraServiceConfig;
-in {
-  users.users.${name} = {
-    isSystemUser = true;
-    group = name;
-  };
-  users.groups.${name} = {};
+in
+  {
+    users.users.${name} = {
+      isSystemUser = true;
+      group = name;
+    };
+    users.groups.${name} = {};
 
-  systemd.services.${name} = {
-    description = "${name} service";
-    after = ["network-online.target"];
-    wants = ["network-online.target"];
-    wantedBy = ["multi-user.target"];
-    inherit serviceConfig;
-  };
-} // optionalAttrs (tmpfiles != []) {
-  systemd.tmpfiles.rules = tmpfiles;
-} // optionalAttrs (configToml != null) {
-  environment.etc."${name}/config.toml".text = configToml;
-}
+    systemd.services.${name} = {
+      description = "${name} service";
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      wantedBy = ["multi-user.target"];
+      inherit serviceConfig;
+    };
+  }
+  // optionalAttrs (tmpfiles != []) {
+    systemd.tmpfiles.rules = tmpfiles;
+  }
+  // optionalAttrs (configToml != null) {
+    environment.etc."${name}/config.toml".text = configToml;
+  }

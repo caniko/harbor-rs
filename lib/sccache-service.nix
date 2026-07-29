@@ -1,6 +1,5 @@
 # Small, shared systemd helpers for sccache's Unix-socket lifecycle.
-{ pkgs }:
-let
+{pkgs}: let
   coreutils = pkgs.coreutils;
 in {
   # Repair only the socket entry. A historical configuration accidentally

@@ -1,13 +1,12 @@
 {
   nixpkgs,
   sccacheDefault,
-}:
-let
+}: let
   lib = nixpkgs.lib;
 in {
   inherit sccacheDefault;
 
-  mkUserDaemonEnv = import ./mkUserDaemonEnv.nix { inherit lib sccacheDefault; };
+  mkUserDaemonEnv = import ./mkUserDaemonEnv.nix {inherit lib sccacheDefault;};
 
   mkClientWrapper = {
     pkgs,

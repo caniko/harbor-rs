@@ -7,8 +7,34 @@
   rootInputNames,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
+  rootLock = builtins.fromJSON (builtins.readFile ./flake.lock);
+  rootHasPathInput =
+    builtins.any
+    (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
+    (builtins.attrValues rootLock.nodes.root.inputs);
 in
   {
+    mkRustCommandServiceModule-shape = let
+      package = pkgs.writeShellScriptBin "rust-service-fixture" "exit 0";
+      result = self.lib.mkRustCommandServiceModule {
+        inherit pkgs package;
+        name = "rust-service-fixture";
+        executable = "bin/rust-service-fixture";
+        args = ["--mode" "smoke test"];
+        user = "fixture-user";
+        group = "fixture-group";
+        type = "oneshot";
+        wantedBy = [];
+      };
+      service = result.systemd.services.rust-service-fixture;
+    in
+      assert (service.serviceConfig.Type or "simple") == "oneshot";
+      assert service.serviceConfig.User == "fixture-user";
+      assert service.serviceConfig.Group == "fixture-group";
+      assert pkgs.lib.hasInfix "--mode" service.serviceConfig.ExecStart;
+      assert pkgs.lib.hasInfix "smoke test" service.serviceConfig.ExecStart;
+        pkgs.runCommand "check-mkRustCommandServiceModule-shape" {} "touch $out";
+
     binary-release-helper-shape = let
       fixturePackage = pkgs.runCommand "binary-release-fixture" {} ''
         mkdir -p "$out/bin"
@@ -137,11 +163,113 @@ in
       assert bundle.rsHarborReleaseBundle;
         pkgs.runCommand "check-generic-release-artifact-contract" {} "touch $out";
 
+    release-bundle-dual-system-contract = let
+      x86Source = pkgs.writeScript "fixture-x86_64" "#!/bin/sh\necho x86_64\n";
+      armSource = pkgs.writeScript "fixture-aarch64" "#!/bin/sh\necho aarch64\n";
+      x86 = self.lib.mkReleaseArtifact {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        name = "fixture-0.1.0-x86_64-linux";
+        source = x86Source;
+        system = "x86_64-linux";
+        rustTarget = "x86_64-unknown-linux-musl";
+        kind = "binary";
+        executable = true;
+        consumable = true;
+      };
+      arm = self.lib.mkReleaseArtifact {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        name = "fixture-0.1.0-aarch64-linux";
+        source = armSource;
+        system = "aarch64-linux";
+        rustTarget = "aarch64-unknown-linux-musl";
+        kind = "binary";
+        executable = true;
+        consumable = true;
+      };
+      bundle = self.lib.mkReleaseBundle {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts = {inherit x86 arm;};
+      };
+    in
+      pkgs.runCommand "check-release-bundle-dual-system-contract" {
+        nativeBuildInputs = [pkgs.jq];
+      } ''
+        test -x ${bundle}/fixture-0.1.0-x86_64-linux
+        test -x ${bundle}/fixture-0.1.0-aarch64-linux
+        jq -e '
+          (.schemaVersion == 2) and
+          ([.artifacts[].system] | sort == ["aarch64-linux", "x86_64-linux"]) and
+          ([.artifacts[].name] | sort == ["fixture-0.1.0-aarch64-linux", "fixture-0.1.0-x86_64-linux"])
+        ' ${bundle}/fixture-0.1.0-release-manifest.json >/dev/null
+        touch "$out"
+      '';
+
+    release-bundle-rejects-name-collisions = let
+      source = pkgs.writeText "collision-source" "artifact";
+      one = self.lib.mkReleaseArtifact {
+        inherit pkgs source;
+        pname = "fixture";
+        version = "0.1.0";
+        name = "same-name";
+      };
+      two = self.lib.mkReleaseArtifact {
+        inherit pkgs source;
+        pname = "fixture";
+        version = "0.1.0";
+        name = "same-name";
+      };
+      result = builtins.tryEval ((self.lib.mkReleaseBundle {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts = {inherit one two;};
+      }).drvPath);
+    in
+      assert !result.success;
+        pkgs.runCommand "check-release-bundle-rejects-name-collisions" {} "touch $out";
+
+    portable-release-bundle-contract = let
+      fixturePackage = pkgs.writeShellScriptBin "portable-fixture" "echo fixture";
+      fixtureBundler = _: pkgs.writeScript "portable-fixture-bundle" "#!/bin/sh\necho fixture\n";
+      release = self.lib.mkPortableBinaryRelease {
+        inherit pkgs;
+        pname = "portable-fixture";
+        version = "0.1.0";
+        artifacts.x86_64-linux = {
+          bundler = fixtureBundler;
+          entries.portable-fixture.package = fixturePackage;
+        };
+      };
+    in
+      pkgs.runCommand "check-portable-release-bundle-contract" {
+        nativeBuildInputs = [pkgs.gnutar pkgs.gzip pkgs.jq];
+      } ''
+        archive=${release.releaseBundle}/portable-fixture-0.1.0-x86_64-linux-nix-bundle.tar.gz
+        manifest=${release.releaseBundle}/portable-fixture-0.1.0-release-manifest.json
+        test -f "$archive"
+        tar -tzf "$archive" | grep -Fx './bin/portable-fixture'
+        jq -e '
+          (.schemaVersion == 2) and
+          (.artifacts | length == 1) and
+          (.artifacts[0].kind == "portable-binary-archive") and
+          (.artifacts[0].system == "x86_64-linux")
+        ' "$manifest" >/dev/null
+        touch "$out"
+      '';
+
     # The reusable library flake must not acquire a consumer-site input. The
     # optional Pages publisher lives in ./site, keeping the dependency graph
-    # one-way when Plinth consumes rs-harbor.
+    # one-way when Plinth consumes rs-harbor. Root path inputs are equally
+    # non-portable: a downstream lock cannot resolve them inside this source.
     rs-harbor-root-inputs-no-consumer-site =
       assert !(builtins.elem "plinth" rootInputNames);
+      assert !rootHasPathInput;
         pkgs.runCommand "check-rs-harbor-root-inputs-no-consumer-site" {} "touch $out";
 
     # mkToolchain returns expected attributes
@@ -1120,6 +1248,28 @@ in
       assert out ? "fixture-aarch64-linux";
       assert builtins.isString out."fixture-aarch64-linux".drvPath;
         pkgs.runCommand "check-mkCrossPackages-toolchain-args" {} "touch $out";
+
+    mkCrossPackages-cache-opt-out-reaches-target-toolchains = let
+      mkCrossPackages = import ./lib/cross-packages.nix {
+        mkToolchain = args: {
+          craneLib = {
+            buildDepsOnly = _: {inherit args;};
+            buildPackage = packageArgs: packageArgs;
+          };
+        };
+      };
+      out = mkCrossPackages {
+        inherit pkgs;
+        cross = {};
+        craneLib = {};
+        pname = "fixture";
+        commonArgs.src = ./tests/fixtures/cross-package-fixture;
+        targets = ["x86_64-linux-musl"];
+        buildCache = null;
+      };
+    in
+      assert out."fixture-x86_64-linux-musl".cargoArtifacts.args.cache.enable == false;
+        pkgs.runCommand "check-mkCrossPackages-cache-opt-out-reaches-target-toolchains" {} "touch $out";
 
     # mkCrossPackageOutputs preserves the flat package set and adds the
     # build/host namespace consumed by Crossbow package registries.

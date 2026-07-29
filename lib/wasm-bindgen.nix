@@ -19,7 +19,8 @@
   # Cargo.lock files in real workspaces can contain tens of thousands of
   # lines. A recursive list walk overflows Nix's evaluator stack; fold over a
   # generated index list instead so the lookup remains strict and bounded.
-  wasmBindgenIndex = builtins.foldl'
+  wasmBindgenIndex =
+    builtins.foldl'
     (found: index:
       if found != null
       then found
@@ -49,8 +50,10 @@
       walk = index:
         if index >= builtins.length lines
         then builtins.length lines
-        else if index != blockStart
-        && builtins.match "[[][[]package[]][]]" (builtins.elemAt lines index) != null
+        else if
+          index
+          != blockStart
+          && builtins.match "[[][[]package[]][]]" (builtins.elemAt lines index) != null
         then index
         else walk (index + 1);
     in
@@ -61,7 +64,8 @@
     then []
     else lib.sublist blockStart (blockEnd - blockStart) lines;
 
-  versionLine = lib.findFirst
+  versionLine =
+    lib.findFirst
     (line: builtins.match "version = \".*\"" line != null)
     null
     blockLines;
@@ -72,35 +76,46 @@
     else let
       match = builtins.match "version = \"(.*)\"" versionLine;
     in
-      if match == null then null else builtins.head match;
+      if match == null
+      then null
+      else builtins.head match;
 
   versionToAttr = version: let
     parts = lib.splitString "." version;
-  in
-    "wasm-bindgen-cli_${builtins.elemAt parts 0}_${builtins.elemAt parts 1}_${builtins.elemAt parts 2}";
+  in "wasm-bindgen-cli_${builtins.elemAt parts 0}_${builtins.elemAt parts 1}_${builtins.elemAt parts 2}";
 
-  attrName = if lockedVersion == null then null else versionToAttr lockedVersion;
+  attrName =
+    if lockedVersion == null
+    then null
+    else versionToAttr lockedVersion;
   exactPackage =
     if attrName != null && pkgs ? ${attrName}
     then pkgs.${attrName}
     else null;
-  suppliedVersion = if wasmBindgenCli == null then null else wasmBindgenCli.version or null;
+  suppliedVersion =
+    if wasmBindgenCli == null
+    then null
+    else wasmBindgenCli.version or null;
   versionMismatch =
-    suppliedVersion != null
+    suppliedVersion
+    != null
     && lockedVersion != null
     && suppliedVersion != lockedVersion;
-  available = builtins.filter
+  available =
+    builtins.filter
     (name: builtins.match "wasm-bindgen-cli_.*" name != null)
     (builtins.attrNames pkgs);
 in
   assert lib.assertMsg (lockedVersion != null)
-    "rs-harbor.resolveWasmBindgenCli: Cargo.lock has no wasm-bindgen package";
+  "rs-harbor.resolveWasmBindgenCli: Cargo.lock has no wasm-bindgen package";
   assert lib.assertMsg (!versionMismatch || allowMismatch)
-    "rs-harbor.resolveWasmBindgenCli: supplied wasm-bindgen-cli ${toString suppliedVersion} does not match Cargo.lock ${toString lockedVersion}";
+  "rs-harbor.resolveWasmBindgenCli: supplied wasm-bindgen-cli ${toString suppliedVersion} does not match Cargo.lock ${toString lockedVersion}";
   assert lib.assertMsg (wasmBindgenCli != null || exactPackage != null)
-    "rs-harbor.resolveWasmBindgenCli: Cargo.lock requires wasm-bindgen ${lockedVersion} (${attrName}), but nixpkgs has none of: ${lib.concatStringsSep ", " available}";
-  {
+  "rs-harbor.resolveWasmBindgenCli: Cargo.lock requires wasm-bindgen ${lockedVersion} (${attrName}), but nixpkgs has none of: ${lib.concatStringsSep ", " available}"; {
     version = lockedVersion;
     inherit attrName;
-    package = if wasmBindgenCli != null then wasmBindgenCli else exactPackage;
+    package =
+      if wasmBindgenCli != null
+      then wasmBindgenCli
+      else exactPackage;
   }

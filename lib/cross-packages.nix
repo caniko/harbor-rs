@@ -53,12 +53,11 @@
   unknownTargets = lib.filter (t: !(builtins.elem t supportedTargets)) targets;
 in
   assert lib.assertMsg (commonArgs ? src)
-    "rs-harbor: mkCrossPackages 'commonArgs' must include 'src'";
+  "rs-harbor: mkCrossPackages 'commonArgs' must include 'src'";
   assert lib.assertMsg (builtins.isList targets)
-    "rs-harbor: mkCrossPackages 'targets' must be a list of target names";
+  "rs-harbor: mkCrossPackages 'targets' must be a list of target names";
   assert lib.assertMsg (unknownTargets == [])
-    "rs-harbor: mkCrossPackages received unsupported target(s): ${lib.concatStringsSep ", " unknownTargets}. Supported: ${lib.concatStringsSep ", " supportedTargets}";
-  let
+  "rs-harbor: mkCrossPackages received unsupported target(s): ${lib.concatStringsSep ", " unknownTargets}. Supported: ${lib.concatStringsSep ", " supportedTargets}"; let
     # Per-target extra args injected by the consumer (buildInputs, postInstall,
     # cargoBuildExtraArgs, doCheck, ...). Merged LAST so they win over our env.
     extraFor = target: targetArgs.${target} or {};
@@ -72,8 +71,9 @@ in
       // {inherit pname;}
       // extraFor "native";
     nativeCargoArtifacts = craneLib.buildDepsOnly nativeArgs;
-    nativePkgRaw = craneLib.buildPackage (nativeArgs
-      // {cargoArtifacts = nativeCargoArtifacts;});
+    nativePkgRaw =
+      craneLib.buildPackage (nativeArgs
+        // {cargoArtifacts = nativeCargoArtifacts;});
     nativePkg =
       if buildCache == null
       then nativePkgRaw
@@ -99,15 +99,17 @@ in
       }
       // extraFor "aarch64-linux";
     aarch64LinuxCargoArtifacts = craneLibAarch64.buildDepsOnly aarch64LinuxArgs;
-    aarch64LinuxPkgRaw = craneLibAarch64.buildPackage (aarch64LinuxArgs
-      // {cargoArtifacts = aarch64LinuxCargoArtifacts;});
+    aarch64LinuxPkgRaw =
+      craneLibAarch64.buildPackage (aarch64LinuxArgs
+        // {cargoArtifacts = aarch64LinuxCargoArtifacts;});
     aarch64LinuxPkg =
       if buildCache == null
       then aarch64LinuxPkgRaw
-      else buildCache.withCrossRust {
-        package = aarch64LinuxPkgRaw;
-        buildPackageSet' = cross.linuxAarch64.pkgsCross.buildPackages;
-      };
+      else
+        buildCache.withCrossRust {
+          package = aarch64LinuxPkgRaw;
+          buildPackageSet' = cross.linuxAarch64.pkgsCross.buildPackages;
+        };
 
     # --- windows (x86_64-pc-windows-gnu via MinGW) --------------------------
     windowsTarget = "x86_64-pc-windows-gnu";
@@ -125,8 +127,9 @@ in
       }
       // extraFor "windows";
     windowsCargoArtifacts = craneLib.buildDepsOnly windowsArgs;
-    windowsPkgRaw = craneLib.buildPackage (windowsArgs
-      // {cargoArtifacts = windowsCargoArtifacts;});
+    windowsPkgRaw =
+      craneLib.buildPackage (windowsArgs
+        // {cargoArtifacts = windowsCargoArtifacts;});
     windowsPkg =
       if buildCache == null
       then windowsPkgRaw
@@ -140,31 +143,31 @@ in
       attrName,
       rustTarget,
       targetPkgs,
-    }:
-      let
-        cc = targetPkgs.stdenv.cc;
-        linkerVar = "CARGO_TARGET_${lib.toUpper (lib.replaceStrings ["-"] ["_"] rustTarget)}_LINKER";
-        toolchainMusl = mkToolchain ({
+    }: let
+      cc = targetPkgs.stdenv.cc;
+      linkerVar = "CARGO_TARGET_${lib.toUpper (lib.replaceStrings ["-"] ["_"] rustTarget)}_LINKER";
+      toolchainMusl = mkToolchain ({
           inherit pkgs;
           crossTargets = [rustTarget];
-        } // targetToolchainArgs);
-        craneLibMusl = toolchainMusl.craneLib;
-        args =
-          commonArgs
-          // {
-            pname = "${pname}-${attrName}";
-            CARGO_BUILD_TARGET = rustTarget;
-            PKG_CONFIG_ALLOW_CROSS = "1";
-            depsBuildBuild = [cc];
-            ${linkerVar} = "${cc}/bin/${cc.targetPrefix}cc";
-          }
-          // extraFor attrName;
-        cargoArtifacts = craneLibMusl.buildDepsOnly args;
-        package = craneLibMusl.buildPackage (args // {inherit cargoArtifacts;});
-      in
-        if buildCache == null
-        then package
-        else buildCache.withRustCache {inherit package;};
+        }
+        // targetToolchainArgs);
+      craneLibMusl = toolchainMusl.craneLib;
+      args =
+        commonArgs
+        // {
+          pname = "${pname}-${attrName}";
+          CARGO_BUILD_TARGET = rustTarget;
+          PKG_CONFIG_ALLOW_CROSS = "1";
+          depsBuildBuild = [cc];
+          ${linkerVar} = "${cc}/bin/${cc.targetPrefix}cc";
+        }
+        // extraFor attrName;
+      cargoArtifacts = craneLibMusl.buildDepsOnly args;
+      package = craneLibMusl.buildPackage (args // {inherit cargoArtifacts;});
+    in
+      if buildCache == null
+      then package
+      else buildCache.withRustCache {inherit package;};
 
     x86_64LinuxMuslPkg = mkMuslPkg {
       attrName = "x86_64-linux-musl";
@@ -207,8 +210,9 @@ in
     in
       if builder != null
       then let
-        raw = builder.buildPackage (args
-          // {cargoArtifacts = builder.buildDepsOnly args;});
+        raw =
+          builder.buildPackage (args
+            // {cargoArtifacts = builder.buildDepsOnly args;});
       in
         if buildCache == null
         then raw

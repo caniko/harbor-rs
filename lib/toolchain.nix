@@ -2,7 +2,10 @@
 #             -> { rustToolchain, craneLib, rawCraneLib, buildCache, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
-{crane, mkBuildCachePolicy}: {
+{
+  crane,
+  mkBuildCachePolicy,
+}: {
   pkgs,
   # When set, the standard rust-toolchain.toml is authoritative for the
   # compiler channel, components, and targets. The legacy channel/date mode
@@ -29,14 +32,20 @@ assert pkgs.lib.assertMsg (channel == null || builtins.elem channel ["nightly" "
 "rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${toString channel}\"";
 assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
 "rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${toString date}\""; let
-  legacyExtensions = if extensions == null then ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"] else extensions;
-  legacyCrossTargets = if crossTargets == null then [
-    "x86_64-unknown-linux-gnu"
-    "aarch64-unknown-linux-gnu"
-    "x86_64-pc-windows-gnu"
-    "x86_64-apple-darwin"
-    "aarch64-apple-darwin"
-  ] else crossTargets;
+  legacyExtensions =
+    if extensions == null
+    then ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"]
+    else extensions;
+  legacyCrossTargets =
+    if crossTargets == null
+    then [
+      "x86_64-unknown-linux-gnu"
+      "aarch64-unknown-linux-gnu"
+      "x86_64-pc-windows-gnu"
+      "x86_64-apple-darwin"
+      "aarch64-apple-darwin"
+    ]
+    else crossTargets;
   toolchainManifest =
     if toolchainFile == null
     then {}
@@ -46,10 +55,34 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   manifestTargets = manifestToolchain.targets or [];
   fileExtensions =
     manifestComponents
-    ++ (if extensions == null then [] else extensions)
-    ++ (if withRustAnalyzer && !(builtins.elem "rust-analyzer" (manifestComponents ++ (if extensions == null then [] else extensions))) then ["rust-analyzer"] else []);
-  fileTargets = manifestTargets ++ (if crossTargets == null then [] else crossTargets);
-  resolvedCrossTargets = if toolchainFile != null then fileTargets else legacyCrossTargets;
+    ++ (
+      if extensions == null
+      then []
+      else extensions
+    )
+    ++ (
+      if
+        withRustAnalyzer
+        && !(builtins.elem "rust-analyzer" (manifestComponents
+          ++ (
+            if extensions == null
+            then []
+            else extensions
+          )))
+      then ["rust-analyzer"]
+      else []
+    );
+  fileTargets =
+    manifestTargets
+    ++ (
+      if crossTargets == null
+      then []
+      else crossTargets
+    );
+  resolvedCrossTargets =
+    if toolchainFile != null
+    then fileTargets
+    else legacyCrossTargets;
   legacyExtensions' =
     if withRustAnalyzer
     then
@@ -57,8 +90,14 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       then legacyExtensions
       else legacyExtensions ++ ["rust-analyzer"]
     else legacyExtensions;
-  legacyChannel = if channel == null then "nightly" else channel;
-  legacyDate = if date == null then "latest" else date;
+  legacyChannel =
+    if channel == null
+    then "nightly"
+    else channel;
+  legacyDate =
+    if date == null
+    then "latest"
+    else date;
   channelSet =
     if legacyChannel == "nightly"
     then pkgs.rust-bin.nightly
@@ -71,15 +110,16 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     if toolchainFile != null
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
-        "rs-harbor: mkToolchain 'toolchainFile' must contain [toolchain].channel";
-      (pkgs.rust-bin.fromRustupToolchainFile toolchainFile).override {
-        extensions = fileExtensions;
-        targets = fileTargets;
-      }
-    else dateSet.default.override {
-      extensions = legacyExtensions';
-      targets = legacyCrossTargets;
-    };
+      "rs-harbor: mkToolchain 'toolchainFile' must contain [toolchain].channel";
+        (pkgs.rust-bin.fromRustupToolchainFile toolchainFile).override {
+          extensions = fileExtensions;
+          targets = fileTargets;
+        }
+    else
+      dateSet.default.override {
+        extensions = legacyExtensions';
+        targets = legacyCrossTargets;
+      };
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
@@ -214,53 +254,55 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   # constructs a Cargo derivation inherits it automatically.
   craneLib =
     (upstreamCraneLib.overrideScope (_final: prev: {
-    mkCargoDerivation =
-      if buildCache == null
-      then prev.mkCargoDerivation
-      else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
+      mkCargoDerivation =
+        if buildCache == null
+        then prev.mkCargoDerivation
+        else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
 
-    buildDepsOnly = args: let
-      allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
-      pathPatches =
-        if allow
-        then []
-        else patchCratesIoPathPatches args;
-      raw =
-        if pathPatches != []
-        then throw (pathPatchBuildDepsOnlyError pathPatches)
-        else prev.buildDepsOnly (stripRsHarborCraneArgs args);
-    in
-      if buildCache == null
-      then raw
-      else buildCache.withRustCache {
-        package = raw;
-        telemetry = {
-          workloadKind = "dependency-artifacts";
-          reuseKey = args.rsHarborCacheReuseKey or "";
-        };
-      };
+      buildDepsOnly = args: let
+        allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+        pathPatches =
+          if allow
+          then []
+          else patchCratesIoPathPatches args;
+        raw =
+          if pathPatches != []
+          then throw (pathPatchBuildDepsOnlyError pathPatches)
+          else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+      in
+        if buildCache == null
+        then raw
+        else
+          buildCache.withRustCache {
+            package = raw;
+            telemetry = {
+              workloadKind = "dependency-artifacts";
+              reuseKey = args.rsHarborCacheReuseKey or "";
+            };
+          };
 
-    buildPackage = args: let
-      pathPatches =
-        if args ? cargoArtifacts
-        then []
-        else patchCratesIoPathPatches args;
-      args' = stripRsHarborCraneArgs args;
-      raw = prev.buildPackage (
-        if pathPatches != [] && !(args ? cargoArtifacts)
-        then args' // {cargoArtifacts = null;}
-        else args'
-      );
-    in
-      if buildCache == null
-      then raw
-      else buildCache.withRustCache {
-        package = raw;
-        telemetry = {
-          workloadKind = "package";
-          reuseKey = args.rsHarborCacheReuseKey or "";
-        };
-      };
+      buildPackage = args: let
+        pathPatches =
+          if args ? cargoArtifacts
+          then []
+          else patchCratesIoPathPatches args;
+        args' = stripRsHarborCraneArgs args;
+        raw = prev.buildPackage (
+          if pathPatches != [] && !(args ? cargoArtifacts)
+          then args' // {cargoArtifacts = null;}
+          else args'
+        );
+      in
+        if buildCache == null
+        then raw
+        else
+          buildCache.withRustCache {
+            package = raw;
+            telemetry = {
+              workloadKind = "package";
+              reuseKey = args.rsHarborCacheReuseKey or "";
+            };
+          };
     }))
     // {
       # Dioxus and cross helpers use this marker to inherit the same policy

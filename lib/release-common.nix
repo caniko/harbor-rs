@@ -1,28 +1,24 @@
 # Shared validation and reproducibility primitives for release helpers.
-{lib}:
-let
+{lib}: let
   inherit (lib) escapeShellArg;
 in rec {
   require = label: value:
-    assert lib.assertMsg (value != null) "rs-harbor: release ${label} is required";
-      value;
+    assert lib.assertMsg (value != null) "rs-harbor: release ${label} is required"; value;
 
   requireString = label: value:
     assert lib.assertMsg (builtins.isString value && value != "")
-      "rs-harbor: release ${label} must be a non-empty string";
-      value;
+    "rs-harbor: release ${label} must be a non-empty string"; value;
 
   requireNonEmpty = context: value:
     assert lib.assertMsg (lib.isString value && value != "")
-      "rs-harbor: ${context} must be a non-empty string";
-      value;
+    "rs-harbor: ${context} must be a non-empty string"; value;
 
   requireBinaries = {
     context ? "binary release",
     binaries,
   }:
     assert lib.assertMsg (lib.isList binaries && binaries != [])
-      "rs-harbor: ${context} binaries must be a non-empty list";
+    "rs-harbor: ${context} binaries must be a non-empty list";
       map (binary: requireNonEmpty "${context} binary" binary) binaries;
 
   expectedMachine = {
@@ -43,19 +39,18 @@ in rec {
     path,
     machine,
     label ? "release binary",
-  }:
-    ''
-      ${readelf} -h ${path} | ${grep} -F ${escapeShellArg machine} >/dev/null || {
-        echo "${label} has the wrong ELF machine: ${path}" >&2
-        exit 1
-      }
-      if ${readelf} -l ${path} | ${grep} -q 'INTERP'; then
-        echo "${label} is dynamically linked: ${path}" >&2
-        exit 1
-      fi
-      if ${readelf} -d ${path} | ${grep} -q 'NEEDED'; then
-        echo "${label} has dynamic dependencies: ${path}" >&2
-        exit 1
-      fi
-    '';
+  }: ''
+    ${readelf} -h ${path} | ${grep} -F ${escapeShellArg machine} >/dev/null || {
+      echo "${label} has the wrong ELF machine: ${path}" >&2
+      exit 1
+    }
+    if ${readelf} -l ${path} | ${grep} -q 'INTERP'; then
+      echo "${label} is dynamically linked: ${path}" >&2
+      exit 1
+    fi
+    if ${readelf} -d ${path} | ${grep} -q 'NEEDED'; then
+      echo "${label} has dynamic dependencies: ${path}" >&2
+      exit 1
+    fi
+  '';
 }

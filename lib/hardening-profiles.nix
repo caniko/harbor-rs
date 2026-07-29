@@ -8,7 +8,6 @@
 #   services.my-service.serviceConfig = rs-harbor.lib.hardeningProfiles.network-service // {
 #     ExecStart = "...";
 #   };
-
 {
   network-service = {
     AmbientCapabilities = "";

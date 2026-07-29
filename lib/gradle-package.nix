@@ -44,15 +44,18 @@
     && lib.all (segment: segment != "" && segment != "..") (pathSegments path);
   gradleFlagsText = lib.escapeShellArgs gradleFlags;
 in
-  assert builtins.isString pname && pname != ""
+  assert builtins.isString pname
+  && pname != ""
   || throw "mkGradlePackage: pname must be a non-empty string";
-  assert builtins.isString version && version != ""
+  assert builtins.isString version
+  && version != ""
   || throw "mkGradlePackage: version must be a non-empty string";
   assert isRelativePath projectDir
   || throw "mkGradlePackage: projectDir must be a relative path without '..' segments";
   assert isRelativePath artifactPath
   || throw "mkGradlePackage: artifactPath must be a relative path without '..' segments";
-  assert builtins.isString artifactName && artifactName != ""
+  assert builtins.isString artifactName
+  && artifactName != ""
   || throw "mkGradlePackage: artifactName must be a non-empty string";
   assert builtins.pathExists depsJson
   || throw "mkGradlePackage: depsJson does not exist: ${toString depsJson}";

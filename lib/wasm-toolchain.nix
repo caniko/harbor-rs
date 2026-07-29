@@ -9,10 +9,9 @@
   channel ? "stable",
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
-  "rs-harbor.mkWasmToolchain: requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
+"rs-harbor.mkWasmToolchain: requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
 assert pkgs.lib.assertMsg (builtins.elem channel ["nightly" "stable"])
-  "rs-harbor.mkWasmToolchain: 'channel' must be \"nightly\" or \"stable\", got \"${channel}\"";
-let
+"rs-harbor.mkWasmToolchain: 'channel' must be \"nightly\" or \"stable\", got \"${channel}\""; let
   channelSet =
     if channel == "nightly"
     then pkgs.rust-bin.nightly

@@ -13,7 +13,10 @@
   wasmTarget ? "wasm32-unknown-unknown",
   wasmSplit ? false,
   fullstack ? false,
-  cargoArgs ? {web = []; server = [];},
+  cargoArgs ? {
+    web = [];
+    server = [];
+  },
 }: let
   webFeatureSet = lib.unique (sharedFeatures ++ webFeatures);
   serverFeatureSet = lib.unique (sharedFeatures ++ serverFeatures);
@@ -23,7 +26,10 @@
     ++ lib.optional (features != []) "--features"
     ++ lib.optional (features != []) (lib.concatStringsSep " " features);
   targetCargoArgs = target: let
-    args = if builtins.isAttrs cargoArgs then cargoArgs.${target} or [] else cargoArgs;
+    args =
+      if builtins.isAttrs cargoArgs
+      then cargoArgs.${target} or []
+      else cargoArgs;
   in
     lib.optional (args != []) "--cargo-args"
     ++ lib.optional (args != []) (lib.concatStringsSep " " args);
@@ -39,9 +45,20 @@
     ++ lib.optional (binary != null) "--bin"
     ++ lib.optional (binary != null) binary
     ++ profileArgs
-    ++ ["--debug-symbols=${if debugSymbols then "true" else "false"}"]
+    ++ [
+      "--debug-symbols=${
+        if debugSymbols
+        then "true"
+        else "false"
+      }"
+    ]
     ++ lib.optional splitEnabled "--wasm-split";
-  targetArgs = target: featureArgs (if target == "web" then webFeatureSet else serverFeatureSet)
+  targetArgs = target:
+    featureArgs (
+      if target == "web"
+      then webFeatureSet
+      else serverFeatureSet
+    )
     ++ lib.optional (target == "web") "--target"
     ++ lib.optional (target == "web") wasmTarget
     ++ targetCargoArgs target;
@@ -52,14 +69,16 @@
   dxArgs =
     dxCommon ++ dxSuffix;
 in
-  assert lib.assertMsg (profile != "") "rs-harbor.mkDioxusBuildPlan: profile must not be empty";
-  {
+  assert lib.assertMsg (profile != "") "rs-harbor.mkDioxusBuildPlan: profile must not be empty"; {
     inherit dxArgs dxCommon dxSuffix;
     webCargoArgs = targetArgs "web";
     serverCargoArgs = targetArgs "server";
     metadata = {
       platform = "web";
-      features = if fullstack then sharedFeatures else webFeatureSet;
+      features =
+        if fullstack
+        then sharedFeatures
+        else webFeatureSet;
       inherit package binary profile debugSymbols noDefaultFeatures wasmTarget wasmSplit fullstack;
       featureSets = {
         shared = sharedFeatures;

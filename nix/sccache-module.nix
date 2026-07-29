@@ -71,22 +71,41 @@
   remoteEnvVars =
     if cfg.enable
     then
-      { SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout; }
-      // (if cfg.cacheEndpoint != null && cfg.cacheBucket != null then {
-        SCCACHE_BUCKET = cfg.cacheBucket;
-        SCCACHE_ENDPOINT = cfg.cacheEndpoint;
-        SCCACHE_REGION = cfg.cacheRegion;
-        SCCACHE_S3_USE_SSL = if cfg.cacheUseSsl then "true" else "false";
-      } else {})
-      // (if cfg.cacheKeyPrefix != null then {
-        SCCACHE_S3_KEY_PREFIX = cfg.cacheKeyPrefix;
-      } else {})
-      // (if cfg.accessKeyId != null then {
-        AWS_ACCESS_KEY_ID = cfg.accessKeyId;
-      } else {})
-      // (if cfg.secretAccessKey != null then {
-        AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
-      } else {})
+      {SCCACHE_CONNECT_TIMEOUT = cfg.connectTimeout;}
+      // (
+        if cfg.cacheEndpoint != null && cfg.cacheBucket != null
+        then {
+          SCCACHE_BUCKET = cfg.cacheBucket;
+          SCCACHE_ENDPOINT = cfg.cacheEndpoint;
+          SCCACHE_REGION = cfg.cacheRegion;
+          SCCACHE_S3_USE_SSL =
+            if cfg.cacheUseSsl
+            then "true"
+            else "false";
+        }
+        else {}
+      )
+      // (
+        if cfg.cacheKeyPrefix != null
+        then {
+          SCCACHE_S3_KEY_PREFIX = cfg.cacheKeyPrefix;
+        }
+        else {}
+      )
+      // (
+        if cfg.accessKeyId != null
+        then {
+          AWS_ACCESS_KEY_ID = cfg.accessKeyId;
+        }
+        else {}
+      )
+      // (
+        if cfg.secretAccessKey != null
+        then {
+          AWS_SECRET_ACCESS_KEY = cfg.secretAccessKey;
+        }
+        else {}
+      )
     else {};
 
   # Compute envVars so the option definition and environment.variables
@@ -97,21 +116,29 @@
     if cfg.enable
     then
       remoteEnvVars
-      // { RUSTC_WRAPPER = "${cfg.package}/bin/sccache"; }
-      // (if sandboxPolicy != null then {
-        SCCACHE_DIR = sandboxPolicy.sharedCacheDir;
-        XDG_CACHE_HOME = sandboxPolicy.sharedCacheDir;
-      } else {})
-      // (if cfg.daemon.enable then {
-        SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
-      } else {})
+      // {RUSTC_WRAPPER = "${cfg.package}/bin/sccache";}
+      // (
+        if sandboxPolicy != null
+        then {
+          SCCACHE_DIR = sandboxPolicy.sharedCacheDir;
+          XDG_CACHE_HOME = sandboxPolicy.sharedCacheDir;
+        }
+        else {}
+      )
+      // (
+        if cfg.daemon.enable
+        then {
+          SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
+        }
+        else {}
+      )
       // cfg.sandboxExtraEnv
     else {};
 in {
   imports = [
     (lib.mkRenamedOptionModule
-      [ "programs" "rsHarbor" "sccache" "extraEnv" ]
-      [ "programs" "rsHarbor" "sccache" "sandboxExtraEnv" ])
+      ["programs" "rsHarbor" "sccache" "extraEnv"]
+      ["programs" "rsHarbor" "sccache" "sandboxExtraEnv"])
   ];
 
   options.programs.rsHarbor.sccache = {
@@ -328,20 +355,22 @@ in {
   };
 
   config = mkIf cfg.enable {
-    assertions = [{
-      assertion = !(cfg.daemon.enable && cfg.sandboxCacheDir != null);
-      message = ''
-        programs.rsHarbor.sccache: sandboxCacheDir (= "${cfg.sandboxCacheDir}") and
-        daemon.enable are mutually exclusive.
+    assertions = [
+      {
+        assertion = !(cfg.daemon.enable && cfg.sandboxCacheDir != null);
+        message = ''
+          programs.rsHarbor.sccache: sandboxCacheDir (= "${cfg.sandboxCacheDir}") and
+          daemon.enable are mutually exclusive.
 
-        In daemon mode the daemon owns all disk caching at
-        daemon.diskCacheDir (= "${cfg.daemon.diskCacheDir}") and its Unix
-        socket lives in a dedicated RuntimeDirectory (/run/sccache) outside
-        the world-writable sandbox.
+          In daemon mode the daemon owns all disk caching at
+          daemon.diskCacheDir (= "${cfg.daemon.diskCacheDir}") and its Unix
+          socket lives in a dedicated RuntimeDirectory (/run/sccache) outside
+          the world-writable sandbox.
 
-        To fix: remove sandboxCacheDir from hosts that enable the daemon.
-      '';
-    }];
+          To fix: remove sandboxCacheDir from hosts that enable the daemon.
+        '';
+      }
+    ];
 
     programs.rsHarbor.sccache.envVars = computedEnvVars;
     programs.rsHarbor.sccache.remoteEnvVars = remoteEnvVars;
@@ -355,10 +384,9 @@ in {
       then computedEnvVars
       else builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
 
-    systemd.tmpfiles.rules =
-      lib.optionals (cfg.sandboxCacheDir != null && !cfg.daemon.enable) [
-        "d ${cfg.sandboxCacheDir} 1777 root root -"
-      ];
+    systemd.tmpfiles.rules = lib.optionals (cfg.sandboxCacheDir != null && !cfg.daemon.enable) [
+      "d ${cfg.sandboxCacheDir} 1777 root root -"
+    ];
 
     # Sandbox access paths — mutually exclusive between local-only and
     # daemon mode (enforced by the assertion above):
@@ -401,19 +429,23 @@ in {
     # the sandbox gets a writable SCCACHE_DIR via impure-env + tmpfiles,
     # so sccache's preprocessor cache has a home.
     nixpkgs.overlays = [
-      (_: prev: builtins.foldl'
+      (_: prev:
+        builtins.foldl'
         (acc: name:
           if prev ? ${name}
-          then acc // {
-            ${name} =
-              if sandboxPolicy != null
-              then sandboxPolicy.withRustCache {package = prev.${name};}
-              else sccacheLib.wrapRustPackageWithSccache {
-                package = prev.${name};
-                sccachePackage = cfg.package;
-                envVars = computedEnvVars;
-              };
-          }
+          then
+            acc
+            // {
+              ${name} =
+                if sandboxPolicy != null
+                then sandboxPolicy.withRustCache {package = prev.${name};}
+                else
+                  sccacheLib.wrapRustPackageWithSccache {
+                    package = prev.${name};
+                    sccachePackage = cfg.package;
+                    envVars = computedEnvVars;
+                  };
+            }
           else acc)
         {}
         cfg.crossbowPackages)
@@ -438,14 +470,16 @@ in {
 
       environment = let
         daemonEnv = builtins.removeAttrs computedEnvVars ["RUSTC_WRAPPER"];
-      in daemonEnv // {
-        SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
-        SCCACHE_DIR = cfg.daemon.diskCacheDir;
-        SCCACHE_IDLE_TIMEOUT = toString cfg.daemon.idleTimeout;
-        SCCACHE_START_SERVER = "1";
-        SCCACHE_NO_DAEMON = "1";
-        SCCACHE_LOG = "warn";
-      };
+      in
+        daemonEnv
+        // {
+          SCCACHE_SERVER_UDS = cfg.daemon.socketPath;
+          SCCACHE_DIR = cfg.daemon.diskCacheDir;
+          SCCACHE_IDLE_TIMEOUT = toString cfg.daemon.idleTimeout;
+          SCCACHE_START_SERVER = "1";
+          SCCACHE_NO_DAEMON = "1";
+          SCCACHE_LOG = "warn";
+        };
 
       unitConfig = {
         StartLimitIntervalSec = "${toString sccacheDefault.restartWindow}s";

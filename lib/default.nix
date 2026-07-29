@@ -87,6 +87,9 @@ in {
   mkRustServiceModule = import ./nixos-rust-service.nix {
     inherit hardeningProfiles;
   };
+  mkRustCommandServiceModule = import ./nixos-rust-command-service.nix {
+    inherit hardeningProfiles;
+  };
 
   findLocalMavenCache = import ./android-maven-cache.nix;
   fetchMavenCache = import ./fetch-maven-cache.nix;

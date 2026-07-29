@@ -33,11 +33,11 @@ API it actually initialized.
 
 ## Parameters
 
-| Param | Default | Description |
-|-------|---------|-------------|
-| `pkgs` | required | nixpkgs package set used to provide the graphics stack |
-| `profile` | `"mesa-radv"` | Named render profile |
-| `expected` | `{}` | Extra or overriding expected identity fields. Attributes with `null` values are ignored |
+| Param      | Default       | Description                                                                             |
+| ---------- | ------------- | --------------------------------------------------------------------------------------- |
+| `pkgs`     | required      | nixpkgs package set used to provide the graphics stack                                  |
+| `profile`  | `"mesa-radv"` | Named render profile                                                                    |
+| `expected` | `{}`          | Extra or overriding expected identity fields. Attributes with `null` values are ignored |
 
 Returns: `{ env, packages }`
 

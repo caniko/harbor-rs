@@ -1,4 +1,9 @@
-{ pkgs, sccacheDefault, sccachePackage, serviceName ? "sccache-user-daemon.service" }:
+{
+  pkgs,
+  sccacheDefault,
+  sccachePackage,
+  serviceName ? "sccache-user-daemon.service",
+}:
 pkgs.writeShellScriptBin "sccache-user-daemon-client" ''
   set -eu
 

@@ -94,8 +94,8 @@ in
         ++ extraPackages;
 
       shellHook = ''
-        export SDKROOT="${sdkRoot}"
-${extraShellHook}
+                export SDKROOT="${sdkRoot}"
+        ${extraShellHook}
       '';
     }
     // baseEnv
