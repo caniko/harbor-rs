@@ -3,6 +3,7 @@
   pkgs,
   system,
   toolchain,
+  cacheToolchain,
   cross,
   rootInputNames,
 }: let
@@ -1578,7 +1579,7 @@ in
         inherit pkgs cargoLock;
         src = ./tests/fixtures/dioxus-fixture;
         pname = "check-dioxus-package";
-        craneLib = toolchain.craneLib;
+        craneLib = cacheToolchain.craneLib;
         rustToolchain = wasmToolchain.rustToolchain;
         cargoVendorDir = vendor;
         # This nixpkgs snapshot does not expose 0.2.126 as an attribute. The
@@ -1595,7 +1596,7 @@ in
       assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
       assert drv.artifactBuilder.metadata.wasmSplit == false;
       assert drv.passthru.dioxus.wasmBindgenVersion == "0.2.126";
-      assert drv.drvAttrs.RUSTC_WRAPPER == toolchain.buildCache.dioxusDispatcherPath;
+      assert drv.drvAttrs.RUSTC_WRAPPER == cacheToolchain.buildCache.dioxusDispatcherPath;
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
 
     mkDioxusAssetLinker-shape = let

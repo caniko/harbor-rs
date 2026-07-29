@@ -244,7 +244,13 @@
           };
 
           checks = import ./checks.nix {
-            inherit self pkgs system toolchain cross;
+            inherit self pkgs system cross;
+            # Public GitHub runners cannot reach the managed rs-harbor cache.
+            # Keep cache-contract fixtures explicit, while all checks that
+            # realize ordinary Rust derivations use the self-contained public
+            # toolchain.
+            toolchain = publicToolchain;
+            cacheToolchain = toolchain;
             rootInputNames = builtins.attrNames inputs;
           };
         };
