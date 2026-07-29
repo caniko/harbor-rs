@@ -267,10 +267,9 @@ in
     # optional Pages publisher lives in ./site, keeping the dependency graph
     # one-way when Plinth consumes rs-harbor. Root path inputs are equally
     # non-portable: a downstream lock cannot resolve them inside this source.
-    rs-harbor-root-inputs-no-consumer-site =
-      assert !(builtins.elem "plinth" rootInputNames);
-      assert !rootHasPathInput;
-        pkgs.runCommand "check-rs-harbor-root-inputs-no-consumer-site" {} "touch $out";
+    rs-harbor-root-inputs-no-consumer-site = assert !(builtins.elem "plinth" rootInputNames);
+    assert !rootHasPathInput;
+      pkgs.runCommand "check-rs-harbor-root-inputs-no-consumer-site" {} "touch $out";
 
     # mkToolchain returns expected attributes
     mkToolchain-shape = let
@@ -3954,10 +3953,12 @@ in
       attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
       target = pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
       targetUpper = pkgs.lib.toUpper (pkgs.lib.replaceStrings ["-"] ["_"] target);
-      cacheWrappers = builtins.filter
+      cacheWrappers =
+        builtins.filter
         (input: input.rsHarborSandboxLocalSccache or false)
         (wrapped.drvAttrs.nativeBuildInputs or []);
-      telemetryHooks = builtins.filter
+      telemetryHooks =
+        builtins.filter
         (input: pkgs.lib.hasPrefix "rs-harbor-sccache-telemetry-hook" (input.name or ""))
         (wrapped.drvAttrs.nativeBuildInputs or []);
     in
