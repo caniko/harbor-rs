@@ -94,10 +94,15 @@
             inherit pkgs;
           };
 
-          # GitHub-hosted release runners do not have Atlas's Redis/sccache
-          # socket.  Keep the release producer self-contained; consumers on
-          # canix still opt into the shared rs-harbor cache explicitly.
           toolchain = self.lib.mkToolchain {
+            inherit pkgs;
+          };
+          # GitHub-hosted release runners do not have Atlas's Redis/sccache
+          # socket.  Keep public release and dev-shell builds self-contained;
+          # consumers on canix still opt into the shared rs-harbor cache
+          # explicitly.  The cache-enabled toolchain above remains the fixture
+          # used by rs-harbor's cache contract checks.
+          publicToolchain = self.lib.mkToolchain {
             inherit pkgs;
             cache.enable = false;
           };
@@ -111,7 +116,7 @@
 
           rsHarborCli = import ./nix/rs-harbor-cli.nix {
             inherit pkgs;
-            inherit (toolchain) craneLib;
+            craneLib = publicToolchain.craneLib;
             src = ./.;
             version = rsHarborVersion;
           };
@@ -121,7 +126,7 @@
             then
               self.lib.mkCrossPackages {
                 inherit pkgs cross;
-                inherit (toolchain) craneLib;
+                craneLib = publicToolchain.craneLib;
                 buildCache = null;
                 pname = "rs-harbor";
                 commonArgs = {
@@ -234,7 +239,8 @@
           devShells = import ./nix/dev-shells.nix {
             harbor = self.lib;
             opencodeLsp = nix-opencode-lsp.lib;
-            inherit pkgs toolchain cross cargoConfig rsHarborCli;
+            toolchain = publicToolchain;
+            inherit pkgs cross cargoConfig rsHarborCli;
           };
 
           checks = import ./checks.nix {
