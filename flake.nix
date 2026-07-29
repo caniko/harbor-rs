@@ -94,7 +94,13 @@
             inherit pkgs;
           };
 
-          toolchain = self.lib.mkToolchain { inherit pkgs; };
+          # GitHub-hosted release runners do not have Atlas's Redis/sccache
+          # socket.  Keep the release producer self-contained; consumers on
+          # canix still opt into the shared rs-harbor cache explicitly.
+          toolchain = self.lib.mkToolchain {
+            inherit pkgs;
+            cache.enable = false;
+          };
           cross = self.lib.mkCross { inherit pkgs system; };
           cargoConfig = self.lib.mkCargoConfig { inherit pkgs; };
           rsHarborVersion = (builtins.fromTOML (builtins.readFile ./cli/Cargo.toml)).package.version;
@@ -116,6 +122,7 @@
               self.lib.mkCrossPackages {
                 inherit pkgs cross;
                 inherit (toolchain) craneLib;
+                buildCache = null;
                 pname = "rs-harbor";
                 commonArgs = {
                   src = ./.;
