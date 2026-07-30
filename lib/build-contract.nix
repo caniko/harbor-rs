@@ -1,5 +1,5 @@
-let
-  toolchain = builtins.fromTOML (builtins.readFile ../rust-toolchain.toml);
+{toolchainFile ? ../rust-toolchain.toml}: let
+  toolchain = builtins.fromTOML (builtins.readFile toolchainFile);
 in {
   inherit toolchain;
 

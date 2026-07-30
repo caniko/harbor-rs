@@ -5,6 +5,7 @@
 ## Parameters
 
 - `pkgs` (required): nixpkgs with `rust-overlay` applied
+- `toolchainProfile`: optional rs-harbor-owned pin, either `"stable"` or `"nightly"`. Stable is currently pinned to Rust `1.97.1`; nightly uses the repository's checked-in `rust-toolchain.toml`. Omitting it preserves the legacy channel/date behavior.
 - `toolchainFile`: optional path to a standard `rust-toolchain.toml`; when set, its channel, components, and targets are authoritative
 - `channel`: `"nightly"` or `"stable"`; defaults to `"nightly"`
 - `date`: `"latest"` or a pinned date such as `"2025-12-01"`; only used without `toolchainFile`
@@ -18,6 +19,7 @@
 
 - `rustToolchain`
 - `craneLib`
+- `cargoConfig`: matching `mkCargoConfig` output; use this for dev shells so stable profiles do not receive nightly-only flags
 - `crossTargets`
 
 ## Path-patched crates and `buildDepsOnly`
@@ -65,6 +67,24 @@ toolchain = rs-harbor.lib.mkToolchain {
 ```
 
 Most downstream projects only need `craneLib` from the result. Pair it with [mkCargoConfig](./cargo-config.md) and [mkDevShell and mkDevShells](./dev-shells.md) for a complete local environment.
+
+## Optional fleet profiles
+
+The profiles are opt-in. A project that wants rs-harbor to control its Rust
+version can select a profile and reuse the returned Cargo configuration:
+
+```nix
+toolchain = rs-harbor.lib.mkToolchain {
+  inherit pkgs;
+  toolchainProfile = "stable";
+};
+cargoConfig = toolchain.cargoConfig;
+```
+
+The selected profile is also inherited by `mkCrossPackages` for non-native
+outputs unless `toolchainArgs` is supplied explicitly. Updating the profile
+manifest in rs-harbor then updates every consumer when it refreshes its
+rs-harbor input, without requiring per-project version edits.
 
 Projects with a checked-in Rust toolchain file can consume it directly:
 

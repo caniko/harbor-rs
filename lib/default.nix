@@ -7,9 +7,10 @@
   devShellLib = import ./dev-shell.nix;
   adapterLib = import ./adapter.nix;
   minisignLib = import ./minisign.nix;
+  mkCargoConfig = import ./cargo-config.nix;
   mkBuildCachePolicy = (import ./build-cache.nix {}).mkBuildCachePolicy;
   mkToolchain = import ./toolchain.nix {
-    inherit crane mkBuildCachePolicy;
+    inherit crane mkBuildCachePolicy mkCargoConfig;
   };
   hardeningProfiles = import ./hardening-profiles.nix;
   mkSccacheLib = import ./sccache.nix {};
@@ -19,14 +20,13 @@
     else throw "rs-harbor: package-test helpers require the meta-harbor flake input";
   dioxusLib = import ./dioxus.nix {inherit packageTests;};
 in {
-  inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests;
-  buildContract = import ./build-contract.nix;
+  inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests mkCargoConfig;
+  buildContract = import ./build-contract.nix {};
   opencode =
     if meta-harbor != null
     then meta-harbor.opencode
     else throw "rs-harbor: opencode helpers require the meta-harbor flake input";
 
-  mkCargoConfig = import ./cargo-config.nix;
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
   mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};

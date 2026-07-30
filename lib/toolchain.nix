@@ -1,12 +1,16 @@
-# mkToolchain :: { pkgs, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, cache? }
-#             -> { rustToolchain, craneLib, rawCraneLib, buildCache, crossTargets }
+# mkToolchain :: { pkgs, toolchainProfile?, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, cache? }
+#             -> { rustToolchain, craneLib, rawCraneLib, buildCache, cargoConfig, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
 {
   crane,
+  mkCargoConfig,
   mkBuildCachePolicy,
 }: {
   pkgs,
+  # Optional rs-harbor-owned pinned profile. Null preserves the historical
+  # channel/date behavior for consumers that are not opting into fleet pins.
+  toolchainProfile ? null,
   # When set, the standard rust-toolchain.toml is authoritative for the
   # compiler channel, components, and targets. The legacy channel/date mode
   # remains the default when this is null.
@@ -26,12 +30,24 @@
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
 "rs-harbor: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
+assert pkgs.lib.assertMsg (toolchainProfile == null || builtins.elem toolchainProfile ["nightly" "stable"])
+"rs-harbor: mkToolchain 'toolchainProfile' must be \"nightly\" or \"stable\", got \"${toString toolchainProfile}\"";
+assert pkgs.lib.assertMsg (toolchainProfile == null || (toolchainFile == null && channel == null && date == null))
+"rs-harbor: mkToolchain 'toolchainProfile' cannot be combined with 'toolchainFile', 'channel', or 'date'";
 assert pkgs.lib.assertMsg (toolchainFile == null || (channel == null && date == null))
 "rs-harbor: mkToolchain 'toolchainFile' cannot be combined with 'channel' or 'date'";
 assert pkgs.lib.assertMsg (channel == null || builtins.elem channel ["nightly" "stable"])
 "rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${toString channel}\"";
 assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
 "rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${toString date}\""; let
+  profileToolchainFiles = {
+    nightly = ../rust-toolchain.toml;
+    stable = ../rust-toolchain-stable.toml;
+  };
+  resolvedToolchainFile =
+    if toolchainProfile != null
+    then profileToolchainFiles.${toolchainProfile}
+    else toolchainFile;
   legacyExtensions =
     if extensions == null
     then ["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"]
@@ -47,9 +63,9 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     ]
     else crossTargets;
   toolchainManifest =
-    if toolchainFile == null
+    if resolvedToolchainFile == null
     then {}
-    else builtins.fromTOML (builtins.readFile toolchainFile);
+    else builtins.fromTOML (builtins.readFile resolvedToolchainFile);
   manifestToolchain = toolchainManifest.toolchain or {};
   manifestComponents = manifestToolchain.components or [];
   manifestTargets = manifestToolchain.targets or [];
@@ -80,7 +96,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       else crossTargets
     );
   resolvedCrossTargets =
-    if toolchainFile != null
+    if resolvedToolchainFile != null
     then fileTargets
     else legacyCrossTargets;
   legacyExtensions' =
@@ -98,6 +114,24 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     if date == null
     then "latest"
     else date;
+  manifestChannel = manifestToolchain.channel or "";
+  cargoChannel =
+    if resolvedToolchainFile == null
+    then legacyChannel
+    else if builtins.match "nightly.*" manifestChannel != null
+    then "nightly"
+    else "stable";
+  resolvedToolchainManifest =
+    if resolvedToolchainFile != null
+    then manifestToolchain
+    else {
+      channel =
+        if legacyChannel == "nightly" && legacyDate != "latest"
+        then "nightly-${legacyDate}"
+        else legacyChannel;
+      components = legacyExtensions';
+      targets = legacyCrossTargets;
+    };
   channelSet =
     if legacyChannel == "nightly"
     then pkgs.rust-bin.nightly
@@ -107,11 +141,11 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     then channelSet.latest
     else channelSet.${legacyDate};
   rustToolchain =
-    if toolchainFile != null
+    if resolvedToolchainFile != null
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
       "rs-harbor: mkToolchain 'toolchainFile' must contain [toolchain].channel";
-        (pkgs.rust-bin.fromRustupToolchainFile toolchainFile).override {
+        (pkgs.rust-bin.fromRustupToolchainFile resolvedToolchainFile).override {
           extensions = fileExtensions;
           targets = fileTargets;
         }
@@ -120,6 +154,22 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
         extensions = legacyExtensions';
         targets = legacyCrossTargets;
       };
+  toolchainArgs =
+    (
+      if resolvedToolchainFile != null
+      then {toolchainFile = resolvedToolchainFile;}
+      else {
+        channel = legacyChannel;
+        date = legacyDate;
+      }
+    )
+    // pkgs.lib.optionalAttrs (extensions != null) {inherit extensions;}
+    // pkgs.lib.optionalAttrs (!withRustAnalyzer) {withRustAnalyzer = false;};
+  cargoConfig = mkCargoConfig {
+    inherit pkgs;
+    channel = cargoChannel;
+    crossTargets = resolvedCrossTargets;
+  };
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
@@ -239,6 +289,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       mkBuildCachePolicy {
         inherit pkgs;
         compiler = rustToolchain.version;
+        toolchainManifest = resolvedToolchainManifest;
         buildPackageSet = pkgs.buildPackages;
         sccachePackage = cache.sccachePackage or null;
         cacheRoot = cache.cacheRoot or null;
@@ -306,9 +357,12 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
           };
     }))
     // {
-      # Dioxus and cross helpers use this marker to inherit the same policy
+      # Dioxus and cross helpers use these markers to inherit the same policy
       # without requiring every consumer to thread it through manually.
       rsHarborBuildCachePolicy = buildCache;
+      rsHarborToolchainArgs = toolchainArgs;
+      rsHarborToolchainFile = resolvedToolchainFile;
+      rsHarborToolchainProfile = toolchainProfile;
     };
 
   rawCraneLib = upstreamCraneLib.overrideScope (_final: prev: {
@@ -337,6 +391,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       );
   });
 in {
-  inherit rustToolchain craneLib rawCraneLib buildCache;
+  inherit rustToolchain craneLib rawCraneLib buildCache cargoConfig toolchainArgs;
+  inherit toolchainProfile resolvedToolchainFile resolvedToolchainManifest;
   crossTargets = resolvedCrossTargets;
 }

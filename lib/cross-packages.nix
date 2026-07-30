@@ -35,7 +35,7 @@
   commonArgs,
   targets ? ["native"],
   targetArgs ? {},
-  toolchainArgs ? {},
+  toolchainArgs ? null,
   buildCache ? (craneLib.rsHarborBuildCachePolicy or null),
 }: let
   lib = pkgs.lib;
@@ -61,9 +61,13 @@ in
     # Per-target extra args injected by the consumer (buildInputs, postInstall,
     # cargoBuildExtraArgs, doCheck, ...). Merged LAST so they win over our env.
     extraFor = target: targetArgs.${target} or {};
+    inheritedToolchainArgs =
+      if toolchainArgs == null
+      then craneLib.rsHarborToolchainArgs or {}
+      else toolchainArgs;
     targetToolchainArgs =
       lib.optionalAttrs (buildCache == null) {cache.enable = false;}
-      // toolchainArgs;
+      // inheritedToolchainArgs;
 
     # --- native -------------------------------------------------------------
     nativeArgs =

@@ -89,9 +89,12 @@
           inherit pkgs;
         };
 
-        toolchain = self.lib.mkToolchain {inherit pkgs;};
+        toolchain = self.lib.mkToolchain {
+          inherit pkgs;
+          toolchainProfile = "nightly";
+        };
         cross = self.lib.mkCross {inherit pkgs system;};
-        cargoConfig = self.lib.mkCargoConfig {inherit pkgs;};
+        cargoConfig = toolchain.cargoConfig;
         rsHarborVersion = (builtins.fromTOML (builtins.readFile ./cli/Cargo.toml)).package.version;
 
         bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {

@@ -5,7 +5,7 @@
 # Rust consumer: the versioned namespace, sandbox admission, environment
 # scrubbing, Cargo/Dioxus wrapper selection, and Cargo artifact propagation.
 {}: let
-  buildContract = import ./build-contract.nix;
+  buildContract = import ./build-contract.nix {};
   remoteCacheEnvNames = [
     "SCCACHE_SERVER_UDS"
     "SCCACHE_BUCKET"
@@ -49,6 +49,7 @@
     # without copying host-specific Redis settings into project flakes.
     redisSocketPath ? "/run/redis-sccache/redis.sock",
     compiler ? null,
+    toolchainManifest ? null,
   }: let
     lib = pkgs.lib;
     buildPackages =
@@ -71,6 +72,10 @@
       else if buildPackages ? rustc
       then buildPackages.rustc.version
       else "rustc";
+    contractToolchain =
+      if toolchainManifest != null
+      then toolchainManifest
+      else buildContract.toolchain.toolchain;
 
     mkSandboxWrapper = packageSet: let
       realSccache =
@@ -593,7 +598,7 @@
       telemetryMarker = "RS_HARBOR_SCCACHE_STATS_V1";
       inherit namespaceScope namespaceGeneration namespace sccacheVersion executionModel redisSocketPath;
       compiler = compilerName;
-      rustToolchain = buildContract.toolchain.toolchain;
+      rustToolchain = contractToolchain // {version = compilerName;};
     };
   };
 in {

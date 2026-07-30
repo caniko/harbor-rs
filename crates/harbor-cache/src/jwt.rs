@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn format_duration_short() {
         assert_eq!(format_duration(Duration::from_secs(45)), "0 min");
-        assert_eq!(format_duration(Duration::from_secs(120)), "2 min");
+        assert_eq!(format_duration(Duration::from_mins(2)), "2 min");
     }
 
     #[test]

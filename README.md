@@ -11,6 +11,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 `rs-harbor` packages the Nix plumbing most Rust workspaces need when targeting Linux, Windows, and macOS:
 
 - `mkToolchain` for Rust toolchains with `crane`
+- optional `mkToolchain` fleet profiles for centrally pinned stable and nightly Rust versions
 - `mkCargoConfig` for generated `.cargo/config.toml`
 - `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
 - `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets

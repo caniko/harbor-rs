@@ -284,6 +284,7 @@ in
       assert t.buildCache.contract.namespace == "canix-rust-v5-sccache-${pkgs.sccache.version}";
       assert t.craneLib.rsHarborBuildCachePolicy.contract == t.buildCache.contract;
       assert t.buildCache.contract.compiler == t.rustToolchain.version;
+      assert t.cargoConfig ? configText;
       assert t ? crossTargets;
       assert builtins.isList t.crossTargets;
       assert builtins.length t.crossTargets > 0;
@@ -348,6 +349,27 @@ in
       assert t ? rustToolchain;
       assert t ? craneLib;
         pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
+
+    # Fleet profiles are optional, pinned by rs-harbor, and select matching
+    # Cargo configuration so stable consumers do not inherit nightly -Z flags.
+    mkToolchain-fleet-profiles = let
+      stable = self.lib.mkToolchain {
+        inherit pkgs;
+        toolchainProfile = "stable";
+      };
+      nightly = self.lib.mkToolchain {
+        inherit pkgs;
+        toolchainProfile = "nightly";
+      };
+    in
+      assert stable.toolchainProfile == "stable";
+      assert stable.buildCache.contract.rustToolchain.channel == "1.97.1";
+      assert stable.buildCache.contract.compiler == stable.rustToolchain.version;
+      assert !(pkgs.lib.hasInfix "-Z" stable.cargoConfig.configText);
+      assert nightly.toolchainProfile == "nightly";
+      assert nightly.buildCache.contract.rustToolchain.channel == "nightly-2026-02-28";
+      assert pkgs.lib.hasInfix "-Zthreads=0" nightly.cargoConfig.configText;
+        pkgs.runCommand "check-mkToolchain-fleet-profiles" {} "touch $out";
 
     # A checked-in rust-toolchain.toml is authoritative and must retain its
     # declared wasm target while still adding the standard rust-analyzer
@@ -1250,6 +1272,35 @@ in
       assert out ? "fixture-aarch64-linux";
       assert builtins.isString out."fixture-aarch64-linux".drvPath;
         pkgs.runCommand "check-mkCrossPackages-toolchain-args" {} "touch $out";
+
+    # A selected native profile is inherited by non-native outputs unless the
+    # consumer explicitly supplies toolchainArgs.
+    mkCrossPackages-inherits-toolchain-args = let
+      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      mkCrossPackages = import ./lib/cross-packages.nix {
+        mkToolchain = args: {
+          craneLib = {
+            buildDepsOnly = _: {inherit args;};
+            buildPackage = packageArgs: packageArgs;
+          };
+        };
+      };
+      out = mkCrossPackages {
+        inherit pkgs;
+        cross = {};
+        craneLib = {
+          rsHarborToolchainArgs = {
+            channel = "stable";
+          };
+        };
+        pname = "fixture";
+        commonArgs.src = fixtureSrc;
+        targets = ["x86_64-linux-musl"];
+        buildCache = null;
+      };
+    in
+      assert out."fixture-x86_64-linux-musl".cargoArtifacts.args.channel == "stable";
+        pkgs.runCommand "check-mkCrossPackages-inherits-toolchain-args" {} "touch $out";
 
     mkCrossPackages-cache-opt-out-reaches-target-toolchains = let
       mkCrossPackages = import ./lib/cross-packages.nix {
