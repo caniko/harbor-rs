@@ -106,7 +106,8 @@
         rustTarget = spec.rustTarget or system;
         validation = "static-archive";
         consumable = true;
-      }) archives;
+      })
+    archives;
     releaseBundle = (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseBundle {
       inherit pname version;
       artifacts = releaseArtifacts;

@@ -48,6 +48,7 @@
     # at runtime so every consumer using rs-harbor gets the host transport
     # without copying host-specific Redis settings into project flakes.
     redisSocketPath ? "/run/redis-sccache/redis.sock",
+    compiler ? null,
   }: let
     lib = pkgs.lib;
     buildPackages =
@@ -64,6 +65,12 @@
       if cacheRoot == null
       then null
       else "${cacheRoot}/${namespace}";
+    compilerName =
+      if compiler != null
+      then compiler
+      else if buildPackages ? rustc
+      then buildPackages.rustc.version
+      else "rustc";
 
     mkSandboxWrapper = packageSet: let
       realSccache =
@@ -287,6 +294,8 @@
               --arg name "''${name:-unknown}" \
               --arg workloadKind "''${RS_HARBOR_SCCACHE_WORKLOAD_KIND:-unknown}" \
               --arg reuseKey "''${RS_HARBOR_SCCACHE_REUSE_KEY:-}" \
+              --arg compiler "''${RS_HARBOR_SCCACHE_COMPILER:-''${RUSTC:-rustc}}" \
+              --arg targetTriple "''${RS_HARBOR_SCCACHE_TARGET_TRIPLE:-''${CARGO_BUILD_TARGET:-''${TARGET:-unknown}}}" \
               --arg startedAt "''${RS_HARBOR_SCCACHE_TELEMETRY_STARTED_AT:-}" \
               --arg emittedAt "$(${buildPackages.coreutils}/bin/date +%s)" \
               --arg namespace ${lib.escapeShellArg namespace} \
@@ -298,6 +307,8 @@
                 rsHarborDerivation: $name,
                 rsHarborWorkloadKind: $workloadKind,
                 rsHarborReuseKey: $reuseKey,
+                compiler: $compiler,
+                targetTriple: $targetTriple,
                 rsHarborStartedAt: ($startedAt | tonumber),
                 rsHarborEmittedAt: ($emittedAt | tonumber),
                 rsHarborNamespace: $namespace,
@@ -395,9 +406,16 @@
           if linkerPackageSet == null
           then {}
           else hostLinkerEnvFor linkerPackageSet;
+        targetTriple =
+          telemetry.targetTriple
+          or package.CARGO_BUILD_TARGET
+          or ((package.env or {}).CARGO_BUILD_TARGET or buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget);
+        compilerValue = telemetry.compiler or compilerName;
         telemetryEnv = {
           RS_HARBOR_SCCACHE_WORKLOAD_KIND = telemetry.workloadKind or "unknown";
           RS_HARBOR_SCCACHE_REUSE_KEY = telemetry.reuseKey or "";
+          RS_HARBOR_SCCACHE_COMPILER = compilerValue;
+          RS_HARBOR_SCCACHE_TARGET_TRIPLE = targetTriple;
         };
         wrapped = withEnv {
           inherit package;
@@ -574,6 +592,7 @@
       telemetrySchemaVersion = 1;
       telemetryMarker = "RS_HARBOR_SCCACHE_STATS_V1";
       inherit namespaceScope namespaceGeneration namespace sccacheVersion executionModel redisSocketPath;
+      compiler = compilerName;
       rustToolchain = buildContract.toolchain.toolchain;
     };
   };

@@ -2,8 +2,7 @@
   pkgs,
   lib,
   projectSiteLib,
-}:
-let
+}: let
   docs = pkgs.stdenv.mkDerivation {
     pname = "rs-harbor-docs";
     version = "0.1.0";

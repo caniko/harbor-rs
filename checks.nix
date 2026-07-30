@@ -283,6 +283,7 @@ in
       assert pkgs.sccache.version == "0.16.0";
       assert t.buildCache.contract.namespace == "canix-rust-v5-sccache-${pkgs.sccache.version}";
       assert t.craneLib.rsHarborBuildCachePolicy.contract == t.buildCache.contract;
+      assert t.buildCache.contract.compiler == t.rustToolchain.version;
       assert t ? crossTargets;
       assert builtins.isList t.crossTargets;
       assert builtins.length t.crossTargets > 0;
@@ -315,6 +316,8 @@ in
       assert deps.drvAttrs.RS_HARBOR_SCCACHE_REUSE_KEY == "mk-toolchain-cache-fixture";
       assert package.drvAttrs.RS_HARBOR_SCCACHE_WORKLOAD_KIND == "package";
       assert package.drvAttrs.RS_HARBOR_SCCACHE_REUSE_KEY == "mk-toolchain-cache-fixture";
+      assert deps.drvAttrs.RS_HARBOR_SCCACHE_COMPILER == t.rustToolchain.version;
+      assert package.drvAttrs.RS_HARBOR_SCCACHE_COMPILER == t.rustToolchain.version;
         pkgs.runCommand "check-mkToolchain-crane-builders-are-cached" {} "touch $out";
 
     # Exceptional derivations can opt out explicitly, while retaining the raw
@@ -3890,6 +3893,7 @@ in
       assert policy.contract.telemetryMarker == "RS_HARBOR_SCCACHE_STATS_V1";
       assert policy.contract.namespace == "test-rust-v7-sccache-${pkgs.sccache.version}";
       assert policy.contract.sccacheVersion == pkgs.sccache.version;
+      assert policy.contract.compiler == pkgs.buildPackages.rustc.version;
       assert policy.contract.rustToolchain.channel == "nightly-2026-02-28";
       assert policy.contract.redisSocketPath == "/run/redis-sccache/redis.sock";
       assert policy.sharedCacheDir == "/tmp/sccache/test-rust-v7-sccache-${pkgs.sccache.version}";
@@ -3917,11 +3921,44 @@ in
     in
       assert rustAttrs.RUSTC_WRAPPER == policy.wrapperPath;
       assert rustAttrs.CARGO_INCREMENTAL == "0";
+      assert rustAttrs.RS_HARBOR_SCCACHE_COMPILER == policy.contract.compiler;
+      assert rustAttrs.RS_HARBOR_SCCACHE_TARGET_TRIPLE == pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
       assert rust.passthru.rsHarborBuildCacheWrapped;
       assert dioxusAttrs.RUSTC_WRAPPER == policy.dioxusDispatcherPath;
       assert dioxusAttrs.DX_RUSTC_INNER_WRAPPER == policy.wrapperPath;
       assert dioxusAttrs.CARGO_INCREMENTAL == "0";
         pkgs.runCommand "check-build-cache-policy-builder-shapes" {} "touch $out";
+
+    build-cache-policy-telemetry-fields = let
+      policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      wrapped = policy.withRustCache {
+        package = pkgs.hello;
+        telemetry = {
+          compiler = "rustc-test";
+          targetTriple = "aarch64-unknown-linux-gnu";
+        };
+      };
+      inferred = policy.withRustCache {
+        package = pkgs.hello.overrideAttrs (_: {
+          CARGO_BUILD_TARGET = "aarch64-unknown-linux-gnu";
+        });
+      };
+      attrs = (wrapped.drvAttrs.env or {}) // wrapped.drvAttrs;
+      inferredAttrs = (inferred.drvAttrs.env or {}) // inferred.drvAttrs;
+      telemetryHooks =
+        builtins.filter
+        (input: pkgs.lib.hasPrefix "rs-harbor-sccache-telemetry-hook" (input.name or ""))
+        (wrapped.drvAttrs.nativeBuildInputs or []);
+      hook = builtins.head telemetryHooks;
+    in
+      assert attrs.RS_HARBOR_SCCACHE_COMPILER == "rustc-test";
+      assert attrs.RS_HARBOR_SCCACHE_TARGET_TRIPLE == "aarch64-unknown-linux-gnu";
+      assert inferredAttrs.RS_HARBOR_SCCACHE_TARGET_TRIPLE == "aarch64-unknown-linux-gnu";
+        pkgs.runCommand "check-build-cache-policy-telemetry-fields" {} ''
+          grep -F 'compiler: $compiler' ${hook}/nix-support/setup-hook >/dev/null
+          grep -F 'targetTriple: $targetTriple' ${hook}/nix-support/setup-hook >/dev/null
+          touch "$out"
+        '';
 
     build-cache-policy-fail-closed = let
       policy = self.lib.mkBuildCachePolicy {inherit pkgs;};

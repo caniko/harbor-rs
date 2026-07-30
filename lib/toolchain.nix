@@ -238,6 +238,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     then
       mkBuildCachePolicy {
         inherit pkgs;
+        compiler = rustToolchain.version;
         buildPackageSet = pkgs.buildPackages;
         sccachePackage = cache.sccachePackage or null;
         cacheRoot = cache.cacheRoot or null;

@@ -216,7 +216,11 @@ in
       in
         if buildCache == null
         then raw
-        else buildCache.withRustCache {package = raw;}
+        else
+          buildCache.withRustCache {
+            package = raw;
+            telemetry.targetTriple = darwinTriple;
+          }
       else mkDarwinUnavailable darwinPname;
 
     # Map of every supported output attr name -> derivation thunk.

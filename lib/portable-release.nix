@@ -82,7 +82,8 @@
       mkArchive {
         inherit pname version system;
         entries = builtins.mapAttrs (_: bundle: toString bundle) entries;
-      }) artifacts;
+      })
+    artifacts;
     releaseArtifacts = lib.mapAttrs (system: result:
       (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseArtifact {
         inherit pname version system;

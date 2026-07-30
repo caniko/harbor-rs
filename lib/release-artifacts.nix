@@ -94,16 +94,17 @@
     };
     validationScript =
       if validation == "static-elf"
-      then assert lib.assertMsg (system != null) "rs-harbor: static-elf artifacts require system"; ''
-        for binary in ${entryArgs}; do
-          ${staticElfValidation {
-          readelf = "readelf";
-          grep = "grep";
-          path = "\"$stage/$binary\"";
-          machine = expectedMachine {inherit system;};
-        }}
-        done
-      ''
+      then
+        assert lib.assertMsg (system != null) "rs-harbor: static-elf artifacts require system"; ''
+          for binary in ${entryArgs}; do
+            ${staticElfValidation {
+            readelf = "readelf";
+            grep = "grep";
+            path = "\"$stage/$binary\"";
+            machine = expectedMachine {inherit system;};
+          }}
+          done
+        ''
       else "";
     archiveCommand =
       if format == "tar.gz"

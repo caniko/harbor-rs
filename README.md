@@ -118,6 +118,12 @@ inside the sandbox wrapper, and scrubs daemon/S3 credentials before invoking
 the compiler cache. Hosts provide the writable sandbox mount and transport
 credentials through `nixosModules.buildCache` and `nixosModules.sccache`.
 
+Rust cache setup hooks emit `RS_HARBOR_SCCACHE_STATS_V1` JSON records. In
+addition to sccache counters and rs-harbor workload metadata, every record
+contains explicit `compiler` and `targetTriple` fields. The target comes from
+the derivation's `CARGO_BUILD_TARGET` when present, otherwise the build
+platform target; callers such as osxcross may provide it explicitly.
+
 Cross builds must instantiate the policy with the build package set. A target
 `aarch64-linux` machine is never a compiler builder: evaluate and realize its
 outputs from the x86_64 Atlas/Crossbow path, and keep target-native recovery
