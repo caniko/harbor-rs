@@ -19,3 +19,5 @@
   Linux mold linker support
 - `mkToolchain` now guards Crane dependency-only builds from dummifying
   `[patch.crates-io]` path crates.
+- `mkAtticPush` can archive every recursively locked flake input and now uses
+  ephemeral mode-0600 Attic credentials instead of `attic login`.
