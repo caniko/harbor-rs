@@ -21,6 +21,8 @@
   `[patch.crates-io]` path crates.
 - Development shells now inherit the matching Cargo configuration from
   `mkToolchain` unless the caller supplies an override.
+- `mkAtticPush` can archive every recursively locked flake input and now uses
+  ephemeral mode-0600 Attic credentials instead of `attic login`.
 
 ### Changed
 
