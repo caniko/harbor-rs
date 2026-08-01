@@ -21,3 +21,5 @@
   `[patch.crates-io]` path crates.
 - `mkAtticPush` can archive every recursively locked flake input and now uses
   ephemeral mode-0600 Attic credentials instead of `attic login`.
+- The OpenCode LSP development input now uses its public GitHub mirror so
+  consumers can archive rs-harbor anonymously on hosted runners.

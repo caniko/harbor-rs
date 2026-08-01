@@ -24,7 +24,7 @@
     };
 
     nix-opencode-lsp = {
-      url = "git+https://codeberg.org/caniko/nix-opencode-lsp.git";
+      url = "github:caniko/nix-opencode-lsp/38e7ce16c754947a257a00a77682adfe696b6718";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
