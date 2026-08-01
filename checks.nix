@@ -4057,6 +4057,7 @@ in
         ${pkgs.gnugrep}/bin/grep -F 'refusing an uncached build' ${policy.wrapperPath} >/dev/null
         ${pkgs.gnugrep}/bin/grep -F 'no managed cache transport is available' ${policy.wrapperPath} >/dev/null
         ${pkgs.gnugrep}/bin/grep -F 'managed server failed to become ready' ${policy.wrapperPath} >/dev/null
+        ${pkgs.gnugrep}/bin/grep -F 'mkdir -p "$ready"' ${policy.wrapperPath} >/dev/null
         if ${pkgs.gnugrep}/bin/grep -F 'exec "$compiler" "$@"' ${policy.wrapperPath} >/dev/null; then
           echo 'rs-harbor sandbox wrapper must not bypass sccache' >&2
           exit 1

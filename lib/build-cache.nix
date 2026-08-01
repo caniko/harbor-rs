@@ -211,7 +211,7 @@
             umask 0007
             if ${realSccache}/bin/sccache --start-server >"$startup_log" 2>&1 \
               && [ -S "$compiler_socket" ]; then
-              ${packageSet.coreutils}/bin/mkdir "$ready"
+              ${packageSet.coreutils}/bin/mkdir -p "$ready"
             else
               ${packageSet.coreutils}/bin/cat "$startup_log" >&2 || true
               echo "rs-harbor sccache: managed server failed to become ready; refusing an uncached build" >&2
