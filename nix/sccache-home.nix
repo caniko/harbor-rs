@@ -254,6 +254,17 @@ in {
         transport variables are never inherited implicitly.
       '';
     };
+
+    environmentFile = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "/run/user/1000/canix/sccache.env";
+      description = ''
+        Optional systemd EnvironmentFile for interactive-daemon credentials.
+        Cache endpoint, bucket, and region remain declarative in the NixOS
+        sccache module. Inline credentials remain supported.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -288,6 +299,10 @@ in {
       {
         assertion = cfg.basedirsFile == null || lib.hasPrefix "/" cfg.basedirsFile;
         message = "programs.rsHarbor.sccache.userDaemon.basedirsFile must be an absolute path.";
+      }
+      {
+        assertion = cfg.environmentFile == null || lib.hasPrefix "/" cfg.environmentFile;
+        message = "programs.rsHarbor.sccache.userDaemon.environmentFile must be an absolute path.";
       }
       {
         assertion =
@@ -339,22 +354,26 @@ in {
         StartLimitIntervalSec = "${toString sccacheDefault.restartWindow}s";
         StartLimitBurst = sccacheDefault.restartBurst;
       };
-      Service = {
-        Type = "exec";
-        Restart = "on-failure";
-        RestartSec = "${toString sccacheDefault.restartDelay}s";
-        TimeoutStartSec = "${toString sccacheDefault.startupTimeout}s";
-        TimeoutStopSec = "10s";
-        Environment = serviceEnvironment;
-        ExecStartPre = [
-          "${pkgs.coreutils}/bin/mkdir -p %t/${builtins.dirOf sccacheDefault.userSocketRel} ${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}"
-          "${sccacheService.repairSocket} %t/${sccacheDefault.userSocketRel}"
-        ];
-        ExecStart = daemonLauncher;
-        ExecStartPost = "${sccacheService.waitForSocket} %t/${sccacheDefault.userSocketRel} ${toString sccacheDefault.startupTimeout}";
-        ExecStop = "${pkgs.coreutils}/bin/env -u SCCACHE_START_SERVER ${cfg.package}/bin/sccache --stop-server";
-        KillMode = "control-group";
-      };
+      Service =
+        {
+          Type = "exec";
+          Restart = "on-failure";
+          RestartSec = "${toString sccacheDefault.restartDelay}s";
+          TimeoutStartSec = "${toString sccacheDefault.startupTimeout}s";
+          TimeoutStopSec = "10s";
+          Environment = serviceEnvironment;
+          ExecStartPre = [
+            "${pkgs.coreutils}/bin/mkdir -p %t/${builtins.dirOf sccacheDefault.userSocketRel} ${config.xdg.cacheHome}/${sccacheDefault.userCacheRel}"
+            "${sccacheService.repairSocket} %t/${sccacheDefault.userSocketRel}"
+          ];
+          ExecStart = daemonLauncher;
+          ExecStartPost = "${sccacheService.waitForSocket} %t/${sccacheDefault.userSocketRel} ${toString sccacheDefault.startupTimeout}";
+          ExecStop = "${pkgs.coreutils}/bin/env -u SCCACHE_START_SERVER ${cfg.package}/bin/sccache --stop-server";
+          KillMode = "control-group";
+        }
+        // lib.optionalAttrs (cfg.environmentFile != null) {
+          EnvironmentFile = cfg.environmentFile;
+        };
       Install.WantedBy = ["default.target"];
     };
   };

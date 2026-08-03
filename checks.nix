@@ -3439,6 +3439,9 @@ in
               remoteEnvVars = {
                 SCCACHE_BUCKET = "sccache";
                 SCCACHE_ENDPOINT = "http://garage.test";
+                SCCACHE_REGION = "auto";
+                AWS_ACCESS_KEY_ID = "inline-key";
+                AWS_SECRET_ACCESS_KEY = "inline-secret";
               };
             };
           };
@@ -3477,6 +3480,7 @@ in
                   redisRwMode = "READ_WRITE";
                   multiLevelWriteErrorPolicy = "ignore";
                   environment.SCCACHE_CACHE_SIZE = "10G";
+                  environmentFile = "/run/user/1000/canix/sccache.env";
                 };
               };
               systemd.user = {
@@ -3498,6 +3502,12 @@ in
       assert builtins.elem "SCCACHE_REDIS_RW_MODE=READ_WRITE" service.Environment;
       assert builtins.elem "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore" service.Environment;
       assert builtins.elem "SCCACHE_CACHE_SIZE=10G" service.Environment;
+      assert builtins.elem "SCCACHE_BUCKET=sccache" service.Environment;
+      assert builtins.elem "SCCACHE_ENDPOINT=http://garage.test" service.Environment;
+      assert builtins.elem "SCCACHE_REGION=auto" service.Environment;
+      assert builtins.elem "AWS_ACCESS_KEY_ID=inline-key" service.Environment;
+      assert builtins.elem "AWS_SECRET_ACCESS_KEY=inline-secret" service.Environment;
+      assert service.EnvironmentFile == "/run/user/1000/canix/sccache.env";
       assert pkgs.lib.hasInfix "sccache-user-daemon-launcher" service.ExecStart;
       assert cfg.home.sessionVariables.CARGO_INCREMENTAL == "0";
       assert cfg.systemd.user.sessionVariables.CARGO_INCREMENTAL == "0";
