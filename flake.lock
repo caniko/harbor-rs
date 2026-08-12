@@ -140,16 +140,14 @@
       "locked": {
         "lastModified": 1785298780,
         "narHash": "sha256-hq+/QcdG+pOKugcglqt92n3AwDbZnJB/Z+FCgmM3nwg=",
-        "owner": "caniko",
-        "repo": "nix-opencode-lsp",
         "rev": "38e7ce16c754947a257a00a77682adfe696b6718",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/caniko/nix-opencode-lsp.git"
       },
       "original": {
-        "owner": "caniko",
         "ref": "trunk",
-        "repo": "nix-opencode-lsp",
-        "type": "github"
+        "type": "git",
+        "url": "ssh://git@github.com/caniko/nix-opencode-lsp.git"
       }
     },
     "nixpkgs": {
