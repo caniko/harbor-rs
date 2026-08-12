@@ -1,5 +1,6 @@
 {
   harbor,
+  opencodeLsp,
   pkgs,
   toolchain,
   cross,
@@ -31,5 +32,9 @@ in
       inherit (toolchain) craneLib;
       packages = docsPackages;
       extraShellHook = docsShellHook;
+    };
+    opencode-lsp = opencodeLsp.mkShell {
+      inherit pkgs;
+      rustAnalyzer = toolchain.rustToolchain;
     };
   }

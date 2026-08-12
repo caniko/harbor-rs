@@ -23,6 +23,11 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    nix-opencode-lsp = {
+      url = "github:caniko/nix-opencode-lsp/trunk";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
     nix-bundle = {
       url = "github:nix-community/nix-bundle";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -37,6 +42,7 @@
     rust-overlay,
     osxcross,
     meta-harbor,
+    nix-opencode-lsp,
     nix-bundle,
     ...
   }: let
@@ -220,6 +226,7 @@
 
         devShells = import ./nix/dev-shells.nix {
           harbor = self.lib;
+          opencodeLsp = nix-opencode-lsp.lib;
           inherit pkgs toolchain cross cargoConfig rsHarborCli;
         };
 

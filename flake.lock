@@ -101,12 +101,12 @@
         "rev": "f3384cf15bc50fdb01c4fce1552e8c9fbad1199d",
         "revCount": 4,
         "type": "git",
-        "url": "https://codefloe.com/caniko/meta-harbor.git"
+        "url": "ssh://git@codeberg.org/caniko/meta-harbor.git"
       },
       "original": {
         "ref": "trunk",
         "type": "git",
-        "url": "https://codefloe.com/caniko/meta-harbor.git"
+        "url": "ssh://git@codeberg.org/caniko/meta-harbor.git"
       }
     },
     "nix-bundle": {
@@ -140,15 +140,16 @@
       "locked": {
         "lastModified": 1785298780,
         "narHash": "sha256-hq+/QcdG+pOKugcglqt92n3AwDbZnJB/Z+FCgmM3nwg=",
-        "ref": "refs/heads/trunk",
+        "owner": "caniko",
+        "repo": "nix-opencode-lsp",
         "rev": "38e7ce16c754947a257a00a77682adfe696b6718",
-        "revCount": 7,
-        "type": "git",
-        "url": "https://codefloe.com/caniko/nix-opencode-lsp.git"
+        "type": "github"
       },
       "original": {
-        "type": "git",
-        "url": "https://codefloe.com/caniko/nix-opencode-lsp.git"
+        "owner": "caniko",
+        "ref": "trunk",
+        "repo": "nix-opencode-lsp",
+        "type": "github"
       }
     },
     "nixpkgs": {
