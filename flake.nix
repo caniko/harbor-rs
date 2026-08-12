@@ -19,12 +19,7 @@
     };
 
     meta-harbor = {
-      url = "git+https://codefloe.com/caniko/meta-harbor.git?ref=trunk";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    nix-opencode-lsp = {
-      url = "git+https://codefloe.com/caniko/nix-opencode-lsp.git";
+      url = "git+ssh://git@codeberg.org/caniko/meta-harbor.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -42,7 +37,6 @@
     rust-overlay,
     osxcross,
     meta-harbor,
-    nix-opencode-lsp,
     nix-bundle,
     ...
   }: let
@@ -226,7 +220,6 @@
 
         devShells = import ./nix/dev-shells.nix {
           harbor = self.lib;
-          opencodeLsp = nix-opencode-lsp.lib;
           inherit pkgs toolchain cross cargoConfig rsHarborCli;
         };
 
