@@ -13,10 +13,9 @@ The fastest path is to create a toolchain, generate cross helpers, then feed bot
 
       toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
       cross = rs-harbor.lib.mkCross { inherit pkgs system; };
-      cargoConfig = rs-harbor.lib.mkCargoConfig { inherit pkgs; };
     in {
       devShells = rs-harbor.lib.mkDevShells {
-        inherit pkgs cross cargoConfig;
+        inherit pkgs cross;
         inherit (toolchain) craneLib;
       };
     });

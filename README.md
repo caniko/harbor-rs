@@ -58,16 +58,15 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 
       toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
       cross = rs-harbor.lib.mkCross { inherit pkgs system; };
-      cargoConfig = rs-harbor.lib.mkCargoConfig { inherit pkgs; };
     in {
       devShells =
         (rs-harbor.lib.mkDevShells {
-          inherit pkgs cross cargoConfig;
+          inherit pkgs cross;
           inherit (toolchain) craneLib;
         })
         // {
           docs = rs-harbor.lib.mkDocsShell {
-            inherit pkgs cross cargoConfig;
+            inherit pkgs cross;
             inherit (toolchain) craneLib;
           };
         };
@@ -118,6 +117,9 @@ from the selected build-platform `sccache` package, scopes `XDG_CACHE_HOME`
 inside the sandbox wrapper, and scrubs daemon/S3 credentials before invoking
 the compiler cache. Hosts provide the writable sandbox mount and transport
 credentials through `nixosModules.buildCache` and `nixosModules.sccache`.
+`mkToolchain` leaves this policy disabled unless the consumer explicitly sets
+`cache.enable = true`, so ordinary flakes remain portable to hosts without a
+managed cache transport.
 
 Rust cache setup hooks emit `RS_HARBOR_SCCACHE_STATS_V1` JSON records. In
 addition to sccache counters and rs-harbor workload metadata, every record

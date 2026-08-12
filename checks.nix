@@ -279,12 +279,10 @@ in
       assert t ? craneLib;
       assert t ? rawCraneLib;
       assert t ? buildCache;
-      assert t.buildCache != null;
-      assert pkgs.sccache.version == "0.16.0";
-      assert t.buildCache.contract.namespace == "canix-rust-v5-sccache-${pkgs.sccache.version}";
-      assert t.craneLib.rsHarborBuildCachePolicy.contract == t.buildCache.contract;
-      assert t.buildCache.contract.compiler == t.rustToolchain.version;
+      assert t.buildCache == null;
+      assert t.craneLib.rsHarborBuildCachePolicy == null;
       assert t.cargoConfig ? configText;
+      assert t.craneLib.rsHarborCargoConfig == t.cargoConfig;
       assert t ? crossTargets;
       assert builtins.isList t.crossTargets;
       assert builtins.length t.crossTargets > 0;
@@ -292,8 +290,11 @@ in
 
     # The cache policy is applied at Crane's derivation-construction boundary,
     # so ordinary and dependency-only builds cannot silently bypass it.
-    mkToolchain-crane-builders-are-cached = let
-      t = self.lib.mkToolchain {inherit pkgs;};
+    mkToolchain-cache-opt-in = let
+      t = self.lib.mkToolchain {
+        inherit pkgs;
+        cache.enable = true;
+      };
       src = t.craneLib.cleanCargoSource ./tests/fixtures/cross-package-fixture;
       deps = t.craneLib.buildDepsOnly {
         inherit src;
@@ -319,25 +320,21 @@ in
       assert package.drvAttrs.RS_HARBOR_SCCACHE_REUSE_KEY == "mk-toolchain-cache-fixture";
       assert deps.drvAttrs.RS_HARBOR_SCCACHE_COMPILER == t.rustToolchain.version;
       assert package.drvAttrs.RS_HARBOR_SCCACHE_COMPILER == t.rustToolchain.version;
-        pkgs.runCommand "check-mkToolchain-crane-builders-are-cached" {} "touch $out";
+        pkgs.runCommand "check-mkToolchain-cache-opt-in" {} "touch $out";
 
-    # Exceptional derivations can opt out explicitly, while retaining the raw
-    # Crane scope for callers that need unwrapped construction.
-    mkToolchain-cache-opt-out = let
-      t = self.lib.mkToolchain {
-        inherit pkgs;
-        cache.enable = false;
-      };
+    # Ordinary consumers remain portable when no host cache transport exists.
+    mkToolchain-cache-default-off = let
+      t = self.lib.mkToolchain {inherit pkgs;};
       package = t.craneLib.buildPackage {
         src = ./tests/fixtures/cross-package-fixture;
-        pname = "mk-toolchain-cache-opt-out";
+        pname = "mk-toolchain-cache-default-off";
         version = "0.1.0";
         doCheck = false;
       };
     in
       assert t.buildCache == null;
       assert !(package.passthru.rsHarborBuildCacheWrapped or false);
-        pkgs.runCommand "check-mkToolchain-cache-opt-out" {} "touch $out";
+        pkgs.runCommand "check-mkToolchain-cache-default-off" {} "touch $out";
 
     # stable channel works
     mkToolchain-stable = let
@@ -356,10 +353,12 @@ in
       stable = self.lib.mkToolchain {
         inherit pkgs;
         toolchainProfile = "stable";
+        cache.enable = true;
       };
       nightly = self.lib.mkToolchain {
         inherit pkgs;
         toolchainProfile = "nightly";
+        cache.enable = true;
       };
     in
       assert stable.toolchainProfile == "stable";
@@ -1045,6 +1044,7 @@ in
       assert s ? windows;
       assert s ? macos;
       assert s ? cross;
+      assert pkgs.lib.hasInfix "cargo config at" s.default.shellHook;
         pkgs.runCommand "check-mkDevShells-shape" {} "touch $out";
 
     # mkDevShells accepts pkg-config dependency inputs
@@ -1790,6 +1790,7 @@ in
         wasmBindgenCli = pkgs.wasm-bindgen-cli_0_2_120;
         allowWasmBindgenMismatch = true;
       };
+      attrs = (drv.drvAttrs.env or {}) // drv.drvAttrs;
     in
       assert drv ? artifactBuilder;
       assert drv.artifactBuilder.kind == "trunk-builder";
@@ -1798,7 +1799,7 @@ in
       assert drv.artifactBuilder.metadata.helper == "mkDioxusPackage";
       assert drv.artifactBuilder.metadata.wasmSplit == false;
       assert drv.passthru.dioxus.wasmBindgenVersion == "0.2.126";
-      assert drv.drvAttrs.RUSTC_WRAPPER == toolchain.buildCache.dioxusDispatcherPath;
+      assert !(attrs ? RUSTC_WRAPPER);
         pkgs.runCommand "check-mkDioxusPackage-shape" {} "touch $out";
 
     mkDioxusAssetLinker-shape = let
@@ -3977,17 +3978,23 @@ in
       policy = self.lib.mkBuildCachePolicy {inherit pkgs;};
       rust = policy.withRustCache {package = pkgs.hello;};
       dioxus = policy.withDioxusCache {package = pkgs.hello;};
+      cmake = policy.withCmakeCache {package = pkgs.hello;};
       rustAttrs = (rust.drvAttrs.env or {}) // rust.drvAttrs;
       dioxusAttrs = (dioxus.drvAttrs.env or {}) // dioxus.drvAttrs;
+      cmakeAttrs = cmake.drvAttrs.env or {};
     in
       assert rustAttrs.RUSTC_WRAPPER == policy.wrapperPath;
       assert rustAttrs.CARGO_INCREMENTAL == "0";
       assert rustAttrs.RS_HARBOR_SCCACHE_COMPILER == policy.contract.compiler;
       assert rustAttrs.RS_HARBOR_SCCACHE_TARGET_TRIPLE == pkgs.buildPackages.stdenv.buildPlatform.rust.cargoEnvVarTarget;
       assert rust.passthru.rsHarborBuildCacheWrapped;
+      assert !(builtins.elem pkgs.sccache (rust.drvAttrs.nativeBuildInputs or []));
       assert dioxusAttrs.RUSTC_WRAPPER == policy.dioxusDispatcherPath;
       assert dioxusAttrs.DX_RUSTC_INNER_WRAPPER == policy.wrapperPath;
       assert dioxusAttrs.CARGO_INCREMENTAL == "0";
+      assert cmakeAttrs.CMAKE_C_COMPILER_LAUNCHER != "";
+      assert cmakeAttrs.CMAKE_CXX_COMPILER_LAUNCHER != "";
+      assert !(builtins.elem pkgs.sccache (cmake.drvAttrs.nativeBuildInputs or []));
         pkgs.runCommand "check-build-cache-policy-builder-shapes" {} "touch $out";
 
     build-cache-policy-telemetry-fields = let
@@ -4032,6 +4039,25 @@ in
           echo 'rs-harbor sandbox wrapper must not bypass sccache' >&2
           exit 1
         fi
+        touch "$out"
+      '';
+
+    build-cache-policy-concurrent-start = let
+      policy = self.lib.mkBuildCachePolicy {
+        inherit pkgs;
+        cacheRoot = "/build/cache";
+      };
+    in
+      pkgs.runCommand "check-build-cache-policy-concurrent-start" {} ''
+        ${pkgs.gnugrep}/bin/grep -F 'mkdir -p "$ready"' ${policy.wrapperPath} >/dev/null
+        mkdir -m 0770 /build/cache
+        ${policy.wrapperPath} --zero-stats &
+        first=$!
+        ${policy.wrapperPath} --zero-stats &
+        second=$!
+        wait "$first"
+        wait "$second"
+        ${policy.wrapperPath} --stop-server >/dev/null
         touch "$out"
       '';
 

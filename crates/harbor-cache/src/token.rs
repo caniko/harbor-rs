@@ -25,7 +25,7 @@ pub fn issue_token(opts: IssueTokenOpts<'_>) -> Result<String> {
         .arg("atticadm")
         .arg("make-token")
         .arg("--sub")
-        .arg(render_attic_subject(opts.subject_prefix, opts.project))
+        .arg(format!("{}{}", opts.subject_prefix, opts.project))
         .arg("--pull")
         .arg(opts.project)
         .arg("--push")
@@ -56,18 +56,4 @@ fn ensure_success(program: &str, output: &Output) -> Result<()> {
 
     let stderr = String::from_utf8_lossy(&output.stderr);
     bail!("{program} exited with {}: {}", output.status, stderr.trim())
-}
-
-fn render_attic_subject(subject_prefix: &str, project: &str) -> String {
-    format!("{subject_prefix}{project}")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::render_attic_subject;
-
-    #[test]
-    fn renders_subject_prefix() {
-        assert_eq!(render_attic_subject("canix-", "proj"), "canix-proj");
-    }
 }

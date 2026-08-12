@@ -18,7 +18,7 @@ Important parameters:
 - `extraEnv`
 - `extraShellHook`
 - `checks`
-- `cargoConfig`
+- `cargoConfig`: optional override; defaults to the configuration attached by `mkToolchain`
 
 ## mkProjectCliShellTools
 
@@ -68,7 +68,7 @@ nix build ./site#site
 ```nix
 devShells =
   (rs-harbor.lib.mkDevShells {
-    inherit pkgs cross cargoConfig;
+    inherit pkgs cross;
     inherit (toolchain) craneLib;
     packages = with pkgs; [ just vulkan-loader ];
     pkgConfigDeps = with pkgs; [ wayland libxkbcommon udev alsa-lib ];
@@ -82,11 +82,14 @@ devShells =
   })
   // {
     docs = rs-harbor.lib.mkDocsShell {
-      inherit pkgs cross cargoConfig;
+      inherit pkgs cross;
       inherit (toolchain) craneLib;
       packages = with pkgs; [ mdbook ];
     };
   };
 ```
 
-When `cargoConfig` is set, the shell will write `.cargo/config.toml` if it is missing and back up mismatched files before replacing them.
+The shell installs the selected configuration in a hash-specific directory
+under the user cache and uses it as `CARGO_HOME` only when the caller has not
+already selected one. Pass `cargoConfig` explicitly only to override the
+configuration attached to `craneLib` by `mkToolchain`.

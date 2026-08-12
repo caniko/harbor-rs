@@ -73,7 +73,7 @@ rec {
     extraEnv ? {},
     extraShellHook ? "",
     checks ? {},
-    cargoConfig ? null,
+    cargoConfig ? (craneLib.rsHarborCargoConfig or null),
     opencodeLsp ? {enable = true;},
   }: let
     inherit (cross) mingwBinutils osxcrossToolchain osxcrossRustHelpers;
@@ -179,7 +179,7 @@ rec {
     extraEnv ? {},
     extraShellHook ? "",
     checks ? {},
-    cargoConfig ? null,
+    cargoConfig ? (craneLib.rsHarborCargoConfig or null),
     opencodeLsp ? {enable = true;},
   }: let
     shell = {

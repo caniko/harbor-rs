@@ -70,13 +70,6 @@ fn check_file(
         Ok(e) => e,
         Err(_) => return Ok(()),
     };
-    if !elf.is_lib
-        && elf.header.e_type != goblin::elf::header::ET_EXEC
-        && !elf.is_64
-        && elf.header.e_type != goblin::elf::header::ET_DYN
-    {
-        // Filter out object files / relocatables (ET_REL etc).
-    }
     if !matches!(
         elf.header.e_type,
         goblin::elf::header::ET_EXEC | goblin::elf::header::ET_DYN

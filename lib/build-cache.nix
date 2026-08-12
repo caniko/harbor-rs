@@ -211,7 +211,7 @@
             umask 0007
             if ${realSccache}/bin/sccache --start-server >"$startup_log" 2>&1 \
               && [ -S "$compiler_socket" ]; then
-              ${packageSet.coreutils}/bin/mkdir "$ready"
+              ${packageSet.coreutils}/bin/mkdir -p "$ready"
             else
               ${packageSet.coreutils}/bin/cat "$startup_log" >&2 || true
               echo "rs-harbor sccache: managed server failed to become ready; refusing an uncached build" >&2
@@ -336,7 +336,7 @@
         fi
       '';
     };
-    commonNativeInputs = [wrapper canonicalSccachePackage telemetryHook buildPackages.jq];
+    commonNativeInputs = [wrapper telemetryHook buildPackages.jq];
 
     rustEnv = {
       RUSTC_WRAPPER = wrapperPath;
@@ -552,7 +552,7 @@
           else if conflicting != []
           then throw "rs-harbor: package already defines a CMake compiler launcher: ${lib.concatStringsSep ", " conflicting}"
           else {
-            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [packageSet.sccache cmakeWrapper];
+            nativeBuildInputs = (old.nativeBuildInputs or []) ++ [cmakeWrapper];
             env = (builtins.removeAttrs oldEnv (remoteCacheEnvNames ++ ["RUSTC_WRAPPER" "XDG_CACHE_HOME"])) // launcherEnv;
             passthru =
               (old.passthru or {})

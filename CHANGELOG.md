@@ -19,3 +19,12 @@
   Linux mold linker support
 - `mkToolchain` now guards Crane dependency-only builds from dummifying
   `[patch.crates-io]` path crates.
+- Development shells now inherit the matching Cargo configuration from
+  `mkToolchain` unless the caller supplies an override.
+
+### Changed
+
+- `mkToolchain` compiler caching is now opt-in because the sandbox wrapper
+  requires host-managed cache transport.
+- Sandbox startup is idempotent, and wrapped Rust/CMake derivations no longer
+  place the raw `sccache` package on `PATH`.

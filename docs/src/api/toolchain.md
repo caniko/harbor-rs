@@ -12,6 +12,7 @@
 - `extensions`: extra Rust components to install. Defaults to `["rust-src" "rustfmt" "rustc-codegen-cranelift-preview" "llvm-tools-preview"]`. `llvm-tools-preview` provides `llvm-cov`/`llvm-profdata`, which `cargo-llvm-cov`-based coverage CI requires.
 - `withRustAnalyzer`: whether to include `rust-analyzer` in the toolchain extensions; defaults to `true`
 - `crossTargets`: list of target triples to include in the toolchain
+- `cache.enable`: explicitly enable the host-backed compiler cache; defaults to `false`
 
 ## Returns
 
@@ -19,7 +20,8 @@
 
 - `rustToolchain`
 - `craneLib`
-- `cargoConfig`: matching `mkCargoConfig` output; use this for dev shells so stable profiles do not receive nightly-only flags
+- `buildCache`: the compiler-cache policy when enabled, otherwise `null`
+- `cargoConfig`: matching `mkCargoConfig` output, inherited automatically by rs-harbor dev shells using this `craneLib`
 - `crossTargets`
 
 ## Path-patched crates and `buildDepsOnly`
@@ -66,7 +68,17 @@ toolchain = rs-harbor.lib.mkToolchain {
 };
 ```
 
-Most downstream projects only need `craneLib` from the result. Pair it with [mkCargoConfig](./cargo-config.md) and [mkDevShell and mkDevShells](./dev-shells.md) for a complete local environment.
+Most downstream projects only need `craneLib` from the result. [mkDevShell and mkDevShells](./dev-shells.md) inherit its matching Cargo configuration automatically.
+
+Compiler caching is host infrastructure rather than a portable toolchain
+default. Hosts with a managed cache transport can opt in explicitly:
+
+```nix
+toolchain = rs-harbor.lib.mkToolchain {
+  inherit pkgs;
+  cache.enable = true;
+};
+```
 
 ## Optional fleet profiles
 
@@ -92,7 +104,6 @@ Projects with a checked-in Rust toolchain file can consume it directly:
 toolchain = rs-harbor.lib.mkToolchain {
   inherit pkgs;
   toolchainFile = ./rust-toolchain.toml;
-  cache.enable = false;
 };
 ```
 

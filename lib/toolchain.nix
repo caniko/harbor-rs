@@ -23,9 +23,7 @@
   extensions ? null,
   withRustAnalyzer ? true,
   crossTargets ? null,
-  # Compiler caching is enabled by default for every crane derivation. The
-  # policy is deliberately configurable so projects with an exceptional
-  # build can opt out explicitly without reintroducing hand-wrapped packages.
+  # Compiler caching requires host transport and is therefore explicit.
   cache ? {},
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
@@ -282,7 +280,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     Use craneLib.buildPackage (args // { cargoArtifacts = null; }) to build with real sources, remove the path patch, or vendor the dependency in a way that does not rely on [patch.crates-io]. If this project is known to tolerate dummy path patches, pass rsHarborAllowPathPatchBuildDepsOnly = true.
   '';
 
-  cacheEnabled = cache.enable or true;
+  cacheEnabled = cache.enable or false;
   buildCache =
     if cacheEnabled
     then
@@ -360,6 +358,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       # Dioxus and cross helpers use these markers to inherit the same policy
       # without requiring every consumer to thread it through manually.
       rsHarborBuildCachePolicy = buildCache;
+      rsHarborCargoConfig = cargoConfig;
       rsHarborToolchainArgs = toolchainArgs;
       rsHarborToolchainFile = resolvedToolchainFile;
       rsHarborToolchainProfile = toolchainProfile;

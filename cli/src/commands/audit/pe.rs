@@ -90,32 +90,10 @@ fn check_file(
 /// behaviour of `strings(1)`. Used to spot embedded `/nix/store/...` paths
 /// in release binaries.
 fn extract_printable_strings(bytes: &[u8], min_len: usize) -> impl Iterator<Item = String> + '_ {
-    let mut start = 0usize;
-    let mut idx = 0usize;
-    std::iter::from_fn(move || {
-        while idx < bytes.len() {
-            let b = bytes[idx];
-            let printable = (0x20..0x7f).contains(&b) || b == b'\t';
-            if printable {
-                idx += 1;
-                continue;
-            }
-            let span = &bytes[start..idx];
-            idx += 1;
-            start = idx;
-            if span.len() >= min_len {
-                return Some(String::from_utf8_lossy(span).into_owned());
-            }
-        }
-        if start < bytes.len() {
-            let span = &bytes[start..bytes.len()];
-            start = bytes.len();
-            if span.len() >= min_len {
-                return Some(String::from_utf8_lossy(span).into_owned());
-            }
-        }
-        None
-    })
+    bytes
+        .split(|b| !(0x20..0x7f).contains(b) && *b != b'\t')
+        .filter(move |span| span.len() >= min_len)
+        .map(|span| String::from_utf8_lossy(span).into_owned())
 }
 
 #[cfg(test)]
