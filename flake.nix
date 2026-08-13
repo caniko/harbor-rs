@@ -19,12 +19,12 @@
     };
 
     meta-harbor = {
-      url = "git+https://codefloe.com/caniko/meta-harbor.git?ref=trunk";
+      url = "git+ssh://git@codeberg.org/caniko/meta-harbor.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     nix-opencode-lsp = {
-      url = "git+https://codefloe.com/caniko/nix-opencode-lsp.git";
+      url = "git+ssh://git@github.com/caniko/nix-opencode-lsp.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
