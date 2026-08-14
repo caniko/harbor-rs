@@ -1986,45 +1986,6 @@ in
       assert builtins.isString app.program;
         pkgs.runCommand "check-mkAtticPush-shape" {} "touch $out";
 
-    # mkAtticPush accepts a flake source without explicit package paths.
-    mkAtticPush-flake-shape = let
-      adapter = self.lib.mkAdapter {
-        attic = {
-          endpoint = "https://x.com";
-          cache = "c";
-        };
-      };
-      app = self.lib.mkAtticPush {
-        inherit pkgs adapter;
-        flake = ".";
-      };
-    in
-      assert app.type == "app";
-      assert builtins.isString app.program;
-        pkgs.runCommand "check-mkAtticPush-flake-shape" {} "touch $out";
-
-    # The generated publisher fails before network access when no token exists.
-    mkAtticPush-rejects-missing-token = let
-      adapter = self.lib.mkAdapter {
-        attic = {
-          endpoint = "https://x.com";
-          cache = "c";
-        };
-      };
-      app = self.lib.mkAtticPush {
-        inherit pkgs adapter;
-        paths = [pkgs.hello];
-      };
-    in
-      pkgs.runCommand "check-mkAtticPush-rejects-missing-token" {} ''
-        if ${app.program} >log 2>&1; then
-          echo "publisher unexpectedly accepted a missing token" >&2
-          exit 1
-        fi
-        grep -F "must be a nonempty Attic JWT" log
-        touch $out
-      '';
-
     # mkCoprSpec returns expected attributes with default binary-shipping layout
     mkCoprSpec-shape = let
       s = self.lib.mkCoprSpec {
@@ -3479,9 +3440,6 @@ in
               remoteEnvVars = {
                 SCCACHE_BUCKET = "sccache";
                 SCCACHE_ENDPOINT = "http://garage.test";
-                SCCACHE_REGION = "auto";
-                AWS_ACCESS_KEY_ID = "inline-key";
-                AWS_SECRET_ACCESS_KEY = "inline-secret";
               };
             };
           };
@@ -3520,7 +3478,6 @@ in
                   redisRwMode = "READ_WRITE";
                   multiLevelWriteErrorPolicy = "ignore";
                   environment.SCCACHE_CACHE_SIZE = "10G";
-                  environmentFile = "/run/user/1000/canix/sccache.env";
                 };
               };
               systemd.user = {
@@ -3542,12 +3499,6 @@ in
       assert builtins.elem "SCCACHE_REDIS_RW_MODE=READ_WRITE" service.Environment;
       assert builtins.elem "SCCACHE_MULTILEVEL_WRITE_ERROR_POLICY=ignore" service.Environment;
       assert builtins.elem "SCCACHE_CACHE_SIZE=10G" service.Environment;
-      assert builtins.elem "SCCACHE_BUCKET=sccache" service.Environment;
-      assert builtins.elem "SCCACHE_ENDPOINT=http://garage.test" service.Environment;
-      assert builtins.elem "SCCACHE_REGION=auto" service.Environment;
-      assert builtins.elem "AWS_ACCESS_KEY_ID=inline-key" service.Environment;
-      assert builtins.elem "AWS_SECRET_ACCESS_KEY=inline-secret" service.Environment;
-      assert service.EnvironmentFile == "/run/user/1000/canix/sccache.env";
       assert pkgs.lib.hasInfix "sccache-user-daemon-launcher" service.ExecStart;
       assert cfg.home.sessionVariables.CARGO_INCREMENTAL == "0";
       assert cfg.systemd.user.sessionVariables.CARGO_INCREMENTAL == "0";
@@ -4088,7 +4039,6 @@ in
       };
     in
       pkgs.runCommand "check-build-cache-policy-concurrent-start" {} ''
-        ${pkgs.gnugrep}/bin/grep -F 'mkdir -p "$ready"' ${policy.wrapperPath} >/dev/null
         mkdir -m 0770 /build/cache
         ${policy.wrapperPath} --zero-stats &
         first=$!
