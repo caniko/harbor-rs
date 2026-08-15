@@ -22,31 +22,10 @@ steps:
   environment:
     CARGO_HOME: /tmp/.cargo
     NIX_CONFIG: experimental-features = nix-command flakes
-- name: cargo-fmt
+- name: project-check
   image: ghcr.io/cachix/devenv:latest
   commands:
-  - nix develop -c cargo fmt --all -- --check
-  environment:
-    CARGO_HOME: /tmp/.cargo
-    NIX_CONFIG: experimental-features = nix-command flakes
-- name: cargo-test
-  image: ghcr.io/cachix/devenv:latest
-  commands:
-  - nix develop -c cargo test -p harbor-cache
-  environment:
-    CARGO_HOME: /tmp/.cargo
-    NIX_CONFIG: experimental-features = nix-command flakes
-- name: cargo-clippy
-  image: ghcr.io/cachix/devenv:latest
-  commands:
-  - nix develop -c cargo clippy --all-targets -- --deny warnings
-  environment:
-    CARGO_HOME: /tmp/.cargo
-    NIX_CONFIG: experimental-features = nix-command flakes
-- name: cargo-package
-  image: ghcr.io/cachix/devenv:latest
-  commands:
-  - nix develop -c cargo package --allow-dirty --list -p harbor-cache
+  - nix develop -c harbor-ci default
   environment:
     CARGO_HOME: /tmp/.cargo
     NIX_CONFIG: experimental-features = nix-command flakes
