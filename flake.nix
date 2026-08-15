@@ -108,6 +108,13 @@
           version = rsHarborVersion;
         };
 
+        harborCi = import ./nix/harbor-ci.nix {
+          inherit pkgs;
+          inherit (toolchain) craneLib;
+          src = ./.;
+          version = rsHarborVersion;
+        };
+
         rsHarborStaticPackages =
           if system == "x86_64-linux"
           then
@@ -190,6 +197,7 @@
             bootstrap-cmds-mig = bootstrapCmdsMig;
             steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
             rs-harbor = rsHarborCli;
+            harbor-ci = harborCi;
           }
           // (
             if rsHarborBinaryRelease != null
@@ -227,7 +235,7 @@
         devShells = import ./nix/dev-shells.nix {
           harbor = self.lib;
           opencodeLsp = nix-opencode-lsp.lib;
-          inherit pkgs toolchain cross cargoConfig rsHarborCli;
+          inherit pkgs toolchain cross cargoConfig rsHarborCli harborCi;
         };
 
         checks = import ./checks.nix {
