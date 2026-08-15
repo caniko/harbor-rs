@@ -34,7 +34,11 @@ fn print_commit_block(store_path: &std::path::Path, version: &str, recursive_has
     );
 }
 
-fn render_commit_block(store_path: &std::path::Path, version: &str, recursive_hash: &str) -> String {
+fn render_commit_block(
+    store_path: &std::path::Path,
+    version: &str,
+    recursive_hash: &str,
+) -> String {
     format!(
         "Commit this in host configuration:\n\
          ```nix\n\
