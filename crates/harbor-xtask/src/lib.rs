@@ -9,6 +9,7 @@ mod copr;
 mod coverage;
 mod docs;
 mod nix;
+mod pipeline;
 mod release;
 
 pub use check::{run_cargo_build, run_cargo_package, run_check, run_fmt, run_lint, run_test};
@@ -16,6 +17,7 @@ pub use copr::{run_copr_srpm, run_copr_vendor, run_copr_vendor_check};
 pub use coverage::run_coverage;
 pub use docs::run_docs_serve;
 pub use nix::{run_nix_build, run_nix_develop};
+pub use pipeline::{CommandResult, CommandSpec, run_pipeline, run_step};
 pub use release::{rewrite_spec_version, run_release};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
