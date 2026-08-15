@@ -14,4 +14,4 @@ The library exposes:
 
 Start with [Installation](./getting-started/installation.md) if you want to consume the flake in another project, or jump to [Quick Start](./getting-started/quick-start.md) for a minimal cross-compiling shell.
 
-Source repository: <https://codeberg.org/caniko/rs-harbor>
+Source repository: <https://github.com/caniko/rs-harbor>

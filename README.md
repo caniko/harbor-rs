@@ -15,7 +15,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkCargoConfig` for generated `.cargo/config.toml`
 - `mkCross` for MinGW, aarch64-linux, and optional osxcross environments
 - `mkCrossPackages` for building one workspace across native, aarch64-linux, Windows, and macOS targets
-- `mkBinaryRelease` and `mkReleaseBinaryPackage` for signed Codeberg binary archives and locked prebuilt consumers
+- `mkBinaryRelease` and `mkReleaseBinaryPackage` for signed GitHub binary archives and locked prebuilt consumers
 - `mkPortableBinaryRelease` and `mkPortableReleaseBinaryPackage` for native applications bundled with pinned `nix-bundle`
 - `mkReleaseArtifact`, `mkReleaseArchive`, and `mkReleaseBundle` for generic flat release outputs with one versioned manifest
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
@@ -173,4 +173,4 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [Package tests](docs/src/packaging/package-tests.md)
 - [COPR spec](docs/src/packaging/copr.md)
 
-Source repository: <https://codeberg.org/caniko/rs-harbor>
+Source repository: <https://github.com/caniko/rs-harbor>

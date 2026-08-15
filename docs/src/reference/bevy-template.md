@@ -5,7 +5,7 @@
 ## Initialize from the template
 
 ```bash
-nix flake init -t git+ssh://git@codeberg.org/caniko/rs-harbor.git#bevy
+nix flake init -t git+https://github.com/caniko/rs-harbor.git#bevy
 ```
 
 ## What the template includes

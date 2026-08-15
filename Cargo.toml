@@ -10,7 +10,7 @@ members = [
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-repository = "https://codeberg.org/caniko/rs-harbor"
+repository = "https://github.com/caniko/rs-harbor"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
