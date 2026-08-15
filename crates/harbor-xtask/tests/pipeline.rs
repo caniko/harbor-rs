@@ -1,6 +1,8 @@
+use std::fs;
 use std::time::Duration;
 
-use harbor_xtask::{CommandSpec, run_pipeline, run_step};
+use harbor_xtask::{CommandSpec, PipelinePlan, run_pipeline, run_step};
+use tempfile::tempdir;
 
 #[test]
 fn runs_steps_in_order_with_captured_output() {
@@ -80,4 +82,41 @@ fn reports_elapsed_time() {
 fn run_step_returns_success_flag_without_failing() {
     let result = run_step(&CommandSpec::new("boom", "false")).expect("spawn");
     assert!(!result.success);
+}
+
+#[test]
+fn cleanup_runs_in_reverse_order_after_failure() {
+    let temp = tempdir().expect("temporary directory");
+    let marker = temp.path().join("cleanup-order");
+    let plan = PipelinePlan::new()
+        .step(CommandSpec::new("fail", "false"))
+        .cleanup(
+            CommandSpec::new("first cleanup", "sh")
+                .args(["-c", "printf first >> \"$HARBOR_CLEANUP_ORDER\""])
+                .env("HARBOR_CLEANUP_ORDER", marker.display().to_string())
+                .capture(),
+        )
+        .cleanup(
+            CommandSpec::new("second cleanup", "sh")
+                .args(["-c", "printf second >> \"$HARBOR_CLEANUP_ORDER\""])
+                .env("HARBOR_CLEANUP_ORDER", marker.display().to_string())
+                .capture(),
+        );
+    let error = plan.run().expect_err("main step must fail");
+    assert!(format!("{error:#}").contains("fail"));
+    assert_eq!(
+        fs::read_to_string(marker).expect("cleanup marker"),
+        "secondfirst"
+    );
+}
+
+#[test]
+fn keep_going_executes_following_steps() {
+    let report = PipelinePlan::new()
+        .step(CommandSpec::new("fail", "false"))
+        .step(CommandSpec::new("after", "true"))
+        .keep_going(true)
+        .run()
+        .expect_err("a kept-going failure remains a failure");
+    assert!(format!("{report:#}").contains("fail"));
 }
