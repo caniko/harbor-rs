@@ -21,6 +21,10 @@
   `[patch.crates-io]` path crates.
 - Development shells now inherit the matching Cargo configuration from
   `mkToolchain` unless the caller supplies an override.
+- Added the configurable `harbor-ci` command for fast, default, and full Cargo
+  validation pipelines, optional keep-going diagnostics, and JSON reports.
+- Flake packages and development shells now expose `harbor-ci` for local and
+  generated CI checks.
 
 ### Changed
 
@@ -28,3 +32,5 @@
   requires host-managed cache transport.
 - Sandbox startup is idempotent, and wrapped Rust/CMake derivations no longer
   place the raw `sccache` package on `PATH`.
+- Generated Crow checks now invoke `harbor-ci default` instead of duplicating
+  Cargo command steps.
