@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.ref || github.ref }}
+  group: ${{ github.workflow_ref }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
@@ -86,7 +86,8 @@ jobs:
         run: nix flake check
 
       - name: Project checks
-        run: nix develop -c harbor-ci default
+        run: |
+          nix develop -c harbor-ci default
 
       - name: Dry-run publish
         run: nix develop -c cargo publish -p harbor-xtask --dry-run

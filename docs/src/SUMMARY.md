@@ -16,6 +16,7 @@
 - [Binary release archives](./api/binary-releases.md)
 - [mkDevShell and mkDevShells](./api/dev-shells.md)
 - [mkGpuRenderPin](./api/gpu-render-pin.md)
+- [harbor-ci](./api/harbor-ci.md)
 
 # Packaging
 
