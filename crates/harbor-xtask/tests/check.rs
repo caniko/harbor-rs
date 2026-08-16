@@ -9,6 +9,7 @@ fn config() -> ProjectConfig {
         workspace_root: PathBuf::from("/tmp/project"),
         cargo_workspace: CargoWorkspace {
             packages: Vec::new(),
+            excludes: Vec::new(),
             all_features: false,
         },
         spec_file: None,
@@ -72,4 +73,53 @@ fn full_plan_adds_configured_quality_steps() {
     assert_eq!(plan.steps().len(), 8);
     assert_eq!(plan.steps()[2].args[0..2], ["nextest", "run"]);
     assert_eq!(plan.steps()[7].args[0..2], ["package", "--workspace"]);
+}
+
+#[test]
+fn nextest_args_are_added_to_the_test_stage() {
+    let plan = harbor_xtask::cargo_ci_plan_with_nextest_args(
+        &ProjectConfig {
+            cargo_workspace: CargoWorkspace {
+                packages: Vec::new(),
+                excludes: vec!["external-tests".to_owned()],
+                all_features: false,
+            },
+            ..config()
+        },
+        CheckProfile::Default,
+        CargoCiOptions {
+            test_runner: TestRunner::Nextest,
+            ..CargoCiOptions::default()
+        },
+        &["--profile".to_owned(), "ci".to_owned()],
+    );
+    assert_eq!(
+        plan.steps()[1].args,
+        [
+            "clippy",
+            "--workspace",
+            "--exclude",
+            "external-tests",
+            "--all-features",
+            "--locked",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+        ]
+    );
+    assert_eq!(
+        plan.steps()[2].args,
+        [
+            "nextest",
+            "run",
+            "--workspace",
+            "--exclude",
+            "external-tests",
+            "--all-features",
+            "--locked",
+            "--profile",
+            "ci"
+        ]
+    );
 }

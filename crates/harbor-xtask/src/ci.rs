@@ -12,6 +12,8 @@ use crate::{CargoCiOptions, TestRunner};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HarborCiConfig {
     pub packages: Vec<String>,
+    pub excludes: Vec<String>,
+    pub nextest_args: Vec<String>,
     pub locked: bool,
     pub all_features: bool,
     pub test_runner: TestRunner,
@@ -25,6 +27,8 @@ impl Default for HarborCiConfig {
     fn default() -> Self {
         Self {
             packages: Vec::new(),
+            excludes: Vec::new(),
+            nextest_args: Vec::new(),
             locked: true,
             all_features: true,
             test_runner: TestRunner::Cargo,
@@ -81,6 +85,11 @@ pub fn load_harbor_ci_config(workspace_root: &Path) -> Result<HarborCiConfig> {
 
     let mut config = HarborCiConfig::default();
     config.packages = string_array(table, "packages")?;
+    config.excludes = string_array(table, "exclude")?;
+    config.nextest_args = string_array(table, "nextest-args")?;
+    if !config.packages.is_empty() && !config.excludes.is_empty() {
+        bail!("harbor-ci.packages and harbor-ci.exclude cannot both be set");
+    }
     config.locked = bool_value(table, "locked", config.locked)?;
     config.all_features = bool_value(table, "all-features", config.all_features)?;
     config.docs = bool_value(table, "docs", config.docs)?;
@@ -96,6 +105,9 @@ pub fn load_harbor_ci_config(workspace_root: &Path) -> Result<HarborCiConfig> {
             }
             None => bail!("harbor-ci.test-runner must be a string"),
         };
+    }
+    if !config.nextest_args.is_empty() && config.test_runner != TestRunner::Nextest {
+        bail!("harbor-ci.nextest-args requires test-runner = `nextest`");
     }
     Ok(config)
 }

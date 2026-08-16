@@ -13,7 +13,9 @@ mod nix;
 mod pipeline;
 mod release;
 
-pub use check::{CargoCiOptions, CheckProfile, TestRunner, cargo_ci_plan};
+pub use check::{
+    CargoCiOptions, CheckProfile, TestRunner, cargo_ci_plan, cargo_ci_plan_with_nextest_args,
+};
 pub use check::{run_cargo_build, run_cargo_package, run_check, run_fmt, run_lint, run_test};
 pub use ci::{HarborCiConfig, load_harbor_ci_config};
 pub use copr::{run_copr_srpm, run_copr_vendor, run_copr_vendor_check};
@@ -38,6 +40,7 @@ pub struct ProjectConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CargoWorkspace {
     pub packages: Vec<String>,
+    pub excludes: Vec<String>,
     pub all_features: bool,
 }
 
@@ -99,6 +102,7 @@ impl ProjectConfig {
             workspace_root: workspace_root.into(),
             cargo_workspace: CargoWorkspace {
                 packages: Vec::new(),
+                excludes: Vec::new(),
                 all_features: false,
             },
             spec_file: None,
@@ -157,6 +161,10 @@ pub(crate) fn cargo_workspace_args(cfg: &ProjectConfig) -> Vec<String> {
     let mut args = Vec::new();
     if cfg.cargo_workspace.packages.is_empty() {
         args.push(String::from("--workspace"));
+        for package in &cfg.cargo_workspace.excludes {
+            args.push(String::from("--exclude"));
+            args.push(package.clone());
+        }
     } else {
         for package in &cfg.cargo_workspace.packages {
             args.push(String::from("-p"));

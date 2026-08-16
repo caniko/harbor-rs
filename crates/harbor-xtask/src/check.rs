@@ -49,10 +49,25 @@ pub fn cargo_ci_plan(
     profile: CheckProfile,
     options: CargoCiOptions,
 ) -> PipelinePlan {
+    cargo_ci_plan_with_nextest_args(cfg, profile, options, &[])
+}
+
+#[must_use]
+pub fn cargo_ci_plan_with_nextest_args(
+    cfg: &ProjectConfig,
+    profile: CheckProfile,
+    options: CargoCiOptions,
+    nextest_args: &[String],
+) -> PipelinePlan {
+    let nextest_args = if options.test_runner == TestRunner::Nextest {
+        nextest_args
+    } else {
+        &[]
+    };
     let mut plan = PipelinePlan::new()
         .step(fmt_spec(cfg, FormatMode::Check))
         .step(lint_spec_with(cfg, options))
-        .step(test_spec_with(cfg, &[], options));
+        .step(test_spec_with(cfg, nextest_args, options));
 
     if matches!(profile, CheckProfile::Default | CheckProfile::Full) {
         plan = plan.step(build_spec_with(cfg, false, options));

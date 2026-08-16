@@ -3,7 +3,8 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
 use harbor_xtask::{
-    CargoWorkspace, CheckProfile, ProjectConfig, cargo_ci_plan, load_harbor_ci_config, write_report,
+    CargoWorkspace, CheckProfile, ProjectConfig, cargo_ci_plan_with_nextest_args,
+    load_harbor_ci_config, write_report,
 };
 
 fn main() -> Result<()> {
@@ -36,10 +37,17 @@ fn main() -> Result<()> {
     let mut project = ProjectConfig::from_workspace_root(&root);
     project.cargo_workspace = CargoWorkspace {
         packages: config.packages.clone(),
+        excludes: config.excludes.clone(),
         all_features: config.all_features,
     };
 
-    let plan = cargo_ci_plan(&project, profile, config.cargo_options()).keep_going(keep_going);
+    let plan = cargo_ci_plan_with_nextest_args(
+        &project,
+        profile,
+        config.cargo_options(),
+        &config.nextest_args,
+    )
+    .keep_going(keep_going);
     let report = plan.run()?;
     if let Some(path) = report_path {
         write_report(path, &report)?;
