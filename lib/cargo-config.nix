@@ -79,7 +79,7 @@ assert pkgs.lib.assertMsg (devCodegenUnits == null || (builtins.isInt devCodegen
     then ""
     else "[target.${triple}]\n${linkerLine}${flagsLine}";
 
-  targetSections = concatStringsSep "\n" (filter (s: s != "") (map mkTargetSection crossTargets));
+  targetSections = concatStringsSep "\n" (filter (s: s != "") (map mkTargetSection (pkgs.lib.unique crossTargets)));
 
   craneliftSection = concatStringsSep "\n" [
     "[unstable]"

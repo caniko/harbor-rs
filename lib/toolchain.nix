@@ -86,13 +86,14 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       then ["rust-analyzer"]
       else []
     );
-  fileTargets =
+  fileTargets = pkgs.lib.unique (
     manifestTargets
     ++ (
       if crossTargets == null
       then []
       else crossTargets
-    );
+    )
+  );
   resolvedCrossTargets =
     if resolvedToolchainFile != null
     then fileTargets

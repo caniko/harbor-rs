@@ -384,6 +384,23 @@ in
       assert t.rustToolchain != null;
         pkgs.runCommand "check-mkToolchain-toolchain-file" {} "touch $out";
 
+    # Fleet profile manifests already list the cross targets; a consumer that
+    # passes overlapping explicit targets must get each target and its Cargo
+    # table exactly once.
+    mkToolchain-deduplicates-overlapping-crossTargets = let
+      t = self.lib.mkToolchain {
+        inherit pkgs;
+        toolchainProfile = "nightly";
+        crossTargets = ["x86_64-pc-windows-gnu"];
+      };
+      windowsInTargets = builtins.filter (target: target == "x86_64-pc-windows-gnu") t.crossTargets;
+      windowsSections = builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
+        (pkgs.lib.splitString "\n" t.cargoConfig.configText);
+    in
+      assert builtins.length windowsInTargets == 1;
+      assert builtins.length windowsSections == 1;
+        pkgs.runCommand "check-mkToolchain-deduplicates-overlapping-crossTargets" {} "touch $out";
+
     # Path-patched crates under [patch.crates-io] must not be dummified by
     # Crane's dependency-only phase. Registry dependencies may compile against
     # those patched crates and require their real API.
@@ -1701,6 +1718,19 @@ in
       assert pkgs.lib.hasInfix "mold" c.configText;
       assert pkgs.lib.hasInfix "threads" c.configText;
         pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
+
+    # Duplicate crossTargets entries must not emit duplicate Cargo tables.
+    mkCargoConfig-deduplicates-targets = let
+      c = self.lib.mkCargoConfig {
+        inherit pkgs;
+        channel = "nightly";
+        crossTargets = ["x86_64-pc-windows-gnu" "x86_64-pc-windows-gnu"];
+      };
+      windowsSections = builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
+        (pkgs.lib.splitString "\n" c.configText);
+    in
+      assert builtins.length windowsSections == 1;
+        pkgs.runCommand "check-mkCargoConfig-deduplicates-targets" {} "touch $out";
 
     # mkCargoConfig enables memory-saving dev profile defaults by default
     mkCargoConfig-dev-profile-opts = let
