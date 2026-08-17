@@ -61,6 +61,6 @@ cargoConfig = rs-harbor.lib.mkCargoConfig {
 ```
 
 Pass the result into `mkDevShell` or `mkDevShells` and `rs-harbor` will install
-it into a hash-specific directory under the user cache and use it as
-`CARGO_HOME` when the shell starts, so the project tree stays free of
-generated configuration.
+it into a hash-specific directory under the user cache. That directory is
+exported as `CARGO_HOME` only when the caller has not already selected one, so
+the project tree stays free of generated configuration.
