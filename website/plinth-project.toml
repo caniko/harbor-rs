@@ -76,7 +76,7 @@ description = "Generate native, Windows, and macOS cross environments from one f
 
 [[pages.sections.features]]
 title = "Cargo config"
-description = "Emit linker and compiler settings once, then let the dev shell write a consistent .cargo/config.toml."
+description = "Emit linker and compiler settings once, then serve them from a cache-keyed CARGO_HOME without touching the project tree."
 
 [[pages.sections.features]]
 title = "Packaging helpers"

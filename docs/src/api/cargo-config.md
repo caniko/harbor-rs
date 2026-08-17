@@ -60,4 +60,7 @@ cargoConfig = rs-harbor.lib.mkCargoConfig {
 };
 ```
 
-Pass the result into `mkDevShell` or `mkDevShells` and `rs-harbor` will write or update `.cargo/config.toml` when the shell starts.
+Pass the result into `mkDevShell` or `mkDevShells` and `rs-harbor` will install
+it into a hash-specific directory under the user cache and use it as
+`CARGO_HOME` when the shell starts, so the project tree stays free of
+generated configuration.
