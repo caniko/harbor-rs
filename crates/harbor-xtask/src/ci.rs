@@ -83,10 +83,12 @@ pub fn load_harbor_ci_config(workspace_root: &Path) -> Result<HarborCiConfig> {
         return Ok(HarborCiConfig::default());
     };
 
-    let mut config = HarborCiConfig::default();
-    config.packages = string_array(table, "packages")?;
-    config.excludes = string_array(table, "exclude")?;
-    config.nextest_args = string_array(table, "nextest-args")?;
+    let mut config = HarborCiConfig {
+        packages: string_array(table, "packages")?,
+        excludes: string_array(table, "exclude")?,
+        nextest_args: string_array(table, "nextest-args")?,
+        ..Default::default()
+    };
     if !config.packages.is_empty() && !config.excludes.is_empty() {
         bail!("harbor-ci.packages and harbor-ci.exclude cannot both be set");
     }
