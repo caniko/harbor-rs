@@ -566,12 +566,12 @@
         "rev": "073c7e8ffdd4d9f0b5c6735ec81377d1dde6a145",
         "revCount": 102,
         "type": "git",
-        "url": "https://codeberg.org/caniko/rs-harbor.git"
+        "url": "https://github.com/caniko/rs-harbor.git"
       },
       "original": {
         "ref": "trunk",
         "type": "git",
-        "url": "https://codeberg.org/caniko/rs-harbor.git"
+        "url": "https://github.com/caniko/rs-harbor.git"
       }
     },
     "rs-harbor_2": {
