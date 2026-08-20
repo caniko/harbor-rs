@@ -32,6 +32,15 @@
       url = "github:nix-community/nix-bundle";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    treefmt-nix = {
+      url = "github:numtide/treefmt-nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    git-hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = inputs @ {
@@ -245,6 +254,7 @@
 
         checks = import ./checks.nix {
           inherit self pkgs system toolchain cross nixpkgs rust-overlay;
+          inherit (inputs) treefmt-nix git-hooks;
           rootInputNames = builtins.attrNames inputs;
         };
       };

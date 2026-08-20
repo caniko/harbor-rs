@@ -7,6 +7,8 @@
   rootInputNames,
   nixpkgs,
   rust-overlay,
+  treefmt-nix,
+  git-hooks,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
   rootLock = builtins.fromJSON (builtins.readFile ./flake.lock);
@@ -14,6 +16,16 @@
     builtins.any
     (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
     (builtins.attrValues rootLock.nodes.root.inputs);
+  defaultTemplateRoot = ./templates/default;
+  defaultTemplateFlake = builtins.readFile (defaultTemplateRoot + "/flake.nix");
+  defaultTemplateSimit = builtins.fromTOML (builtins.readFile (defaultTemplateRoot + "/simit.toml"));
+  defaultTemplateTreefmt = builtins.readFile (defaultTemplateRoot + "/nix/treefmt.nix");
+  defaultTemplateHooks = builtins.readFile (defaultTemplateRoot + "/nix/pre-commit.nix");
+  bevyTemplateRoot = ./templates/bevy;
+  bevyTemplateFlake = builtins.readFile (bevyTemplateRoot + "/flake.nix");
+  bevyTemplateSimit = builtins.fromTOML (builtins.readFile (bevyTemplateRoot + "/simit.toml"));
+  bevyTemplateTreefmt = builtins.readFile (bevyTemplateRoot + "/nix/treefmt.nix");
+  bevyTemplateHooks = builtins.readFile (bevyTemplateRoot + "/nix/pre-commit.nix");
 in
   {
     mkRustCommandServiceModule-shape = let
@@ -396,7 +408,8 @@ in
         crossTargets = ["x86_64-pc-windows-gnu"];
       };
       windowsInTargets = builtins.filter (target: target == "x86_64-pc-windows-gnu") t.crossTargets;
-      windowsSections = builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
+      windowsSections =
+        builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
         (pkgs.lib.splitString "\n" t.cargoConfig.configText);
     in
       assert builtins.length windowsInTargets == 1;
@@ -1052,25 +1065,49 @@ in
       touch "$out"
     '';
 
-    template-default = self.lib.templateTests.mkCheck {
-      inherit pkgs system;
-      flakeNix = ./templates/default/flake.nix;
-      inputs = {
-        inherit nixpkgs rust-overlay;
-        rs-harbor = self;
-      };
-      requiredFiles = ["flake.nix" "Cargo.toml" "Cargo.lock" "src/main.rs"];
-      requiredInputs = ["rs-harbor"];
-      commands = ["cargo"];
-      hookContains = ["cargo config at"];
-      inherit (self.lib) devShellTests;
+    template-default = assert defaultTemplateSimit.flake
+    == {
+      scope = "full";
+      mode = "custom";
+      backend = "rust-crane";
+      toolchain_binding = "toolchain";
+      crane_lib_binding = "craneLib";
+      package_binding = "package";
     };
+    assert pkgs.lib.hasInfix "treefmt-nix.follows" defaultTemplateFlake;
+    assert pkgs.lib.hasInfix "git-hooks.follows" defaultTemplateFlake;
+    assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" defaultTemplateFlake;
+    assert pkgs.lib.hasInfix "pre-commit-check.shellHook" defaultTemplateFlake;
+    assert pkgs.lib.hasInfix "edition = \"2021\"" defaultTemplateTreefmt;
+    assert pkgs.lib.hasInfix "treefmt =" defaultTemplateHooks;
+    assert pkgs.lib.hasInfix "cargo-clippy" defaultTemplateHooks;
+      self.lib.templateTests.mkCheck {
+        inherit pkgs system;
+        flakeNix = ./templates/default/flake.nix;
+        inputs = {
+          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
+          rs-harbor = self;
+        };
+        requiredFiles = [
+          "flake.nix"
+          "Cargo.toml"
+          "Cargo.lock"
+          "src/main.rs"
+          "simit.toml"
+          "nix/treefmt.nix"
+          "nix/pre-commit.nix"
+        ];
+        requiredInputs = ["rs-harbor" "treefmt-nix" "git-hooks"];
+        commands = ["cargo"];
+        hookContains = ["cargo config at"];
+        inherit (self.lib) devShellTests;
+      };
 
     template-default-package = let
       outputs = self.lib.templateTests.eval {
         flakeNix = ./templates/default/flake.nix;
         inputs = {
-          inherit nixpkgs rust-overlay;
+          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
           rs-harbor = self;
         };
       };
@@ -1080,26 +1117,45 @@ in
         touch "$out"
       '';
 
-    template-bevy = self.lib.templateTests.mkCheck {
-      inherit pkgs system;
-      flakeNix = ./templates/bevy/flake.nix;
-      inputs = {
-        inherit nixpkgs rust-overlay;
-        rs-harbor = self;
-      };
-      requiredFiles = [
-        "flake.nix"
-        "Cargo.toml"
-        "src/main.rs"
-        "nix/package.nix"
-        "nix/dev-shells.nix"
-        "nix/bevy-deps.nix"
-      ];
-      requiredInputs = ["rs-harbor"];
-      commands = ["cargo"];
-      hookContains = ["cargo config at"];
-      inherit (self.lib) devShellTests;
+    template-bevy = assert bevyTemplateSimit.flake
+    == {
+      scope = "full";
+      mode = "custom";
+      backend = "rust-crane";
+      toolchain_binding = "toolchain";
+      crane_lib_binding = "craneLib";
+      package_binding = "default";
     };
+    assert pkgs.lib.hasInfix "treefmt-nix.follows" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "git-hooks.follows" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "pre-commit-check.shellHook" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "edition = \"2024\"" bevyTemplateTreefmt;
+    assert pkgs.lib.hasInfix "treefmt =" bevyTemplateHooks;
+    assert pkgs.lib.hasInfix "cargo-clippy" bevyTemplateHooks;
+      self.lib.templateTests.mkCheck {
+        inherit pkgs system;
+        flakeNix = ./templates/bevy/flake.nix;
+        inputs = {
+          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
+          rs-harbor = self;
+        };
+        requiredFiles = [
+          "flake.nix"
+          "Cargo.toml"
+          "src/main.rs"
+          "nix/package.nix"
+          "nix/dev-shells.nix"
+          "nix/bevy-deps.nix"
+          "simit.toml"
+          "nix/treefmt.nix"
+          "nix/pre-commit.nix"
+        ];
+        requiredInputs = ["rs-harbor" "treefmt-nix" "git-hooks"];
+        commands = ["cargo"];
+        hookContains = ["cargo config at"];
+        inherit (self.lib) devShellTests;
+      };
 
     # mkDevShells returns expected shell variants
     mkDevShells-shape = let
@@ -1777,7 +1833,8 @@ in
         channel = "nightly";
         crossTargets = ["x86_64-pc-windows-gnu" "x86_64-pc-windows-gnu"];
       };
-      windowsSections = builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
+      windowsSections =
+        builtins.filter (line: line == "[target.x86_64-pc-windows-gnu]")
         (pkgs.lib.splitString "\n" c.configText);
     in
       assert builtins.length windowsSections == 1;
