@@ -4,7 +4,12 @@
   meta-harbor ? null,
   nixBundle ? null,
 }: let
-  devShellLib = import ./dev-shell.nix;
+  devShellLib = import ./dev-shell.nix {
+    metaDevShell =
+      if meta-harbor != null
+      then meta-harbor.devShell
+      else null;
+  };
   adapterLib = import ./adapter.nix;
   minisignLib = import ./minisign.nix;
   mkCargoConfig = import ./cargo-config.nix;
@@ -18,9 +23,17 @@
     if meta-harbor != null
     then meta-harbor.packageTests
     else throw "rs-harbor: package-test helpers require the meta-harbor flake input";
+  templateTests =
+    if meta-harbor != null
+    then meta-harbor.templateTests
+    else throw "rs-harbor: template-test helpers require the meta-harbor flake input";
+  devShellTests =
+    if meta-harbor != null
+    then meta-harbor.devShellTests
+    else throw "rs-harbor: dev-shell-test helpers require the meta-harbor flake input";
   dioxusLib = import ./dioxus.nix {inherit packageTests;};
 in {
-  inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests mkCargoConfig;
+  inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests templateTests devShellTests mkCargoConfig;
   buildContract = import ./build-contract.nix {};
   opencode =
     if meta-harbor != null

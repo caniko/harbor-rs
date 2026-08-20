@@ -4,7 +4,9 @@
 #
 # Build devShells with Rust cross-compilation environment variables pre-configured.
 # mkDevShells calls mkDevShell internally, so both live in the same file.
-rec {
+{
+  metaDevShell ? null,
+}: rec {
   mkPkgConfigEnv = {
     pkgs,
     deps ? [],
@@ -138,18 +140,27 @@ rec {
 
     mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;
   in
-    craneLib.devShell (mergedEnv
-      // {
-        inherit checks;
-
+    if metaDevShell == null
+    then throw "rs-harbor: mkDevShell requires the meta-harbor flake input"
+    else
+      metaDevShell.mkShell {
+        inherit pkgs;
         packages = basePackages ++ windowsPackages ++ osxPackages ++ opencodeLspPackages ++ packages;
-
-        shellHook = ''
+        env = mergedEnv;
+        extraShellHook = ''
           ${cargoConfigHook}
           ${osxShellHook}
           ${extraShellHook}
         '';
-      });
+        builder = spec:
+          craneLib.devShell (
+            spec.env
+            // {
+              inherit checks;
+              inherit (spec) packages shellHook;
+            }
+          );
+      };
 
   # Build a docs/tooling shell that starts from the same foundation as
   # mkDevShell, but keeps cross-compilation environment variables disabled

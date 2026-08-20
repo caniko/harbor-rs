@@ -5,6 +5,8 @@
   toolchain,
   cross,
   rootInputNames,
+  nixpkgs,
+  rust-overlay,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
   rootLock = builtins.fromJSON (builtins.readFile ./flake.lock);
@@ -295,7 +297,7 @@ in
         inherit pkgs;
         cache.enable = true;
       };
-      src = t.craneLib.cleanCargoSource ./tests/fixtures/cross-package-fixture;
+      src = t.craneLib.cleanCargoSource ./templates/default;
       deps = t.craneLib.buildDepsOnly {
         inherit src;
         pname = "mk-toolchain-cache-fixture";
@@ -326,7 +328,7 @@ in
     mkToolchain-cache-default-off = let
       t = self.lib.mkToolchain {inherit pkgs;};
       package = t.craneLib.buildPackage {
-        src = ./tests/fixtures/cross-package-fixture;
+        src = ./templates/default;
         pname = "mk-toolchain-cache-default-off";
         version = "0.1.0";
         doCheck = false;
@@ -1050,6 +1052,55 @@ in
       touch "$out"
     '';
 
+    template-default = self.lib.templateTests.mkCheck {
+      inherit pkgs system;
+      flakeNix = ./templates/default/flake.nix;
+      inputs = {
+        inherit nixpkgs rust-overlay;
+        rs-harbor = self;
+      };
+      requiredFiles = ["flake.nix" "Cargo.toml" "Cargo.lock" "src/main.rs"];
+      requiredInputs = ["rs-harbor"];
+      commands = ["cargo"];
+      hookContains = ["cargo config at"];
+      inherit (self.lib) devShellTests;
+    };
+
+    template-default-package = let
+      outputs = self.lib.templateTests.eval {
+        flakeNix = ./templates/default/flake.nix;
+        inputs = {
+          inherit nixpkgs rust-overlay;
+          rs-harbor = self;
+        };
+      };
+    in
+      pkgs.runCommand "check-template-default-package" {} ''
+        test -x ${outputs.packages.${system}.default}/bin/cross-fixture
+        touch "$out"
+      '';
+
+    template-bevy = self.lib.templateTests.mkCheck {
+      inherit pkgs system;
+      flakeNix = ./templates/bevy/flake.nix;
+      inputs = {
+        inherit nixpkgs rust-overlay;
+        rs-harbor = self;
+      };
+      requiredFiles = [
+        "flake.nix"
+        "Cargo.toml"
+        "src/main.rs"
+        "nix/package.nix"
+        "nix/dev-shells.nix"
+        "nix/bevy-deps.nix"
+      ];
+      requiredInputs = ["rs-harbor"];
+      commands = ["cargo"];
+      hookContains = ["cargo config at"];
+      inherit (self.lib) devShellTests;
+    };
+
     # mkDevShells returns expected shell variants
     mkDevShells-shape = let
       s = self.lib.mkDevShells {
@@ -1218,7 +1269,7 @@ in
     # name, and each derivation evaluates (we force drvPaths, not full builds).
     # native + windows are buildable on x86_64-linux without a macOS SDK.
     mkCrossPackages-shape = let
-      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      fixtureSrc = ./templates/default;
       commonArgs = {
         src = fixtureSrc;
         version = "0.1.0";
@@ -1246,7 +1297,7 @@ in
 
     # mkCrossPackages rejects unsupported target names and commonArgs without src.
     mkCrossPackages-validation = let
-      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      fixtureSrc = ./templates/default;
       badTarget = builtins.tryEval (self.lib.mkCrossPackages {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
@@ -1269,7 +1320,7 @@ in
     # Non-native outputs can preserve the consumer's pinned Rust channel and
     # date instead of silently switching to rs-harbor's default toolchain.
     mkCrossPackages-toolchain-args = let
-      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      fixtureSrc = ./templates/default;
       out = self.lib.mkCrossPackages {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
@@ -1293,7 +1344,7 @@ in
     # A selected native profile is inherited by non-native outputs unless the
     # consumer explicitly supplies toolchainArgs.
     mkCrossPackages-inherits-toolchain-args = let
-      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      fixtureSrc = ./templates/default;
       mkCrossPackages = import ./lib/cross-packages.nix {
         mkToolchain = args: {
           craneLib = {
@@ -1333,7 +1384,7 @@ in
         cross = {};
         craneLib = {};
         pname = "fixture";
-        commonArgs.src = ./tests/fixtures/cross-package-fixture;
+        commonArgs.src = ./templates/default;
         targets = ["x86_64-linux-musl"];
         buildCache = null;
       };
@@ -1344,7 +1395,7 @@ in
     # mkCrossPackageOutputs preserves the flat package set and adds the
     # build/host namespace consumed by Crossbow package registries.
     mkCrossPackageOutputs-contract = let
-      fixtureSrc = ./tests/fixtures/cross-package-fixture;
+      fixtureSrc = ./templates/default;
       out = self.lib.mkCrossPackageOutputs {
         buildSystem = "x86_64-linux";
         hostSystem = "aarch64-linux";
@@ -1370,7 +1421,7 @@ in
     mkCrossPackages-cross-targets =
       if system == "x86_64-linux"
       then let
-        fixtureSrc = ./tests/fixtures/cross-package-fixture;
+        fixtureSrc = ./templates/default;
         commonArgs = {
           src = fixtureSrc;
           version = "0.1.0";
@@ -1782,10 +1833,10 @@ in
     # mkTrunkPackage includes the host linker tools needed by rs-harbor's
     # generated Cargo config when Linux mold support is enabled.
     mkTrunkPackage-includes-linker-tools = let
-      cargoLock = ./tests/fixtures/cross-package-fixture/Cargo.lock;
+      cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
       drv = self.lib.mkTrunkPackage {
         inherit pkgs;
-        src = ./tests/fixtures/cross-package-fixture;
+        src = ./tests/fixtures/dioxus-fixture;
         inherit cargoLock;
         pname = "check-trunk-linker-tools";
         craneLib = toolchain.craneLib;

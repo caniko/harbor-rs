@@ -23,6 +23,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, `mkHomebrewFormula`, and `mkAndroidFlavorTable` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain
+- `templates.default` and `templates.bevy` for `nix flake init`
 
 ### More helpers
 

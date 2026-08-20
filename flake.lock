@@ -95,11 +95,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786509945,
-        "narHash": "sha256-0eNM1hxR8qlQV31ZZvJ3mKuZrPKlfpsyCgjKkVR2j10=",
+        "lastModified": 1787224113,
+        "narHash": "sha256-7Xz0gzc0Gg1DKamnT/eoytl6xUyGIfY1nZUTjQcaXjA=",
         "ref": "trunk",
-        "rev": "358e6d8a5f7bb99b19c7e4a26a6dd9a529df02e5",
-        "revCount": 6,
+        "rev": "519bc9305b5ba78f37c3226a9d8427c8f635afb8",
+        "revCount": 7,
         "type": "git",
         "url": "https://github.com/caniko/meta-harbor.git"
       },

@@ -73,6 +73,11 @@
 
         homeManagerModules.sccache = import ./nix/sccache-home.nix;
 
+        templates.default = {
+          path = ./templates/default;
+          description = "Rust project with rs-harbor";
+        };
+
         templates.bevy = {
           path = ./templates/bevy;
           description = "Bevy game engine project with rs-harbor cross-compilation";
@@ -239,7 +244,7 @@
         };
 
         checks = import ./checks.nix {
-          inherit self pkgs system toolchain cross;
+          inherit self pkgs system toolchain cross nixpkgs rust-overlay;
           rootInputNames = builtins.attrNames inputs;
         };
       };

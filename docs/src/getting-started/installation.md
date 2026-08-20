@@ -23,9 +23,10 @@ Use `rs-harbor` as a flake input and follow its pinned shared dependencies from 
 }
 ```
 
-If you want a ready-made starting point for a Bevy project, `rs-harbor` also exports a template:
+Ready-made starting points:
 
 ```bash
+nix flake init -t git+https://github.com/caniko/rs-harbor.git
 nix flake init -t git+https://github.com/caniko/rs-harbor.git#bevy
 ```
 
