@@ -28,6 +28,9 @@
 
 ### Changed
 
+- Android APK helpers now live in
+  [harbor-android](https://github.com/caniko/harbor-android) and are
+  re-exported from `rs-harbor.lib` for one migration release.
 - `mkToolchain` compiler caching is now opt-in because the sandbox wrapper
   requires host-managed cache transport.
 - Sandbox startup is idempotent, and wrapped Rust/CMake derivations no longer
