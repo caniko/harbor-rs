@@ -571,7 +571,7 @@ mod tests {
     fn class_name_matches_nix_formula_helper() {
         assert_eq!(class_name("modde"), "Modde");
         assert_eq!(class_name("my-app"), "MyApp");
-        assert_eq!(class_name("harbor-rs"), "RsHarbor");
+        assert_eq!(class_name("harbor-rs"), "HarborRs");
     }
 
     #[test]
