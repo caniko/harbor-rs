@@ -23,6 +23,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
+    harbor-android = {
+      url = "github:caniko/harbor-android/trunk";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.meta-harbor.follows = "meta-harbor";
+    };
+
     nix-opencode-lsp = {
       url = "git+https://github.com/caniko/nix-opencode-lsp.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -51,6 +57,7 @@
     rust-overlay,
     osxcross,
     meta-harbor,
+    harbor-android,
     nix-opencode-lsp,
     nix-bundle,
     ...
@@ -68,6 +75,7 @@
           inherit crane osxcross;
           meta-harbor = meta-harbor.lib;
           nixBundle = nix-bundle;
+          harbor-android = harbor-android.lib;
         };
       in {
         inherit lib;

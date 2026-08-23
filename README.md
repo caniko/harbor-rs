@@ -21,7 +21,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
-- `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, `mkHomebrewFormula`, and `mkAndroidFlavorTable` for packaging outputs
+- `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain
 - `templates.default` and `templates.bevy` for `nix flake init`
 
@@ -38,7 +38,7 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 - `mkPackageArtifactBuilder` / `mkPackageTestPlan` / `mkChocoTestEnvironment` — package-builder metadata, verification plans, and Chocolatey Vagrant test environments
 - `mkDioxusWebPackage` / `mkDioxusFullstackPackage` — reproducible Dioxus 0.7 web and fullstack bundles with exact `wasm-bindgen-cli`, offline Cargo vendoring, and the shared artifact contract
 - `mkDioxusBuildPlan` / `resolveWasmBindgenCli` — reusable Dioxus command planning and lockfile-to-toolchain version resolution for downstream flakes
-- `mkAndroidApk` / `mkAndroidApkDevBuilder` / `mkAndroidFlavorTable` / `findLocalMavenCache` — Android Rust+Gradle packages, fix-loop staging apps, flavor expansion, and pinned Maven-cache discovery
+- `mkAndroidApk` / `mkAndroidApkDevBuilder` / `mkAndroidFlavorTable` / `findLocalMavenCache` / `mkAndroidSdk` / `mkAndroidDevShell` — re-exported from [harbor-android](https://github.com/caniko/harbor-android) for one migration release
 
 ## Prerequisites
 

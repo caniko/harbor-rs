@@ -3,6 +3,7 @@
   osxcross,
   meta-harbor ? null,
   nixBundle ? null,
+  harbor-android ? null,
 }: let
   devShellLib = import ./dev-shell.nix {
     metaDevShell =
@@ -104,12 +105,19 @@ in {
     inherit hardeningProfiles;
   };
 
-  findLocalMavenCache = import ./android-maven-cache.nix;
   fetchMavenCache = import ./fetch-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
-  mkAndroidApk = import ./android-apk.nix {inherit packageTests;};
-  mkAndroidApkDevBuilder = import ./android-apk-dev-builder.nix {inherit packageTests;};
-  mkAndroidFlavorTable = import ./android-flavor-table.nix {inherit packageTests;};
+  inherit
+    (if harbor-android != null
+    then harbor-android
+    else throw "rs-harbor: Android helpers require the harbor-android flake input")
+    findLocalMavenCache
+    mkAndroidApk
+    mkAndroidApkDevBuilder
+    mkAndroidFlavorTable
+    mkAndroidSdk
+    mkAndroidDevShell
+    ;
   mkAppImage = import ./appimage.nix {inherit packageTests;};
   mkPackageArtifactBuilder = import ./package-artifact-builder.nix {inherit packageTests;};
   mkChocoPackage = import ./choco-package.nix {inherit packageTests;};
