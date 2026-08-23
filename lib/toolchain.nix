@@ -271,7 +271,20 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       "rsHarborAllowPathPatchBuildDepsOnly"
       "rsHarborCargoTomlContents"
       "rsHarborCacheReuseKey"
+      "stdenv"
     ];
+
+  # Crane deprecated per-derivation `stdenv=`; apply it on craneLib instead.
+  cranePrevFor = prev: args:
+    if !(args ? stdenv)
+    then prev
+    else
+      upstreamCraneLib.overrideScope (_: _: {
+        stdenvSelector =
+          if pkgs.lib.isFunction args.stdenv
+          then args.stdenv
+          else _: args.stdenv;
+      });
 
   pathPatchBuildDepsOnlyError = pathPatches: ''
     harbor-rs: refusing craneLib.buildDepsOnly for a Cargo workspace with [patch.crates-io] path patches: ${formatPathPatches pathPatches}
@@ -305,10 +318,12 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   # constructs a Cargo derivation inherits it automatically.
   craneLib =
     (upstreamCraneLib.overrideScope (_final: prev: {
-      mkCargoDerivation =
+      mkCargoDerivation = args: let
+        raw = (cranePrevFor prev args).mkCargoDerivation (stripRsHarborCraneArgs args);
+      in
         if buildCache == null
-        then prev.mkCargoDerivation
-        else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
+        then raw
+        else buildCache.withRustCache {package = raw;};
 
       buildDepsOnly = args: let
         allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
@@ -319,7 +334,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
         raw =
           if pathPatches != []
           then throw (pathPatchBuildDepsOnlyError pathPatches)
-          else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+          else (cranePrevFor prev args).buildDepsOnly (stripRsHarborCraneArgs args);
       in
         if buildCache == null
         then raw
@@ -338,7 +353,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
           then []
           else patchCratesIoPathPatches args;
         args' = stripRsHarborCraneArgs args;
-        raw = prev.buildPackage (
+        raw = (cranePrevFor prev args).buildPackage (
           if pathPatches != [] && !(args ? cargoArtifacts)
           then args' // {cargoArtifacts = null;}
           else args'
@@ -375,7 +390,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     in
       if pathPatches != []
       then throw (pathPatchBuildDepsOnlyError pathPatches)
-      else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+      else (cranePrevFor prev args).buildDepsOnly (stripRsHarborCraneArgs args);
 
     buildPackage = args: let
       pathPatches =
@@ -384,7 +399,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
         else patchCratesIoPathPatches args;
       args' = stripRsHarborCraneArgs args;
     in
-      prev.buildPackage (
+      (cranePrevFor prev args).buildPackage (
         if pathPatches != [] && !(args ? cargoArtifacts)
         then args' // {cargoArtifacts = null;}
         else args'

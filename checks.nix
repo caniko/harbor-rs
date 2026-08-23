@@ -629,6 +629,21 @@ in
       assert result.success == false;
         pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-rejected" {} "touch $out";
 
+    # Legacy `stdenv=` crane args must map to stdenvSelector, not warn.
+    craneLib-stdenv-arg-uses-selector = let
+      pkg = toolchain.craneLib.buildPackage {
+        src = ./templates/default;
+        pname = "stdenv-selector-fixture";
+        version = "0.1.0";
+        doCheck = false;
+        stdenv = pkgs.clangStdenv;
+      };
+    in
+      assert pkgs.lib.isDerivation pkg;
+      assert builtins.isString pkg.drvPath;
+      assert pkg.stdenv == pkgs.clangStdenv;
+        pkgs.runCommand "check-craneLib-stdenv-arg-uses-selector" {} "touch $out";
+
     craneLib-path-patch-buildDepsOnly-escape-hatch = let
       fixtureSrc = ./tests/fixtures/path-patch-fixture;
       result = builtins.tryEval (toolchain.craneLib.buildDepsOnly {
