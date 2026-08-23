@@ -28,6 +28,8 @@
 
 ### Changed
 
+- `mkToolchain` maps legacy crane `stdenv` arguments onto `stdenvSelector`
+  so per-derivation stdenv overrides no longer warn.
 - Android APK helpers now live in
   [harbor-android](https://github.com/caniko/harbor-android) and are
   re-exported from `harbor-rs.lib` for one migration release.
