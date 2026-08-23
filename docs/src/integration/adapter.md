@@ -5,7 +5,7 @@
 ## Example
 
 ```nix
-harborAdapter = rs-harbor.lib.mkAdapter {
+harborAdapter = harbor-rs.lib.mkAdapter {
   attic = {
     endpoint = "https://cache.example.com";
     cache = "main";

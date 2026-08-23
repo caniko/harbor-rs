@@ -5,7 +5,7 @@
 # consumers can update with extra overrides or compose multiple profiles.
 #
 # Usage:
-#   services.my-service.serviceConfig = rs-harbor.lib.hardeningProfiles.network-service // {
+#   services.my-service.serviceConfig = harbor-rs.lib.hardeningProfiles.network-service // {
 #     ExecStart = "...";
 #   };
 {

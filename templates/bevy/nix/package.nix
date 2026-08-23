@@ -1,4 +1,4 @@
-# Builds the Bevy game crate using crane (from rs-harbor).
+# Builds the Bevy game crate using crane (from harbor-rs).
 #
 # Uses a two-phase build: cargoArtifacts caches dependency compilation,
 # then buildPackage compiles the actual game crate.

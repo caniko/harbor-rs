@@ -2,7 +2,7 @@
 # mkScoopManifest :: { pkgs, name, version, description, homepage, license, architectures, ... }
 #                 -> { manifestText; manifestPath; }
 #
-# Generate a Scoop manifest from release metadata. rs-harbor only emits the
+# Generate a Scoop manifest from release metadata. harbor-rs only emits the
 # manifest file; checksum computation and bucket publishing stay in downstream
 # release workflows.
 {packageTests}: {

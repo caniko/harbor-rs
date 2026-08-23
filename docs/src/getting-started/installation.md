@@ -1,6 +1,6 @@
 # Installation
 
-Use `rs-harbor` as a flake input and follow its pinned shared dependencies from your project.
+Use `harbor-rs` as a flake input and follow its pinned shared dependencies from your project.
 
 ## Requirements
 
@@ -13,12 +13,12 @@ Use `rs-harbor` as a flake input and follow its pinned shared dependencies from 
 ```nix
 {
   inputs = {
-    rs-harbor.url = "git+https://github.com/caniko/rs-harbor.git";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git";
 
-    nixpkgs.follows = "rs-harbor/nixpkgs";
-    rust-overlay.follows = "rs-harbor/rust-overlay";
-    crane.follows = "rs-harbor/crane";
-    flake-utils.follows = "rs-harbor/flake-utils";
+    nixpkgs.follows = "harbor-rs/nixpkgs";
+    rust-overlay.follows = "harbor-rs/rust-overlay";
+    crane.follows = "harbor-rs/crane";
+    flake-utils.follows = "harbor-rs/flake-utils";
   };
 }
 ```
@@ -26,8 +26,8 @@ Use `rs-harbor` as a flake input and follow its pinned shared dependencies from 
 Ready-made starting points:
 
 ```bash
-nix flake init -t git+https://github.com/caniko/rs-harbor.git
-nix flake init -t git+https://github.com/caniko/rs-harbor.git#bevy
+nix flake init -t git+https://github.com/caniko/harbor-rs.git
+nix flake init -t git+https://github.com/caniko/harbor-rs.git#bevy
 ```
 
 For a working configuration after the input is added, continue to [Quick Start](./quick-start.md).

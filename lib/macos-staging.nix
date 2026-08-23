@@ -4,8 +4,8 @@
 # Mach-O outputs (and their split-debuginfo=packed `.dSYM` bundles) and
 # stages them as both per-arch dist dirs and a universal slice via `lipo`.
 #
-# Implementation lives in the rs-harbor Rust CLI (`rs-harbor stage macos`).
-# `rsHarborCli` (the rs-harbor CLI derivation) is required.
+# Implementation lives in the harbor-rs Rust CLI (`harbor-rs stage macos`).
+# `rsHarborCli` (the harbor-rs CLI derivation) is required.
 {
   pkgs,
   rsHarborCli,
@@ -19,7 +19,7 @@
     name = "stage-macos-universal";
     runtimeInputs = [rsHarborCli pkgs.llvmPackages.llvm];
     text = ''
-      exec rs-harbor stage macos "$@"
+      exec harbor-rs stage macos "$@"
     '';
   };
 in {

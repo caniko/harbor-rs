@@ -5,13 +5,13 @@
 ## Example
 
 ```nix
-apps.push-cache = rs-harbor.lib.mkAtticPush {
+apps.push-cache = harbor-rs.lib.mkAtticPush {
   inherit pkgs;
   adapter = infra.harborAdapter;
   paths = [ self.packages.${system}.default ];
 };
 
-apps.push-flake-inputs = rs-harbor.lib.mkAtticPush {
+apps.push-flake-inputs = harbor-rs.lib.mkAtticPush {
   inherit pkgs;
   adapter = infra.harborAdapter;
   flake = ".";

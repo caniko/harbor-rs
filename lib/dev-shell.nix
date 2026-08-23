@@ -35,7 +35,7 @@
     expectedHook = lib.optionalString (expected != null) ''
       __rs_harbor_project_cli_version="$(${versionCommand} 2>&1 || true)"
       if ! printf '%s\n' "$__rs_harbor_project_cli_version" | grep -F -- ${lib.escapeShellArg expected} >/dev/null; then
-        echo "rs-harbor: ${commandName} version check failed; expected output containing ${expected}" >&2
+        echo "harbor-rs: ${commandName} version check failed; expected output containing ${expected}" >&2
         echo "$__rs_harbor_project_cli_version" >&2
         return 1 2>/dev/null || exit 1
       fi
@@ -50,11 +50,11 @@
     shellHook = ''
       __rs_harbor_project_cli_resolved="$(command -v ${lib.escapeShellArg commandName} || true)"
       if [ -z "$__rs_harbor_project_cli_resolved" ]; then
-        echo "rs-harbor: ${commandName} is not available on PATH" >&2
+        echo "harbor-rs: ${commandName} is not available on PATH" >&2
         return 1 2>/dev/null || exit 1
       fi
       if [ "$__rs_harbor_project_cli_resolved" != ${lib.escapeShellArg expectedPath} ]; then
-        echo "rs-harbor: ${commandName} resolved to $__rs_harbor_project_cli_resolved, expected ${expectedPath}" >&2
+        echo "harbor-rs: ${commandName} resolved to $__rs_harbor_project_cli_resolved, expected ${expectedPath}" >&2
         return 1 2>/dev/null || exit 1
       fi
       ${expectedHook}
@@ -114,13 +114,13 @@
       if cargoConfig != null
       then ''
         __rs_harbor_cfg_hash="$(${pkgs.coreutils}/bin/sha256sum ${cargoConfig.configPath} | ${pkgs.coreutils}/bin/cut -c1-16)"
-        RS_HARBOR_CARGO_HOME="''${XDG_CACHE_HOME:-$HOME/.cache}/rs-harbor/cargo-config-$__rs_harbor_cfg_hash"
+        RS_HARBOR_CARGO_HOME="''${XDG_CACHE_HOME:-$HOME/.cache}/harbor-rs/cargo-config-$__rs_harbor_cfg_hash"
         if [ -z "''${CARGO_HOME:-}" ]; then
           export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
         fi
         mkdir -p "$RS_HARBOR_CARGO_HOME"
         install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml"
-        echo "rs-harbor: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
+        echo "harbor-rs: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
       ''
       else "";
 
@@ -141,7 +141,7 @@
     mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;
   in
     if metaDevShell == null
-    then throw "rs-harbor: mkDevShell requires the meta-harbor flake input"
+    then throw "harbor-rs: mkDevShell requires the harbor-meta flake input"
     else
       metaDevShell.mkShell {
         inherit pkgs;

@@ -1,7 +1,7 @@
 # Dioxus packages
 
-`rs-harbor.lib.mkDioxusWebPackage` and
-`rs-harbor.lib.mkDioxusFullstackPackage` provide the shared Nix mechanics for
+`harbor-rs.lib.mkDioxusWebPackage` and
+`harbor-rs.lib.mkDioxusFullstackPackage` provide the shared Nix mechanics for
 Dioxus 0.7 applications. They vendor Cargo dependencies, resolve the exact
 `wasm-bindgen-cli` version recorded in `Cargo.lock`, add the native linker
 tools needed by fullstack builds, and run the Dioxus CLI offline.
@@ -12,7 +12,7 @@ Use the web builder when the product already owns the server process or static
 asset routing:
 
 ```nix
-rs-harbor.lib.mkDioxusWebPackage {
+harbor-rs.lib.mkDioxusWebPackage {
   inherit pkgs craneLib rustToolchain;
   src = filteredSource;
   cargoLock = ./Cargo.lock;
@@ -43,7 +43,7 @@ build, preventing an unoptimized fallback bundle from reaching a release.
 Use the fullstack builder when Dioxus owns the deployable server executable:
 
 ```nix
-rs-harbor.lib.mkDioxusFullstackPackage {
+harbor-rs.lib.mkDioxusFullstackPackage {
   inherit pkgs craneLib rustToolchain;
   src = filteredSource;
   cargoLock = ./Cargo.lock;
@@ -69,7 +69,7 @@ the executable:
 
 ```nix
 let
-  dioxusAssetLinker = rs-harbor.lib.mkDioxusAssetLinker {
+  dioxusAssetLinker = harbor-rs.lib.mkDioxusAssetLinker {
     inherit pkgs;
     dioxusCli = pkgs.dioxus-cli;
   };

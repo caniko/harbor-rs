@@ -11,7 +11,7 @@
 ## Example
 
 ```nix
-packages.appimage = rs-harbor.lib.mkAppImage {
+packages.appimage = harbor-rs.lib.mkAppImage {
   inherit system nix-appimage;
   program = "${myPackage}/bin/my-app";
 };

@@ -2,7 +2,7 @@
 #             -> { specText; specPath; coprMakefilePath?; }
 #
 # Generate a Fedora RPM .spec for packaging via COPR (Fedora's COmmunity
-# PRoject build service). rs-harbor only emits the spec (and optionally a
+# PRoject build service). harbor-rs only emits the spec (and optionally a
 # `.copr/Makefile` for COPR's custom-build method) — publishing to COPR
 # stays in CI where the credentials live.
 #
@@ -13,7 +13,7 @@
 #   4. copr-cli build my-project ./result    # upload spec + tarball
 #
 # Example:
-#   coprSpec = rs-harbor.lib.mkCoprSpec {
+#   coprSpec = harbor-rs.lib.mkCoprSpec {
 #     inherit pkgs;
 #     name = "my-app";
 #     version = "1.0.0";

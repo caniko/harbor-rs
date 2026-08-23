@@ -4,9 +4,9 @@ mod commands;
 
 #[derive(Parser)]
 #[command(
-    name = "rs-harbor",
+    name = "harbor-rs",
     version,
-    about = "rs-harbor build helpers",
+    about = "harbor-rs build helpers",
     propagate_version = true
 )]
 struct Cli {

@@ -36,7 +36,7 @@ if
     else 0
   )
   > 1
-then throw "rs-harbor.mkCross: pass only one of macosSdk, macosSdkStorePath, or sdkArchive"
+then throw "harbor-rs.mkCross: pass only one of macosSdk, macosSdkStorePath, or sdkArchive"
 else let
   lib = pkgs.lib;
   mingwCC = pkgs.pkgsCross.mingwW64.stdenv.cc;
@@ -78,7 +78,7 @@ else let
   in
     if lib.hasPrefix "/" str
     then str
-    else throw "rs-harbor.mkCross: ${context} must be an absolute path, got '${str}'";
+    else throw "harbor-rs.mkCross: ${context} must be an absolute path, got '${str}'";
 
   pathExistsAbs = value: let
     str = toString value;
@@ -111,13 +111,13 @@ else let
     then root
     else
       throw ''
-        rs-harbor.mkCross: ${context} is not a complete macOS SDK.
+        harbor-rs.mkCross: ${context} is not a complete macOS SDK.
         SDK root: ${root}
         Missing required entries: ${lib.concatStringsSep ", " missing}
         Expected a real Apple SDK root such as MacOSX${osxSdkVersion}.sdk, not a fake/minimal fixture.
       '';
 
-  # A pinned macOS SDK store path (e.g. from rs-harbor-macos-sdk-pin) is just a
+  # A pinned macOS SDK store path (e.g. from harbor-macos-sdk-pin) is just a
   # string, so it carries no Nix string context and is therefore NOT a build
   # input: under `sandbox = true` the daemon never bind-mounts it and
   # osxcross-clang fails inside the build with "cannot find macOS SDK", even
@@ -130,7 +130,7 @@ else let
   # runs the builder; when it is missing and unsubstitutable the build fails
   # early with the clear message below instead of a cryptic osxcross error.
   #
-  # Requires the caller to pass `macosSdkOutputHash` (rs-harbor-macos-sdk-pin
+  # Requires the caller to pass `macosSdkOutputHash` (harbor-macos-sdk-pin
   # exposes it as `.outputHash`). Without it we fall back to the legacy
   # context-free string, which is correct only outside the sandbox / on a build
   # host where the SDK already lives on disk.
@@ -141,7 +141,7 @@ else let
       builder = "/bin/sh";
       args = [
         "-c"
-        "echo 'rs-harbor.mkCross: macOS SDK ${toString storePath} is not in the store and no sdkArchive was provided. Add the harbor-macos-sdk Attic cache as a (daemon) substituter so it can be fetched, or pass sdkArchive to mkCross.' >&2; exit 1"
+        "echo 'harbor-rs.mkCross: macOS SDK ${toString storePath} is not in the store and no sdkArchive was provided. Add the harbor-macos-sdk Attic cache as a (daemon) substituter so it can be fetched, or pass sdkArchive to mkCross.' >&2; exit 1"
       ];
       outputHashMode = "recursive";
       outputHashAlgo = "sha256";
@@ -151,12 +151,12 @@ else let
     if fod.outPath != toString storePath
     then
       throw ''
-        rs-harbor.mkCross: reconstructed macOS SDK FOD resolves to
+        harbor-rs.mkCross: reconstructed macOS SDK FOD resolves to
           ${fod.outPath}
         but macosSdkStorePath is
           ${toString storePath}
         Ensure macosSdkOutputHash and osxSdkVersion match the
-        rs-harbor-macos-sdk-pin revision you locked.''
+        harbor-macos-sdk-pin revision you locked.''
     else fod;
 
   mkStorePathSdkRef = storePath: let
@@ -218,7 +218,7 @@ else let
       }
     else
       throw ''
-        rs-harbor.mkCross: MACOS_SDK must point to one of:
+        harbor-rs.mkCross: MACOS_SDK must point to one of:
         - a MacOSX${osxSdkVersion}.sdk directory
         - a parent directory containing MacOSX${osxSdkVersion}.sdk
         - a supported SDK archive (${lib.concatStringsSep ", " archiveSuffixes})
@@ -241,7 +241,7 @@ else let
       }
     else if macosSdkEnvPath != ""
     then mkEnvSdkRef macosSdkEnvPath
-    else throw "rs-harbor.mkCross: enableOsxcross is true, but no macOS SDK input was provided";
+    else throw "harbor-rs.mkCross: enableOsxcross is true, but no macOS SDK input was provided";
 
   osxcrossArgs =
     {

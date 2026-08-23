@@ -1,19 +1,19 @@
 {
-  description = "Rust project — powered by rs-harbor";
+  description = "Rust project — powered by harbor-rs";
 
   inputs = {
-    rs-harbor.url = "git+https://github.com/caniko/rs-harbor.git?ref=trunk";
-    nixpkgs.follows = "rs-harbor/nixpkgs";
-    rust-overlay.follows = "rs-harbor/rust-overlay";
-    crane.follows = "rs-harbor/crane";
-    treefmt-nix.follows = "rs-harbor/treefmt-nix";
-    git-hooks.follows = "rs-harbor/git-hooks";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk";
+    nixpkgs.follows = "harbor-rs/nixpkgs";
+    rust-overlay.follows = "harbor-rs/rust-overlay";
+    crane.follows = "harbor-rs/crane";
+    treefmt-nix.follows = "harbor-rs/treefmt-nix";
+    git-hooks.follows = "harbor-rs/git-hooks";
   };
 
   outputs = {
     self,
     nixpkgs,
-    rs-harbor,
+    harbor-rs,
     rust-overlay,
     treefmt-nix,
     git-hooks,
@@ -24,9 +24,9 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
-      toolchain = rs-harbor.lib.mkToolchain {inherit pkgs;};
+      toolchain = harbor-rs.lib.mkToolchain {inherit pkgs;};
       inherit (toolchain) craneLib rustToolchain;
-      cross = rs-harbor.lib.mkCross {inherit pkgs system;};
+      cross = harbor-rs.lib.mkCross {inherit pkgs system;};
       treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix);
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
@@ -67,7 +67,7 @@
       system: let
         cfg = forSystem system;
       in
-        rs-harbor.lib.mkDevShells {
+        harbor-rs.lib.mkDevShells {
           inherit (cfg) pkgs cross;
           inherit (cfg.toolchain) craneLib;
           packages = cfg.pre-commit-check.enabledPackages;

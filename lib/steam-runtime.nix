@@ -3,11 +3,11 @@
 # Steam Linux Runtime helpers. Returns runtime metadata, default
 # DT_NEEDED/DLL/dylib allowlists for sniper-targeted builds, a shellHook
 # that exposes the Steamworks SDK redistributable libs from a `steamworks-rs`
-# cargo git checkout, and writeShellApplication shims around the rs-harbor
+# cargo git checkout, and writeShellApplication shims around the harbor-rs
 # Rust CLI that bake in the selected runtime/image.
 #
-# `rsHarborCli` (the rs-harbor CLI derivation, e.g.
-# `rs-harbor.packages.${system}.rs-harbor`) is required.
+# `rsHarborCli` (the harbor-rs CLI derivation, e.g.
+# `harbor-rs.packages.${system}.harbor-rs`) is required.
 {
   pkgs,
   rsHarborCli,
@@ -57,7 +57,7 @@
       ${image} -- <command>
   '';
 
-  # Shell shim wrapping `rs-harbor steam-runtime exec` with the selected
+  # Shell shim wrapping `harbor-rs steam-runtime exec` with the selected
   # runtime / image / container runtime baked in. The shim still accepts
   # the old `--runtime`, `--image`, `--container-runtime` overrides since
   # clap re-parses everything passed after the baked defaults.
@@ -65,7 +65,7 @@
     name = "steam-runtime-exec";
     runtimeInputs = [rsHarborCli];
     text = ''
-      exec rs-harbor steam-runtime exec \
+      exec harbor-rs steam-runtime exec \
         --runtime ${runtime} \
         --image ${image} \
         --container-runtime ${containerRuntime} \
@@ -190,7 +190,7 @@
     done
   '';
 
-  # Audit helpers: thin shims around `rs-harbor audit elf|pe|macho`. The
+  # Audit helpers: thin shims around `harbor-rs audit elf|pe|macho`. The
   # rust implementation parses ELF/PE/Mach-O via goblin, has unit and
   # integration tests, and uses clap for argument parsing.
   rustAuditShim = {
@@ -201,7 +201,7 @@
       inherit name;
       runtimeInputs = [rsHarborCli];
       text = ''
-        exec rs-harbor audit ${subcommand} "$@"
+        exec harbor-rs audit ${subcommand} "$@"
       '';
     };
 

@@ -8,12 +8,12 @@ fast when a developer is using a different GPU stack than the baseline author.
 ## Usage
 
 ```nix
-visualTestGpuPin = rs-harbor.lib.mkGpuRenderPin {
+visualTestGpuPin = harbor-rs.lib.mkGpuRenderPin {
   inherit pkgs;
   profile = "mesa-radv";
 };
 
-devShells = rs-harbor.lib.mkDevShells {
+devShells = harbor-rs.lib.mkDevShells {
   inherit pkgs cross;
   inherit (toolchain) craneLib;
 
@@ -80,7 +80,7 @@ profile. Downstream projects can add stricter checks with `expected`, for
 example:
 
 ```nix
-rs-harbor.lib.mkGpuRenderPin {
+harbor-rs.lib.mkGpuRenderPin {
   inherit pkgs;
   profile = "mesa-radv";
   expected.RS_HARBOR_GPU_EXPECTED_DEVICE_TYPE = "DiscreteGpu";

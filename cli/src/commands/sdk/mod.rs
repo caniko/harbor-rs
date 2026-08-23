@@ -1,4 +1,4 @@
-//! `rs-harbor sdk` — realize and publish macOS SDK archives.
+//! `harbor-rs sdk` — realize and publish macOS SDK archives.
 //!
 //! `realize` validates and resolves an SDK archive into a concrete store
 //! path. `publish-macos` does the same and then pushes the resulting store
@@ -42,9 +42,9 @@ fn render_commit_block(
     format!(
         "Commit this in host configuration:\n\
          ```nix\n\
-         programs.rsHarbor.macosSdk.sdkVersion = \"{version}\";\n\
-         programs.rsHarbor.macosSdk.storePath = \"{}\";\n\
-         programs.rsHarbor.macosSdk.outputHash = \"{recursive_hash}\";\n\
+         programs.harborRs.macosSdk.sdkVersion = \"{version}\";\n\
+         programs.harborRs.macosSdk.storePath = \"{}\";\n\
+         programs.harborRs.macosSdk.outputHash = \"{recursive_hash}\";\n\
          ```\n",
         store_path.display()
     )
@@ -64,10 +64,10 @@ mod tests {
             "sha256-example",
         );
 
-        assert!(block.contains("programs.rsHarbor.macosSdk.sdkVersion = \"26.1\";"));
+        assert!(block.contains("programs.harborRs.macosSdk.sdkVersion = \"26.1\";"));
         assert!(block.contains(
-            "programs.rsHarbor.macosSdk.storePath = \"/nix/store/example-macosx-sdk-26.1\";"
+            "programs.harborRs.macosSdk.storePath = \"/nix/store/example-macosx-sdk-26.1\";"
         ));
-        assert!(block.contains("programs.rsHarbor.macosSdk.outputHash = \"sha256-example\";"));
+        assert!(block.contains("programs.harborRs.macosSdk.outputHash = \"sha256-example\";"));
     }
 }

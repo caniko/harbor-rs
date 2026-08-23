@@ -1,4 +1,4 @@
-//! `rs-harbor sdk realize` — realize a macOS SDK archive and print the
+//! `harbor-rs sdk realize` — realize a macOS SDK archive and print the
 //! host-configuration trailer for the resulting store path.
 
 use std::path::PathBuf;

@@ -4,17 +4,17 @@ The fastest path is to create a toolchain, generate cross helpers, then feed bot
 
 ```nix
 {
-  outputs = { self, nixpkgs, rs-harbor, flake-utils, rust-overlay, ... }:
+  outputs = { self, nixpkgs, harbor-rs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
       };
 
-      toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
-      cross = rs-harbor.lib.mkCross { inherit pkgs system; };
+      toolchain = harbor-rs.lib.mkToolchain { inherit pkgs; };
+      cross = harbor-rs.lib.mkCross { inherit pkgs system; };
     in {
-      devShells = rs-harbor.lib.mkDevShells {
+      devShells = harbor-rs.lib.mkDevShells {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
       };

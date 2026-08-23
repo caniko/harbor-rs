@@ -11,9 +11,9 @@
 - `lib.mkSccacheEnv` — generate `SCCACHE_*` environment variables for
   S3-compatible sccache backends
 - `nixosModules.sccache` — NixOS module for declarative sccache setup
-  (`programs.rsHarbor.sccache`)
+  (`programs.harborRs.sccache`)
 - Simit CI/release badge markers to README
-- Configured canonical domain `rs-harbor.tartanoglu.com` for Codeberg Pages
+- Configured canonical domain `harbor-rs.tartanoglu.com` for Codeberg Pages
   with a pre-deploy validation step
 - `mkTrunkPackage` now includes `clang` and `mold` in native build inputs for
   Linux mold linker support
@@ -30,7 +30,7 @@
 
 - Android APK helpers now live in
   [harbor-android](https://github.com/caniko/harbor-android) and are
-  re-exported from `rs-harbor.lib` for one migration release.
+  re-exported from `harbor-rs.lib` for one migration release.
 - `mkToolchain` compiler caching is now opt-in because the sandbox wrapper
   requires host-managed cache transport.
 - Sandbox startup is idempotent, and wrapped Rust/CMake derivations no longer

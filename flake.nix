@@ -18,15 +18,16 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    meta-harbor = {
-      url = "git+https://github.com/caniko/meta-harbor.git?ref=trunk";
+    harbor-meta = {
+      url = "git+https://github.com/caniko/harbor-meta.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    meta-harbor.follows = "harbor-meta";
 
     harbor-android = {
       url = "github:caniko/harbor-android/trunk";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.meta-harbor.follows = "meta-harbor";
+      inputs.meta-harbor.follows = "harbor-meta";
     };
 
     nix-opencode-lsp = {
@@ -56,7 +57,7 @@
     crane,
     rust-overlay,
     osxcross,
-    meta-harbor,
+    harbor-meta,
     harbor-android,
     nix-opencode-lsp,
     nix-bundle,
@@ -73,7 +74,7 @@
       flake = let
         lib = import ./lib {
           inherit crane osxcross;
-          meta-harbor = meta-harbor.lib;
+          harbor-meta = harbor-meta.lib;
           nixBundle = nix-bundle;
           harbor-android = harbor-android.lib;
         };
@@ -92,12 +93,12 @@
 
         templates.default = {
           path = ./templates/default;
-          description = "Rust project with rs-harbor";
+          description = "Rust project with harbor-rs";
         };
 
         templates.bevy = {
           path = ./templates/bevy;
-          description = "Bevy game engine project with rs-harbor cross-compilation";
+          description = "Bevy game engine project with harbor-rs cross-compilation";
         };
       };
 
@@ -123,7 +124,7 @@
           inherit pkgs;
         };
 
-        rsHarborCli = import ./nix/rs-harbor-cli.nix {
+        rsHarborCli = import ./nix/harbor-rs-cli.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
           src = ./.;
@@ -143,7 +144,7 @@
             self.lib.mkCrossPackages {
               inherit pkgs cross;
               inherit (toolchain) craneLib;
-              pname = "rs-harbor";
+              pname = "harbor-rs";
               commonArgs = {
                 src = ./.;
                 version = rsHarborVersion;
@@ -161,26 +162,26 @@
           then
             self.lib.mkBinaryRelease {
               inherit pkgs;
-              pname = "rs-harbor";
+              pname = "harbor-rs";
               version = rsHarborVersion;
               artifacts = {
                 x86_64-linux-musl = {
-                  package = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
+                  package = rsHarborStaticPackages.harbor-rs-x86_64-linux-musl;
                   system = "x86_64-linux";
                   rustTarget = "x86_64-unknown-linux-musl";
                   binutils = pkgs.pkgsStatic.stdenv.cc.bintools;
                   strip = "${pkgs.pkgsStatic.stdenv.cc.bintools}/bin/x86_64-unknown-linux-musl-strip";
                   readelf = "${pkgs.pkgsStatic.stdenv.cc.bintools.bintools}/bin/x86_64-unknown-linux-musl-readelf";
-                  binaries = ["rs-harbor"];
+                  binaries = ["harbor-rs"];
                 };
                 aarch64-linux-musl = {
-                  package = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
+                  package = rsHarborStaticPackages.harbor-rs-aarch64-linux-musl;
                   system = "aarch64-linux";
                   rustTarget = "aarch64-unknown-linux-musl";
                   binutils = pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools;
                   strip = "${pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools}/bin/aarch64-unknown-linux-musl-strip";
                   readelf = "${pkgs.pkgsCross.aarch64-multiplatform-musl.stdenv.cc.bintools.bintools}/bin/aarch64-unknown-linux-musl-readelf";
-                  binaries = ["rs-harbor"];
+                  binaries = ["harbor-rs"];
                 };
               };
             }
@@ -208,7 +209,7 @@
           {
             # Consumers use this build-platform package to keep the
             # compiler-cache executable and version identical across the
-            # Atlas fleet and every rs-harbor builder.
+            # Atlas fleet and every harbor-rs builder.
             sccache = pkgs.sccache;
             sccache-user-daemon-client = sccacheLib.mkClientWrapper {
               inherit pkgs;
@@ -218,14 +219,15 @@
             stage-macos-universal = macosStaging.stager;
             bootstrap-cmds-mig = bootstrapCmdsMig;
             steam-runtime-cargo-bootstrap = steamRuntimeTools.steamRuntimeCargoBootstrap;
+            harbor-rs = rsHarborCli;
             rs-harbor = rsHarborCli;
             harbor-ci = harborCi;
           }
           // (
             if rsHarborBinaryRelease != null
             then {
-              rs-harbor-x86_64-linux-musl = rsHarborStaticPackages.rs-harbor-x86_64-linux-musl;
-              rs-harbor-aarch64-linux-musl = rsHarborStaticPackages.rs-harbor-aarch64-linux-musl;
+              harbor-rs-x86_64-linux-musl = rsHarborStaticPackages.harbor-rs-x86_64-linux-musl;
+              harbor-rs-aarch64-linux-musl = rsHarborStaticPackages.harbor-rs-aarch64-linux-musl;
               release-bundle = rsHarborReleaseBundle;
             }
             else {}

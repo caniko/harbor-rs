@@ -69,7 +69,7 @@
   dxArgs =
     dxCommon ++ dxSuffix;
 in
-  assert lib.assertMsg (profile != "") "rs-harbor.mkDioxusBuildPlan: profile must not be empty"; {
+  assert lib.assertMsg (profile != "") "harbor-rs.mkDioxusBuildPlan: profile must not be empty"; {
     inherit dxArgs dxCommon dxSuffix;
     webCargoArgs = targetArgs "web";
     serverCargoArgs = targetArgs "server";

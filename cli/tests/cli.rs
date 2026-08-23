@@ -1,4 +1,4 @@
-//! End-to-end CLI smoke tests covering the rs-harbor binary's public
+//! End-to-end CLI smoke tests covering the harbor-rs binary's public
 //! interface. Each test invokes the cargo-built binary via `assert_cmd`.
 
 use std::fs;
@@ -17,7 +17,7 @@ fn fixture_path(name: &str) -> PathBuf {
 }
 
 fn rs_harbor() -> Command {
-    Command::cargo_bin("rs-harbor").expect("locate rs-harbor binary")
+    Command::cargo_bin("harbor-rs").expect("locate harbor-rs binary")
 }
 
 #[test]
@@ -75,8 +75,8 @@ fn cache_token_issue_help_lists_flags_and_defaults() {
         "missing subject-prefix: {stdout}"
     );
     assert!(
-        stdout.contains("rs-harbor-"),
-        "missing rs-harbor- default: {stdout}"
+        stdout.contains("harbor-rs-"),
+        "missing harbor-rs- default: {stdout}"
     );
 }
 
@@ -197,7 +197,7 @@ fn steam_runtime_exec_fails_when_runner_missing() {
             "--image",
             "registry.example.com/sniper/sdk",
             "--container-runtime",
-            "rs-harbor-no-such-runner",
+            "harbor-rs-no-such-runner",
             "--",
             "true",
         ])
@@ -210,11 +210,11 @@ fn steam_runtime_exec_fails_when_runner_missing() {
     );
 }
 
-/// The dev-built `rs-harbor` binary itself is a real ELF DYN with real
+/// The dev-built `harbor-rs` binary itself is a real ELF DYN with real
 /// `DT_NEEDED` entries, so we can use it as a fixture to exercise goblin
 /// parsing + regex matching + Report semantics end-to-end.
 fn rs_harbor_path() -> String {
-    env!("CARGO_BIN_EXE_rs-harbor").to_string()
+    env!("CARGO_BIN_EXE_harbor-rs").to_string()
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn audit_elf_passes_with_permissive_allowlist() {
             "--allow-needed-regex",
             ".*",
             "--forbid-path-regex",
-            "rs-harbor-never-matches-this-path",
+            "harbor-rs-never-matches-this-path",
             &rs_harbor_path(),
         ])
         .assert()
@@ -249,7 +249,7 @@ fn audit_elf_fails_when_needed_lib_does_not_match_allowlist() {
             "--allow-needed-regex",
             "^libxyz_definitely_not_a_real_dependency\\.so$",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
             &rs_harbor_path(),
         ])
         .assert()
@@ -273,7 +273,7 @@ fn audit_elf_skip_ldd_does_not_invoke_resolver() {
             "--allow-needed-regex",
             ".*",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
             &rs_harbor_path(),
         ])
         .assert()
@@ -292,7 +292,7 @@ fn audit_pe_passes_on_vendored_hello_exe() {
             "--allow-dll-regex",
             ".*",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
             fixture_path("hello.exe").to_str().unwrap(),
         ])
         .assert()
@@ -311,9 +311,9 @@ fn audit_pe_fails_when_required_dll_disallowed() {
             "audit",
             "pe",
             "--allow-dll-regex",
-            "^(rs-harbor-never-imports-this-dll)\\.dll$",
+            "^(harbor-rs-never-imports-this-dll)\\.dll$",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
             fixture_path("hello.exe").to_str().unwrap(),
         ])
         .assert()
@@ -345,7 +345,7 @@ fn audit_macho_passes_on_built_thin_dylib() {
             "--allow-dylib-regex",
             "^(@rpath|/usr/lib/)",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
         ])
         .arg(&path)
         .assert()
@@ -377,7 +377,7 @@ fn audit_macho_passes_on_built_thin_executable() {
             "--allow-dylib-regex",
             "^(@rpath|/usr/lib/)",
             "--forbid-path-regex",
-            "rs-harbor-never-matches",
+            "harbor-rs-never-matches",
         ])
         .arg(&path)
         .assert()

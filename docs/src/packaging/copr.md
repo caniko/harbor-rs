@@ -1,6 +1,6 @@
 # mkCoprSpec
 
-`mkCoprSpec` generates a Fedora RPM `.spec` for packaging via [COPR](https://copr.fedorainfracloud.org/), Fedora's community build service. rs-harbor only produces the spec — uploading or building it stays in CI (or a shell), where the COPR credentials live.
+`mkCoprSpec` generates a Fedora RPM `.spec` for packaging via [COPR](https://copr.fedorainfracloud.org/), Fedora's community build service. harbor-rs only produces the spec — uploading or building it stays in CI (or a shell), where the COPR credentials live.
 
 The defaults assume the "binary-shipping" workflow: a binary already built in Nix is bundled as the `Source0` tarball, then installed to `%{_bindir}` by the generated `%install` section.
 
@@ -27,7 +27,7 @@ The defaults assume the "binary-shipping" workflow: a binary already built in Ni
 ## Example
 
 ```nix
-packages.copr-spec = (rs-harbor.lib.mkCoprSpec {
+packages.copr-spec = (harbor-rs.lib.mkCoprSpec {
   inherit pkgs;
   name = "my-app";
   version = "1.0.0";

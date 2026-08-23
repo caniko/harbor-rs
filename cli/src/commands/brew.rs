@@ -1,4 +1,4 @@
-//! `rs-harbor brew` - Homebrew tap helpers.
+//! `harbor-rs brew` - Homebrew tap helpers.
 
 use std::collections::{HashMap, HashSet};
 use std::fmt::Write as _;
@@ -62,7 +62,7 @@ pub struct BumpArgs {
     pub stdout: bool,
 
     /// After writing, run git add, git commit, and git push in the tap repo.
-    /// Requires git credentials to be configured outside rs-harbor.
+    /// Requires git credentials to be configured outside harbor-rs.
     #[arg(long, requires = "tap")]
     pub push: bool,
 
@@ -571,7 +571,7 @@ mod tests {
     fn class_name_matches_nix_formula_helper() {
         assert_eq!(class_name("modde"), "Modde");
         assert_eq!(class_name("my-app"), "MyApp");
-        assert_eq!(class_name("rs-harbor"), "RsHarbor");
+        assert_eq!(class_name("harbor-rs"), "RsHarbor");
     }
 
     #[test]

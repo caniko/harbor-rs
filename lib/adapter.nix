@@ -31,25 +31,25 @@ rec {
   #   attic.tokenEnvVar - env var the push script reads at runtime (default: "ATTIC_TOKEN")
   mkAdapter = {attic}:
     assert builtins.isAttrs attic
-    || throw "rs-harbor: mkAdapter 'attic' must be an attrset";
+    || throw "harbor-rs: mkAdapter 'attic' must be an attrset";
     assert attic ? endpoint
     && builtins.isString attic.endpoint
-    || throw "rs-harbor: mkAdapter 'attic.endpoint' is required and must be a string";
+    || throw "harbor-rs: mkAdapter 'attic.endpoint' is required and must be a string";
     assert attic ? cache
     && builtins.isString attic.cache
-    || throw "rs-harbor: mkAdapter 'attic.cache' is required and must be a string";
+    || throw "harbor-rs: mkAdapter 'attic.cache' is required and must be a string";
     assert builtins.stringLength attic.endpoint
     > 0
-    || throw "rs-harbor: mkAdapter 'attic.endpoint' must not be empty";
+    || throw "harbor-rs: mkAdapter 'attic.endpoint' must not be empty";
     assert builtins.stringLength attic.cache
     > 0
-    || throw "rs-harbor: mkAdapter 'attic.cache' must not be empty";
+    || throw "harbor-rs: mkAdapter 'attic.cache' must not be empty";
     assert builtins.match "https?://.*" attic.endpoint
     != null
-    || throw "rs-harbor: mkAdapter 'attic.endpoint' must start with http:// or https://, got \"${attic.endpoint}\"";
+    || throw "harbor-rs: mkAdapter 'attic.endpoint' must start with http:// or https://, got \"${attic.endpoint}\"";
     assert !attic ? tokenEnvVar
     || builtins.isString attic.tokenEnvVar
-    || throw "rs-harbor: mkAdapter 'attic.tokenEnvVar' must be a string if provided"; {
+    || throw "harbor-rs: mkAdapter 'attic.tokenEnvVar' must be a string if provided"; {
       _type = "harbor-adapter";
       _version = 1;
       attic = {

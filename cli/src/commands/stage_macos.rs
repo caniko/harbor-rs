@@ -1,4 +1,4 @@
-//! `rs-harbor stage macos` — produce per-arch and universal Mach-O dist
+//! `harbor-rs stage macos` — produce per-arch and universal Mach-O dist
 //! layouts from cargo's per-target outputs, including dSYM bundles.
 //!
 //! Assumes the consumer compiled with `split-debuginfo = "packed"` so each
@@ -69,7 +69,7 @@ pub fn run(args: StageMacosArgs) -> Result<()> {
     }
 
     println!(
-        "rs-harbor stage macos: staged {} for archs {} into {}/",
+        "harbor-rs stage macos: staged {} for archs {} into {}/",
         args.binary,
         args.archs,
         args.dist_dir.display(),

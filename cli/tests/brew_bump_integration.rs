@@ -19,8 +19,8 @@ fn brew_bump_writes_formula_to_tap() {
         archive.display()
     );
 
-    Command::cargo_bin("rs-harbor")
-        .expect("rs-harbor binary")
+    Command::cargo_bin("harbor-rs")
+        .expect("harbor-rs binary")
         .args([
             "brew",
             "bump",
@@ -57,8 +57,8 @@ fn brew_bump_stdout_emits_formula() {
         archive.display()
     );
 
-    let output = Command::cargo_bin("rs-harbor")
-        .expect("rs-harbor binary")
+    let output = Command::cargo_bin("harbor-rs")
+        .expect("harbor-rs binary")
         .args([
             "brew",
             "bump",
@@ -77,7 +77,7 @@ fn brew_bump_stdout_emits_formula() {
             &archive_arg,
         ])
         .output()
-        .expect("run rs-harbor");
+        .expect("run harbor-rs");
 
     assert!(output.status.success());
     let stdout = String::from_utf8(output.stdout).expect("utf8 stdout");
@@ -95,8 +95,8 @@ fn brew_bump_rejects_stdout_with_tap() {
         archive.display()
     );
 
-    Command::cargo_bin("rs-harbor")
-        .expect("rs-harbor binary")
+    Command::cargo_bin("harbor-rs")
+        .expect("harbor-rs binary")
         .args([
             "brew",
             "bump",
@@ -135,8 +135,8 @@ fn brew_bump_push_aborts_on_unrelated_dirty_file() {
         archive.display()
     );
 
-    let output = Command::cargo_bin("rs-harbor")
-        .expect("rs-harbor binary")
+    let output = Command::cargo_bin("harbor-rs")
+        .expect("harbor-rs binary")
         .args([
             "brew",
             "bump",
@@ -157,7 +157,7 @@ fn brew_bump_push_aborts_on_unrelated_dirty_file() {
             &archive_arg,
         ])
         .output()
-        .expect("run rs-harbor");
+        .expect("run harbor-rs");
 
     assert!(!output.status.success());
     let stderr = String::from_utf8(output.stderr).expect("utf8 stderr");
@@ -169,8 +169,8 @@ fn init_git_tap(path: &Path) {
     fs::create_dir(path.join("Formula")).expect("create Formula");
     fs::write(path.join("Formula/.keep"), "").expect("write keep");
     git(path, &["init"]);
-    git(path, &["config", "user.name", "rs-harbor test"]);
-    git(path, &["config", "user.email", "rs-harbor@example.invalid"]);
+    git(path, &["config", "user.name", "harbor-rs test"]);
+    git(path, &["config", "user.email", "harbor-rs@example.invalid"]);
     git(path, &["add", "Formula/.keep"]);
     git(path, &["commit", "-m", "init tap"]);
 }

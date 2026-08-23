@@ -14,8 +14,8 @@
   rsHarborShellTools = harbor.mkProjectCliShellTools {
     inherit pkgs;
     package = rsHarborCli;
-    commandName = "rs-harbor";
-    hint = "rs-harbor dev shell - run `rs-harbor --help`";
+    commandName = "harbor-rs";
+    hint = "harbor-rs dev shell - run `harbor-rs --help`";
   };
   harborCiShellTools = harbor.mkProjectCliShellTools {
     inherit pkgs;

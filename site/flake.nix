@@ -1,5 +1,5 @@
 {
-  description = "rs-harbor project site publisher (isolated from the reusable library flake)";
+  description = "harbor-rs project site publisher (isolated from the reusable library flake)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -7,19 +7,20 @@
     plinth = {
       url = "git+https://codeberg.org/caniko/plinth.git?ref=refs/heads/trunk";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.rs-harbor.follows = "rs-harbor";
+      inputs.rs-harbor.follows = "harbor-rs";
     };
 
-    rs-harbor = {
-      url = "git+https://github.com/caniko/rs-harbor.git?ref=trunk&rev=f209ddbca3fdbb0dc31fa3886ccc2ff7369c18ac";
+    harbor-rs = {
+      url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=f209ddbca3fdbb0dc31fa3886ccc2ff7369c18ac";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    rs-harbor.follows = "harbor-rs";
   };
 
   outputs = {
     nixpkgs,
     plinth,
-    rs-harbor,
+    harbor-rs,
     ...
   }: let
     systems = ["x86_64-linux" "aarch64-linux"];
@@ -31,7 +32,7 @@
         lib = nixpkgs.lib;
         plinthProject = plinth.packages.${system}.plinth-project;
       };
-      packages = import "${rs-harbor}/nix/site.nix" {
+      packages = import "${harbor-rs}/nix/site.nix" {
         inherit pkgs projectSiteLib;
         lib = nixpkgs.lib;
       };
@@ -41,7 +42,7 @@
 
     apps = nixpkgs.lib.genAttrs systems (system: {
       deploy-pages = (forSystem system).projectSiteLib.mkDeployPagesApp {
-        domain = "rs-harbor.tartanoglu.com";
+        domain = "harbor-rs.tartanoglu.com";
       };
     });
 

@@ -37,7 +37,7 @@ osxcross is optional and turns on when one of these inputs is available:
 Only one of `macosSdkStorePath`, `sdkArchive`, or `macosSdk` can be provided at a time.
 Resolution precedence is `macosSdk`, then `macosSdkStorePath`, then `sdkArchive`, then `macosSdkEnvPath`.
 
-> **Pass `macosSdkOutputHash` with `macosSdkStorePath`.** A bare store path carries no Nix string context, so under `sandbox = true` it is never bind-mounted and osxcross-clang fails with `cannot find macOS SDK` — with no eval-time error. The hash lets rs-harbor reconstruct the SDK as a content-addressed fixed-output derivation that resolves to the same path _with_ context, making it a real sandbox input. See [macOS SDK Initialization](../reference/macos-sdk.md#always-pass-macossdkoutputhash-too-the-sandbox-gotcha).
+> **Pass `macosSdkOutputHash` with `macosSdkStorePath`.** A bare store path carries no Nix string context, so under `sandbox = true` it is never bind-mounted and osxcross-clang fails with `cannot find macOS SDK` — with no eval-time error. The hash lets harbor-rs reconstruct the SDK as a content-addressed fixed-output derivation that resolves to the same path _with_ context, making it a real sandbox input. See [macOS SDK Initialization](../reference/macos-sdk.md#always-pass-macossdkoutputhash-too-the-sandbox-gotcha).
 
 Ad-hoc signing of darwin outputs works out of the box: the osxcross toolchain provides an unprefixed `codesign_allocate` on `PATH`, so `sigtool`-style `codesign` in a `postInstall` needs no `CODESIGN_ALLOCATE` wiring. See [Ad-hoc signing darwin binaries](../reference/macos-sdk.md#ad-hoc-signing-darwin-binaries).
 
@@ -46,7 +46,7 @@ Ad-hoc signing of darwin outputs works out of the box: the osxcross toolchain pr
 ## Example
 
 ```nix
-cross = rs-harbor.lib.mkCross {
+cross = harbor-rs.lib.mkCross {
   inherit pkgs system;
 };
 ```

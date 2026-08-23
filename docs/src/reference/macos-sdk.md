@@ -1,11 +1,11 @@
 # macOS SDK Initialization
 
-For version-controlled project flakes, `rs-harbor` supports an explicit `macosSdkStorePath`, but that path is host-specific. Reusable flakes should accept it from host configuration instead of committing it directly. rs-harbor owns SDK discovery and validation; osxcross receives only the resolved SDK reference.
+For version-controlled project flakes, `harbor-rs` supports an explicit `macosSdkStorePath`, but that path is host-specific. Reusable flakes should accept it from host configuration instead of committing it directly. harbor-rs owns SDK discovery and validation; osxcross receives only the resolved SDK reference.
 
 ## Initialize once per host
 
 ```bash
-nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
+nix run harbor-rs#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
 ```
 
 The command realizes the archive, validates the SDK root, and prints:
@@ -38,7 +38,7 @@ A bare `macosSdkStorePath` is a string with **no Nix string context**, so on its
 Always pass `macosSdkOutputHash` alongside it (the recursive hash printed by `init-macos-sdk`):
 
 ```nix
-cross = rs-harbor.lib.mkCross {
+cross = harbor-rs.lib.mkCross {
   inherit pkgs system;
   macosSdkStorePath = "/nix/store/<host-sdk>-macosx-sdk-26.1";
   macosSdkOutputHash = "sha256-…";   # recursive hash from init-macos-sdk
@@ -46,7 +46,7 @@ cross = rs-harbor.lib.mkCross {
 };
 ```
 
-With the hash, rs-harbor reconstructs the SDK's fixed-output derivation. Its output path is fully determined by `(name, outputHash, recursive sha256)`, so it resolves to the _identical_ store path — but now _with_ context, making the SDK a real, sandbox-mounted dependency. rs-harbor asserts the reconstructed path equals `macosSdkStorePath`, so a hash/version mismatch fails loudly at eval instead of silently. Already-realized paths are used directly (no rebuild); a missing, unsubstitutable SDK fails early with a clear message.
+With the hash, harbor-rs reconstructs the SDK's fixed-output derivation. Its output path is fully determined by `(name, outputHash, recursive sha256)`, so it resolves to the _identical_ store path — but now _with_ context, making the SDK a real, sandbox-mounted dependency. harbor-rs asserts the reconstructed path equals `macosSdkStorePath`, so a hash/version mismatch fails loudly at eval instead of silently. Already-realized paths are used directly (no rebuild); a missing, unsubstitutable SDK fails early with a clear message.
 
 Because the reconstruction is a recursive-SHA256 fixed-output derivation, its output is **content-addressed and signature-exempt**: any substituter serving it (e.g. a private Attic cache) can provide it without a trusted signature. The substituter URL must still be in the daemon's effective `substituters` list, though — a flake `nixConfig.extra-substituters` only takes effect with `--accept-flake-config` or for a trusted user.
 

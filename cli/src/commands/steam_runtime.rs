@@ -1,4 +1,4 @@
-//! `rs-harbor steam-runtime exec` — run a command inside a Steam Runtime
+//! `harbor-rs steam-runtime exec` — run a command inside a Steam Runtime
 //! SDK container with the project working tree mounted as the current uid.
 //!
 //! Replaces the previous `steam-runtime-exec` shell wrapper. The Nix-side
@@ -99,7 +99,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
     cmd.args(&args.command);
 
     eprintln!(
-        "rs-harbor steam-runtime exec: runtime={} image={} runner={}",
+        "harbor-rs steam-runtime exec: runtime={} image={} runner={}",
         args.runtime,
         args.image,
         runner.display(),

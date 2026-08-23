@@ -16,7 +16,7 @@
   mesaRadvIcd =
     if builtins.hasAttr system icdBySystem
     then "${pkgs.mesa}/share/vulkan/icd.d/${icdBySystem.${system}}"
-    else throw "rs-harbor mkGpuRenderPin mesa-radv only supports Linux systems with a known RADV ICD name";
+    else throw "harbor-rs mkGpuRenderPin mesa-radv only supports Linux systems with a known RADV ICD name";
 
   profiles = {
     mesa-radv = {
@@ -37,7 +37,7 @@
 
   base =
     profiles.${profile}
-      or (throw "unknown rs-harbor GPU render pin profile '${profile}'");
+      or (throw "unknown harbor-rs GPU render pin profile '${profile}'");
 in
   base
   // {

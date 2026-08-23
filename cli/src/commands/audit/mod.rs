@@ -1,4 +1,4 @@
-//! `rs-harbor audit` — check that release-staged binaries only depend on
+//! `harbor-rs audit` — check that release-staged binaries only depend on
 //! libraries available in the target deployment environment.
 //!
 //! Three flavours match the three native binary formats: `elf` (Linux,

@@ -1,7 +1,7 @@
 # mkHomebrewFormula :: { pkgs, name, version, description, homepage, license, platforms, ... }
 #                   -> { formulaText; formulaPath; }
 #
-# Generate a Homebrew binary formula from release metadata. rs-harbor only
+# Generate a Homebrew binary formula from release metadata. harbor-rs only
 # emits the formula file; computing archive checksums and publishing a tap
 # stay in downstream release workflows.
 {packageTests}: {

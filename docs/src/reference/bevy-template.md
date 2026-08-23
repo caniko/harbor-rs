@@ -1,11 +1,11 @@
 # Bevy Template
 
-`rs-harbor` exports a `bevy` flake template for new game projects.
+`harbor-rs` exports a `bevy` flake template for new game projects.
 
 ## Initialize from the template
 
 ```bash
-nix flake init -t git+https://github.com/caniko/rs-harbor.git#bevy
+nix flake init -t git+https://github.com/caniko/harbor-rs.git#bevy
 ```
 
 ## What the template includes

@@ -6,11 +6,11 @@
   lib ? pkgs.lib,
 }:
 assert lib.assertMsg (builtins.isString url && url != "")
-"rs-harbor: fetchMavenCache `url` must be a non-empty string";
+"harbor-rs: fetchMavenCache `url` must be a non-empty string";
 assert lib.assertMsg (builtins.isPath sha256Path || builtins.isString sha256Path)
-"rs-harbor: fetchMavenCache `sha256Path` must be a path or string";
+"harbor-rs: fetchMavenCache `sha256Path` must be a path or string";
 assert lib.assertMsg (builtins.isString name && name != "")
-"rs-harbor: fetchMavenCache `name` must be a non-empty string"; let
+"harbor-rs: fetchMavenCache `name` must be a non-empty string"; let
   rawHash =
     if builtins.pathExists sha256Path
     then builtins.readFile sha256Path
@@ -23,7 +23,7 @@ assert lib.assertMsg (builtins.isString name && name != "")
     if rawHash == null
     then null
     else if hashMatch == null
-    then throw "rs-harbor: fetchMavenCache `${toString sha256Path}` is empty or contains no hash"
+    then throw "harbor-rs: fetchMavenCache `${toString sha256Path}` is empty or contains no hash"
     else builtins.head hashMatch;
   validHash =
     hash
@@ -35,7 +35,7 @@ assert lib.assertMsg (builtins.isString name && name != "")
     if hash == null
     then null
     else if !validHash
-    then throw "rs-harbor: fetchMavenCache `${toString sha256Path}` does not contain a valid SHA-256 hash"
+    then throw "harbor-rs: fetchMavenCache `${toString sha256Path}` does not contain a valid SHA-256 hash"
     else
       builtins.convertHash {
         inherit hash;

@@ -8,7 +8,7 @@
   mkBuildCachePolicy,
 }: {
   pkgs,
-  # Optional rs-harbor-owned pinned profile. Null preserves the historical
+  # Optional harbor-rs-owned pinned profile. Null preserves the historical
   # channel/date behavior for consumers that are not opting into fleet pins.
   toolchainProfile ? null,
   # When set, the standard rust-toolchain.toml is authoritative for the
@@ -27,17 +27,17 @@
   cache ? {},
 }:
 assert pkgs.lib.assertMsg (pkgs ? rust-bin)
-"rs-harbor: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
+"harbor-rs: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
 assert pkgs.lib.assertMsg (toolchainProfile == null || builtins.elem toolchainProfile ["nightly" "stable"])
-"rs-harbor: mkToolchain 'toolchainProfile' must be \"nightly\" or \"stable\", got \"${toString toolchainProfile}\"";
+"harbor-rs: mkToolchain 'toolchainProfile' must be \"nightly\" or \"stable\", got \"${toString toolchainProfile}\"";
 assert pkgs.lib.assertMsg (toolchainProfile == null || (toolchainFile == null && channel == null && date == null))
-"rs-harbor: mkToolchain 'toolchainProfile' cannot be combined with 'toolchainFile', 'channel', or 'date'";
+"harbor-rs: mkToolchain 'toolchainProfile' cannot be combined with 'toolchainFile', 'channel', or 'date'";
 assert pkgs.lib.assertMsg (toolchainFile == null || (channel == null && date == null))
-"rs-harbor: mkToolchain 'toolchainFile' cannot be combined with 'channel' or 'date'";
+"harbor-rs: mkToolchain 'toolchainFile' cannot be combined with 'channel' or 'date'";
 assert pkgs.lib.assertMsg (channel == null || builtins.elem channel ["nightly" "stable"])
-"rs-harbor: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${toString channel}\"";
+"harbor-rs: mkToolchain 'channel' must be \"nightly\" or \"stable\", got \"${toString channel}\"";
 assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[0-9]{4}-[0-9]{2}-[0-9]{2}" date != null)
-"rs-harbor: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${toString date}\""; let
+"harbor-rs: mkToolchain 'date' must be \"latest\" or a YYYY-MM-DD string, got \"${toString date}\""; let
   profileToolchainFiles = {
     nightly = ../rust-toolchain.toml;
     stable = ../rust-toolchain-stable.toml;
@@ -143,7 +143,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     if resolvedToolchainFile != null
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
-      "rs-harbor: mkToolchain 'toolchainFile' must contain [toolchain].channel";
+      "harbor-rs: mkToolchain 'toolchainFile' must contain [toolchain].channel";
         (pkgs.rust-bin.fromRustupToolchainFile resolvedToolchainFile).override {
           extensions = fileExtensions;
           targets = fileTargets;
@@ -233,11 +233,11 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
           success = true;
           value = args.rsHarborCargoTomlContents;
         }
-        else throw "rs-harbor: rsHarborCargoTomlContents must be a string"
+        else throw "harbor-rs: rsHarborCargoTomlContents must be a string"
       else if cargoTomlSource != null && !cargoTomlSourceIsSafe
       then
         throw ''
-          rs-harbor: cannot safely inspect Cargo.toml from this `src` during evaluation.
+          harbor-rs: cannot safely inspect Cargo.toml from this `src` during evaluation.
 
           Generated derivation outputs and untracked plain-string paths would make path-patch validation depend on prior store or host state. Pass `rsHarborCargoTomlContents = builtins.readFile ./Cargo.toml` so validation has explicit source data, or pass a direct Nix path / lib.cleanSourceWith source as `src`.
         ''
@@ -274,7 +274,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     ];
 
   pathPatchBuildDepsOnlyError = pathPatches: ''
-    rs-harbor: refusing craneLib.buildDepsOnly for a Cargo workspace with [patch.crates-io] path patches: ${formatPathPatches pathPatches}
+    harbor-rs: refusing craneLib.buildDepsOnly for a Cargo workspace with [patch.crates-io] path patches: ${formatPathPatches pathPatches}
 
     Crane's dependency-only build replaces path crates with dummy sources. That is unsafe when a patched crate is used by registry dependencies, because those dependencies can compile against a dummy API and fail with misleading missing-symbol errors.
 
@@ -300,7 +300,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       }
     else null;
 
-  # Keep rs-harbor's path-patch safety checks at the crane scope boundary.
+  # Keep harbor-rs's path-patch safety checks at the crane scope boundary.
   # The cache wrapper is applied in the same scope so every crane helper that
   # constructs a Cargo derivation inherits it automatically.
   craneLib =

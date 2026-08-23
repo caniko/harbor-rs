@@ -9,11 +9,11 @@
   sccacheService = import ../lib/sccache-service.nix {inherit pkgs;};
   inherit (lib) mkIf mkOption types;
 
-  osSccache = lib.attrByPath ["programs" "rsHarbor" "sccache"] {} osConfig;
+  osSccache = lib.attrByPath ["programs" "harborRs" "sccache"] {} osConfig;
   osSccacheEnabled = osConfig != null && (osSccache.enable or false);
   osSccacheRemoteEnv = osSccache.remoteEnvVars or {};
 
-  cfg = config.programs.rsHarbor.sccache.userDaemon;
+  cfg = config.programs.harborRs.sccache.userDaemon;
   reservedUserEnvironment = [
     "RUSTC_WRAPPER"
     "SCCACHE_SERVER_UDS"
@@ -73,7 +73,7 @@
           case "$basedir" in
             /*) ;;
             *)
-              echo "rs-harbor sccache: basedirs file contains a non-absolute path: $basedir" >&2
+              echo "harbor-rs sccache: basedirs file contains a non-absolute path: $basedir" >&2
               exit 75
               ;;
           esac
@@ -142,16 +142,16 @@
 
   uid = osConfig.users.users.${config.home.username}.uid;
 in {
-  options.programs.rsHarbor.sccache.userDaemon = {
+  options.programs.harborRs.sccache.userDaemon = {
     enable = mkOption {
       type = types.bool;
       default = osSccacheEnabled;
       defaultText =
         lib.literalExpression
-        "osConfig.programs.rsHarbor.sccache.enable";
+        "osConfig.programs.harborRs.sccache.enable";
       description = ''
         Enable a user-owned interactive sccache daemon and rustc wrapper.
-        Nix sandbox builds continue to use the system rs-harbor daemon.
+        Nix sandbox builds continue to use the system harbor-rs daemon.
       '';
     };
 
@@ -272,37 +272,37 @@ in {
       {
         assertion = osSccacheEnabled;
         message = ''
-          programs.rsHarbor.sccache.userDaemon.enable requires integrated
-          NixOS Home Manager with osConfig.programs.rsHarbor.sccache.enable = true.
+          programs.harborRs.sccache.userDaemon.enable requires integrated
+          NixOS Home Manager with osConfig.programs.harborRs.sccache.enable = true.
         '';
       }
       {
         assertion = osSccacheRemoteEnv ? SCCACHE_BUCKET && osSccacheRemoteEnv ? SCCACHE_ENDPOINT;
         message = ''
-          programs.rsHarbor.sccache.userDaemon.enable requires an S3-backed
-          rs-harbor sccache configuration; refusing to silently fall back to
+          programs.harborRs.sccache.userDaemon.enable requires an S3-backed
+          harbor-rs sccache configuration; refusing to silently fall back to
           local-only interactive caching.
         '';
       }
       {
         assertion = builtins.all (name: !(builtins.hasAttr name cfg.environment)) reservedUserEnvironment;
         message = ''
-          programs.rsHarbor.sccache.userDaemon.environment contains a
+          programs.harborRs.sccache.userDaemon.environment contains a
           reserved lifecycle variable. Configure cache transport through the
-          rs-harbor sccache module instead.
+          harbor-rs sccache module instead.
         '';
       }
       {
         assertion = builtins.all (lib.hasPrefix "/") cfg.basedirs;
-        message = "programs.rsHarbor.sccache.userDaemon.basedirs entries must be absolute paths.";
+        message = "programs.harborRs.sccache.userDaemon.basedirs entries must be absolute paths.";
       }
       {
         assertion = cfg.basedirsFile == null || lib.hasPrefix "/" cfg.basedirsFile;
-        message = "programs.rsHarbor.sccache.userDaemon.basedirsFile must be an absolute path.";
+        message = "programs.harborRs.sccache.userDaemon.basedirsFile must be an absolute path.";
       }
       {
         assertion = cfg.environmentFile == null || lib.hasPrefix "/" cfg.environmentFile;
-        message = "programs.rsHarbor.sccache.userDaemon.environmentFile must be an absolute path.";
+        message = "programs.harborRs.sccache.userDaemon.environmentFile must be an absolute path.";
       }
       {
         assertion =
@@ -310,7 +310,7 @@ in {
           == null
           || builtins.all (level: builtins.elem level ["disk" "redis" "s3"])
           (lib.splitString "," cfg.multiLevelChain);
-        message = "programs.rsHarbor.sccache.userDaemon.multiLevelChain must contain only disk, redis, and s3 levels.";
+        message = "programs.harborRs.sccache.userDaemon.multiLevelChain must contain only disk, redis, and s3 levels.";
       }
       {
         assertion =
@@ -318,14 +318,14 @@ in {
           == null
           || !(builtins.elem "redis" (lib.splitString "," cfg.multiLevelChain))
           || cfg.redisEndpoint != null;
-        message = "programs.rsHarbor.sccache.userDaemon.redisEndpoint is required when the multi-level chain contains redis.";
+        message = "programs.harborRs.sccache.userDaemon.redisEndpoint is required when the multi-level chain contains redis.";
       }
       {
         assertion =
           cfg.redisEndpoint
           == null
           || cfg.redisKeyPrefix != null;
-        message = "programs.rsHarbor.sccache.userDaemon.redisKeyPrefix is required when redisEndpoint is configured.";
+        message = "programs.harborRs.sccache.userDaemon.redisKeyPrefix is required when redisEndpoint is configured.";
       }
     ];
 

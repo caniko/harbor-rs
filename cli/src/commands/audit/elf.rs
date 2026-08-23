@@ -1,4 +1,4 @@
-//! `rs-harbor audit elf` — Steam-Runtime / Linux ELF dependency auditor.
+//! `harbor-rs audit elf` — Steam-Runtime / Linux ELF dependency auditor.
 
 #![allow(
     clippy::doc_markdown,

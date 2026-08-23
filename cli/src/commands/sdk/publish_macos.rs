@@ -1,4 +1,4 @@
-//! `rs-harbor sdk publish-macos` — realize a macOS SDK archive and push the
+//! `harbor-rs sdk publish-macos` — realize a macOS SDK archive and push the
 //! resulting store path to Attic.
 
 use std::path::PathBuf;

@@ -1,13 +1,13 @@
 [package]
-name = "rs-harbor"
+name = "nix_harbor_rs"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Type-safe CLI for rs-harbor build helpers"
+description = "Type-safe CLI for harbor-rs build helpers"
 
 [[bin]]
-name = "rs-harbor"
+name = "harbor-rs"
 path = "src/main.rs"
 
 [dependencies]

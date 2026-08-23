@@ -1,19 +1,19 @@
 {
-  description = "Bevy game project — powered by rs-harbor";
+  description = "Bevy game project — powered by harbor-rs";
 
   inputs = {
-    rs-harbor.url = "git+https://github.com/caniko/rs-harbor.git?ref=trunk";
-    nixpkgs.follows = "rs-harbor/nixpkgs";
-    rust-overlay.follows = "rs-harbor/rust-overlay";
-    crane.follows = "rs-harbor/crane";
-    treefmt-nix.follows = "rs-harbor/treefmt-nix";
-    git-hooks.follows = "rs-harbor/git-hooks";
+    harbor-rs.url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk";
+    nixpkgs.follows = "harbor-rs/nixpkgs";
+    rust-overlay.follows = "harbor-rs/rust-overlay";
+    crane.follows = "harbor-rs/crane";
+    treefmt-nix.follows = "harbor-rs/treefmt-nix";
+    git-hooks.follows = "harbor-rs/git-hooks";
   };
 
   outputs = {
     self,
     nixpkgs,
-    rs-harbor,
+    harbor-rs,
     rust-overlay,
     treefmt-nix,
     git-hooks,
@@ -25,10 +25,10 @@
         inherit system;
         overlays = [(import rust-overlay)];
       };
-      toolchain = rs-harbor.lib.mkToolchain {inherit pkgs;};
+      toolchain = harbor-rs.lib.mkToolchain {inherit pkgs;};
       inherit (toolchain) craneLib rustToolchain;
-      cross = rs-harbor.lib.mkCross {inherit pkgs system;};
-      cargoConfig = rs-harbor.lib.mkCargoConfig {
+      cross = harbor-rs.lib.mkCross {inherit pkgs system;};
+      cargoConfig = harbor-rs.lib.mkCargoConfig {
         inherit pkgs;
         extraConfig = ''
           [alias]
@@ -80,7 +80,7 @@
       in
         import ./nix/dev-shells.nix {
           inherit (cfg) pkgs toolchain cross cargoConfig bevyDeps;
-          inherit rs-harbor;
+          inherit harbor-rs;
           extraPackages = cfg.pre-commit-check.enabledPackages;
           extraShellHook = cfg.pre-commit-check.shellHook;
         }

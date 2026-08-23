@@ -45,7 +45,7 @@
     connectTimeout ? "2",
     executionModel ? "sandbox-local",
     # Atlas mounts this socket into Nix sandboxes.  The wrapper discovers it
-    # at runtime so every consumer using rs-harbor gets the host transport
+    # at runtime so every consumer using harbor-rs gets the host transport
     # without copying host-specific Redis settings into project flakes.
     redisSocketPath ? "/run/redis-sccache/redis.sock",
     compiler ? null,
@@ -87,11 +87,11 @@
         then ""
         else sharedCacheDir;
     in
-      packageSet.writeShellScriptBin "rs-harbor-sandbox-sccache" ''
+      packageSet.writeShellScriptBin "harbor-rs-sandbox-sccache" ''
         set -eu
 
         state_root="''${NIX_BUILD_TOP:-''${TMPDIR:-/tmp}}"
-        compiler_socket="$state_root/rs-harbor-sccache-server.sock"
+        compiler_socket="$state_root/harbor-rs-sccache-server.sock"
         configured_cache_dir=${lib.escapeShellArg wrapperCacheDir}
 
         shared_cache_is_admissible() {
@@ -174,14 +174,14 @@
           umask 0007
           if [ -n "$configured_cache_dir" ]; then
             if ! shared_cache_is_admissible; then
-              echo "rs-harbor sccache: configured sandbox cache is not admissible; refusing an uncached build" >&2
+              echo "harbor-rs sccache: configured sandbox cache is not admissible; refusing an uncached build" >&2
               exit 75
             fi
             cache_dir="$configured_cache_dir"
           elif [ -n "''${SCCACHE_DIR:-}" ] && [ -d "''${SCCACHE_DIR}" ] && [ -w "''${SCCACHE_DIR}" ]; then
             cache_dir="$SCCACHE_DIR"
           else
-            echo "rs-harbor sccache: no managed cache transport is available; refusing an uncached build" >&2
+            echo "harbor-rs sccache: no managed cache transport is available; refusing an uncached build" >&2
             exit 75
           fi
 
@@ -195,9 +195,9 @@
         # Start exactly one server per sandbox.  The launcher is bounded by
         # the atomic lock and the socket check; a failed backend check is a
         # hard build failure instead of an implicit uncached compiler run.
-        ready="$state_root/rs-harbor-sccache-ready"
-        startup_lock="$state_root/rs-harbor-sccache-startup.lock"
-        startup_log="$state_root/rs-harbor-sccache-startup.log"
+        ready="$state_root/harbor-rs-sccache-ready"
+        startup_lock="$state_root/harbor-rs-sccache-startup.lock"
+        startup_log="$state_root/harbor-rs-sccache-startup.log"
         attempts=0
         while [ ! -d "$ready" ] && [ "$attempts" -lt 200 ]; do
           if ${packageSet.coreutils}/bin/mkdir "$startup_lock" 2>/dev/null; then
@@ -214,7 +214,7 @@
               ${packageSet.coreutils}/bin/mkdir -p "$ready"
             else
               ${packageSet.coreutils}/bin/cat "$startup_log" >&2 || true
-              echo "rs-harbor sccache: managed server failed to become ready; refusing an uncached build" >&2
+              echo "harbor-rs sccache: managed server failed to become ready; refusing an uncached build" >&2
               cleanup_startup_lock
               trap - EXIT HUP INT TERM
               exit 75
@@ -231,7 +231,7 @@
         done
 
         if [ ! -d "$ready" ] || [ ! -S "$compiler_socket" ]; then
-          echo "rs-harbor sccache: timed out waiting for the managed server; refusing an uncached build" >&2
+          echo "harbor-rs sccache: timed out waiting for the managed server; refusing an uncached build" >&2
           exit 75
         fi
 
@@ -249,8 +249,8 @@
           };
       });
     wrapper = markSandboxWrapper (mkSandboxWrapper buildPackages);
-    wrapperPath = "${wrapper}/bin/rs-harbor-sandbox-sccache";
-    dioxusDispatcher = buildPackages.writeShellScriptBin "rs-harbor-dioxus-sccache" ''
+    wrapperPath = "${wrapper}/bin/harbor-rs-sandbox-sccache";
+    dioxusDispatcher = buildPackages.writeShellScriptBin "harbor-rs-dioxus-sccache" ''
       set -eu
 
       # Cargo invokes RUSTC_WRAPPER as:
@@ -271,9 +271,9 @@
           ;;
       esac
     '';
-    dioxusDispatcherPath = "${dioxusDispatcher}/bin/rs-harbor-dioxus-sccache";
+    dioxusDispatcherPath = "${dioxusDispatcher}/bin/harbor-rs-dioxus-sccache";
     telemetryHook = buildPackages.writeTextFile {
-      name = "rs-harbor-sccache-telemetry-hook";
+      name = "harbor-rs-sccache-telemetry-hook";
       destination = "/nix-support/setup-hook";
       text = ''
         if [ -z "''${RS_HARBOR_SCCACHE_TELEMETRY_LOADED:-}" ]; then
@@ -528,7 +528,7 @@
       then package
       else let
         cmakeWrapper = markSandboxWrapper (mkSandboxWrapper packageSet);
-        launcher = "${cmakeWrapper}/bin/rs-harbor-sandbox-sccache";
+        launcher = "${cmakeWrapper}/bin/harbor-rs-sandbox-sccache";
         launcherEnv = {
           CMAKE_C_COMPILER_LAUNCHER = launcher;
           CMAKE_CXX_COMPILER_LAUNCHER = launcher;
@@ -550,7 +550,7 @@
           if (old.passthru or {}).rsHarborCmakeCacheWrapped or false
           then {}
           else if conflicting != []
-          then throw "rs-harbor: package already defines a CMake compiler launcher: ${lib.concatStringsSep ", " conflicting}"
+          then throw "harbor-rs: package already defines a CMake compiler launcher: ${lib.concatStringsSep ", " conflicting}"
           else {
             nativeBuildInputs = (old.nativeBuildInputs or []) ++ [cmakeWrapper];
             env = (builtins.removeAttrs oldEnv (remoteCacheEnvNames ++ ["RUSTC_WRAPPER" "XDG_CACHE_HOME"])) // launcherEnv;

@@ -10,7 +10,7 @@ actual Cargo or engine build command.
 ## Basic Usage
 
 ```nix
-steamRuntimeTools = rs-harbor.lib.mkSteamRuntimeTools {
+steamRuntimeTools = harbor-rs.lib.mkSteamRuntimeTools {
   inherit pkgs;
 };
 ```
@@ -25,14 +25,14 @@ steamRuntimeTools.image
 You can select another known runtime or provide a custom OCI image:
 
 ```nix
-steamRuntimeTools = rs-harbor.lib.mkSteamRuntimeTools {
+steamRuntimeTools = harbor-rs.lib.mkSteamRuntimeTools {
   inherit pkgs;
   runtime = "scout";
 };
 ```
 
 ```nix
-steamRuntimeTools = rs-harbor.lib.mkSteamRuntimeTools {
+steamRuntimeTools = harbor-rs.lib.mkSteamRuntimeTools {
   inherit pkgs;
   runtime = "my-runtime";
   customImage = "registry.example.com/my/steam-sdk:latest";

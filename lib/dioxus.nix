@@ -1,7 +1,7 @@
 # Reproducible Dioxus web and fullstack builders.
 #
 # Product flakes own source filtering, application dependencies, and deployment
-# policy. rs-harbor owns the offline DX/Cargo/WASM mechanics, the compiler-cache
+# policy. harbor-rs owns the offline DX/Cargo/WASM mechanics, the compiler-cache
 # policy, and the output contract shared by those products.
 {packageTests}: let
   buildPlan = import ./dioxus-build-plan.nix;
@@ -251,7 +251,7 @@
           dx ${pkgs.lib.escapeShellArgs c.plan.dxCommon} --out-dir "$TMPDIR/dioxus-out" ${pkgs.lib.escapeShellArgs c.plan.dxSuffix}
           if [ -e "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" ]; then
             cat "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" >&2
-            echo "rs-harbor: Dioxus ignored a failed wasm-opt invocation" >&2
+            echo "harbor-rs: Dioxus ignored a failed wasm-opt invocation" >&2
             exit 1
           fi
           test -s "$TMPDIR/dioxus-out/public/index.html"
@@ -422,7 +422,7 @@
           dx ${pkgs.lib.escapeShellArgs c.plan.dxCommon} --out-dir "$TMPDIR/dioxus-out" ${pkgs.lib.escapeShellArgs c.plan.dxSuffix}
           if [ -e "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" ]; then
             cat "$RS_HARBOR_DIOXUS_WASM_OPT_FAILURE" >&2
-            echo "rs-harbor: Dioxus ignored a failed wasm-opt invocation" >&2
+            echo "harbor-rs: Dioxus ignored a failed wasm-opt invocation" >&2
             exit 1
           fi
           test -s "$TMPDIR/dioxus-out/public/index.html"

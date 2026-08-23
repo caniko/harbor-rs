@@ -1,6 +1,6 @@
 //! Attic JWT token decode, status, and expiry helpers.
 //!
-//! These are shared between canix and rs-harbor's own CLI.  The pure functions
+//! These are shared between canix and harbor-rs's own CLI.  The pure functions
 //! (decode, status) are hosted here so version skew between the two consumers
 //! does not produce different token-expiry judgments.
 

@@ -3,22 +3,22 @@
   inherit (lib) escapeShellArg;
 in rec {
   require = label: value:
-    assert lib.assertMsg (value != null) "rs-harbor: release ${label} is required"; value;
+    assert lib.assertMsg (value != null) "harbor-rs: release ${label} is required"; value;
 
   requireString = label: value:
     assert lib.assertMsg (builtins.isString value && value != "")
-    "rs-harbor: release ${label} must be a non-empty string"; value;
+    "harbor-rs: release ${label} must be a non-empty string"; value;
 
   requireNonEmpty = context: value:
     assert lib.assertMsg (lib.isString value && value != "")
-    "rs-harbor: ${context} must be a non-empty string"; value;
+    "harbor-rs: ${context} must be a non-empty string"; value;
 
   requireBinaries = {
     context ? "binary release",
     binaries,
   }:
     assert lib.assertMsg (lib.isList binaries && binaries != [])
-    "rs-harbor: ${context} binaries must be a non-empty list";
+    "harbor-rs: ${context} binaries must be a non-empty list";
       map (binary: requireNonEmpty "${context} binary" binary) binaries;
 
   expectedMachine = {
@@ -29,7 +29,7 @@ in rec {
     then "Advanced Micro Devices X86-64"
     else if system == "aarch64-linux"
     then "AArch64"
-    else throw "rs-harbor: unsupported ${context} system '${system}'";
+    else throw "harbor-rs: unsupported ${context} system '${system}'";
 
   deterministicTarFlags = "--sort=name --owner=0 --group=0 --numeric-owner";
 

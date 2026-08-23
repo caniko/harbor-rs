@@ -21,17 +21,17 @@
   extraServiceConfig ? {},
 }:
 assert pkgs.lib.assertMsg (name != "")
-"rs-harbor.mkRustServiceModule: 'name' is required";
+"harbor-rs.mkRustServiceModule: 'name' is required";
 assert pkgs.lib.assertMsg (binary != "")
-"rs-harbor.mkRustServiceModule: 'binary' is required";
+"harbor-rs.mkRustServiceModule: 'binary' is required";
 assert pkgs.lib.assertMsg (args != "")
-"rs-harbor.mkRustServiceModule: 'args' is required"; let
+"harbor-rs.mkRustServiceModule: 'args' is required"; let
   inherit (builtins) filter concatStringsSep;
   inherit (pkgs.lib) optionalAttrs;
 
   profile =
     if builtins.isString hardening
-    then hardeningProfiles.${hardening} or (throw "rs-harbor.mkRustServiceModule: unknown hardening profile '${hardening}'")
+    then hardeningProfiles.${hardening} or (throw "harbor-rs.mkRustServiceModule: unknown hardening profile '${hardening}'")
     else hardening;
 
   caps =

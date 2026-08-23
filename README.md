@@ -1,4 +1,4 @@
-# rs-harbor
+# harbor-rs
 
 <!-- simit:badges:start -->
 
@@ -8,7 +8,7 @@
 
 Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 
-`rs-harbor` packages the Nix plumbing most Rust workspaces need when targeting Linux, Windows, and macOS:
+`harbor-rs` packages the Nix plumbing most Rust workspaces need when targeting Linux, Windows, and macOS:
 
 - `mkToolchain` for Rust toolchains with `crane`
 - optional `mkToolchain` fleet profiles for centrally pinned stable and nightly Rust versions
@@ -22,12 +22,12 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
-- `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the rs-harbor Rust toolchain
+- `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the harbor-rs Rust toolchain
 - `templates.default` and `templates.bevy` for `nix flake init`
 
 ### More helpers
 
-The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
+The library also exports these helpers (re-exported as `harbor-rs.lib.*`):
 
 - `mkSteamRuntimeTools` — Steam Linux Runtime container exec + ELF/PE/Mach-O runtime-dependency auditing
 - `mkAdapter` / `isHarborAdapter` — typed adapter record (e.g. Attic config) consumed by other helpers
@@ -50,23 +50,23 @@ The library also exports these helpers (re-exported as `rs-harbor.lib.*`):
 
 ```nix
 {
-  outputs = { self, nixpkgs, rs-harbor, flake-utils, rust-overlay, ... }:
+  outputs = { self, nixpkgs, harbor-rs, flake-utils, rust-overlay, ... }:
     flake-utils.lib.eachDefaultSystem (system: let
       pkgs = import nixpkgs {
         inherit system;
         overlays = [(import rust-overlay)];
       };
 
-      toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
-      cross = rs-harbor.lib.mkCross { inherit pkgs system; };
+      toolchain = harbor-rs.lib.mkToolchain { inherit pkgs; };
+      cross = harbor-rs.lib.mkCross { inherit pkgs system; };
     in {
       devShells =
-        (rs-harbor.lib.mkDevShells {
+        (harbor-rs.lib.mkDevShells {
           inherit pkgs cross;
           inherit (toolchain) craneLib;
         })
         // {
-          docs = rs-harbor.lib.mkDocsShell {
+          docs = harbor-rs.lib.mkDocsShell {
             inherit pkgs cross;
             inherit (toolchain) craneLib;
           };
@@ -87,10 +87,10 @@ This produces:
 ### Dioxus bundles
 
 Product flakes should keep their source filtering, Cargo lockfile, and
-deployment layout local, then delegate the Dioxus mechanics to rs-harbor:
+deployment layout local, then delegate the Dioxus mechanics to harbor-rs:
 
 ```nix
-rs-harbor.lib.mkDioxusWebPackage {
+harbor-rs.lib.mkDioxusWebPackage {
   inherit pkgs craneLib rustToolchain;
   src = filteredSource;
   cargoLock = ./Cargo.lock;
@@ -112,7 +112,7 @@ one migration cycle.
 
 ### Compiler-cache policy
 
-`rs-harbor.lib.mkBuildCachePolicy` is the canonical compiler-cache contract
+`harbor-rs.lib.mkBuildCachePolicy` is the canonical compiler-cache contract
 for Rust, Dioxus, CMake, and cross builders. It derives a versioned namespace
 from the selected build-platform `sccache` package, scopes `XDG_CACHE_HOME`
 inside the sandbox wrapper, and scrubs daemon/S3 credentials before invoking
@@ -123,7 +123,7 @@ credentials through `nixosModules.buildCache` and `nixosModules.sccache`.
 managed cache transport.
 
 Rust cache setup hooks emit `RS_HARBOR_SCCACHE_STATS_V1` JSON records. In
-addition to sccache counters and rs-harbor workload metadata, every record
+addition to sccache counters and harbor-rs workload metadata, every record
 contains explicit `compiler` and `targetTriple` fields. The target comes from
 the derivation's `CARGO_BUILD_TARGET` when present, otherwise the build
 platform target; callers such as osxcross may provide it explicitly.
@@ -138,17 +138,17 @@ explicit rather than silently falling back to a native target build.
 Initialize the SDK once per host, using a host-local archive path:
 
 ```bash
-nix run rs-harbor#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
+nix run harbor-rs#init-macos-sdk -- /host/local/MacOSX26.1.sdk.tar.xz 26.1
 ```
 
 Then pass the realized store path to `mkCross` from host configuration rather than committing host-local archive paths. Full setup details are in [docs/src/reference/macos-sdk.md](docs/src/reference/macos-sdk.md).
 
 ## Homebrew Formula Bump
 
-After release archives exist on disk, `rs-harbor brew bump` renders a Homebrew formula with real sha256 sums:
+After release archives exist on disk, `harbor-rs brew bump` renders a Homebrew formula with real sha256 sums:
 
 ```bash
-rs-harbor brew bump \
+harbor-rs brew bump \
   --tap ../homebrew-tap \
   --name my-app \
   --version 1.0.0 \
@@ -158,7 +158,7 @@ rs-harbor brew bump \
   --archive linux_intel=https://example.com/releases/my-app-1.0.0-x86_64-linux.tar.gz,dist/my-app-linux.tar.gz
 ```
 
-Use `--stdout` to print the formula for piping, or `--push` to commit and push the tap update after rs-harbor verifies the tap has no unrelated dirty files.
+Use `--stdout` to print the formula for piping, or `--push` to commit and push the tap update after harbor-rs verifies the tap has no unrelated dirty files.
 
 ## Docs
 
@@ -174,4 +174,4 @@ Use `--stdout` to print the formula for piping, or `--push` to commit and push t
 - [Package tests](docs/src/packaging/package-tests.md)
 - [COPR spec](docs/src/packaging/copr.md)
 
-Source repository: <https://github.com/caniko/rs-harbor>
+Source repository: <https://github.com/caniko/harbor-rs>

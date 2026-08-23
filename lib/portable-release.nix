@@ -1,5 +1,5 @@
 # Portable Linux release archives backed by the pinned nix-bundle bundler.
-# The bundler owns closure collection; rs-harbor owns the archive and manifest
+# The bundler owns closure collection; harbor-rs owns the archive and manifest
 # contract consumed by downstream flakes.
 {
   pkgs,
@@ -59,11 +59,11 @@
         spec.bundler or (
           if builtins.hasAttr system bundlers
           then bundlers.${system}
-          else throw "rs-harbor: no nix-bundle bundler for system '${system}'"
+          else throw "harbor-rs: no nix-bundle bundler for system '${system}'"
         );
       entries = lib.mapAttrs (binary: entry: let
         binaryName = requireNonEmpty "portable release binary" binary;
-        package = entry.package or (throw "rs-harbor: portable entry '${binaryName}' is missing package");
+        package = entry.package or (throw "harbor-rs: portable entry '${binaryName}' is missing package");
         source = "${package}/bin/${binaryName}";
         wrapper =
           pkgs.runCommand "${pname}-${binaryName}-portable-entrypoint" {
@@ -116,7 +116,7 @@
     src =
       if builtins.hasAttr system sources
       then sources.${system}
-      else throw "rs-harbor: no portable release source for system '${system}'";
+      else throw "harbor-rs: no portable release source for system '${system}'";
     expectedBinaries = requireBinaries {
       context = "portable release";
       inherit binaries;

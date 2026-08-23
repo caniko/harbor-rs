@@ -1,4 +1,4 @@
-//! Generic Attic helpers shared by rs-harbor and canix.
+//! Generic Attic helpers shared by harbor-rs and canix.
 
 pub mod jwt;
 pub mod push;

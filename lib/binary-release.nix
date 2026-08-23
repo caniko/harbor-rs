@@ -1,6 +1,6 @@
 # Reproducible release archives and locked-input consumers for static Rust
 # binaries.  The producer deliberately accepts already-built derivations so a
-# project can choose its own crane/cross helper while rs-harbor owns the
+# project can choose its own crane/cross helper while harbor-rs owns the
 # archive contract shared by all consumers.
 {pkgs}: let
   lib = pkgs.lib;
@@ -20,7 +20,7 @@
     package =
       if spec ? package
       then spec.package
-      else throw "rs-harbor: binary release '${target}' is missing package";
+      else throw "harbor-rs: binary release '${target}' is missing package";
     archiveName = "${pname}-${version}-${system}-musl.tar.gz";
     manifest = builtins.toJSON {
       schemaVersion = 1;
@@ -133,7 +133,7 @@
     src =
       if builtins.hasAttr system sources
       then sources.${system}
-      else throw "rs-harbor: no prebuilt binary release source for system '${system}'";
+      else throw "harbor-rs: no prebuilt binary release source for system '${system}'";
     expectedBinaries = requireBinaries {inherit binaries;};
     binaryArgs = concatStringsSep " " (map escapeShellArg expectedBinaries);
     expectedJson = builtins.toJSON expectedBinaries;

@@ -3,10 +3,10 @@
 #
 # Wrap a Nix-built executable as a self-contained AppImage.
 # Requires the user to provide nix-appimage (github:ralismark/nix-appimage)
-# as a flake input — rs-harbor does not pull it in by default.
+# as a flake input — harbor-rs does not pull it in by default.
 #
 # Example:
-#   packages.appimage = rs-harbor.lib.mkAppImage {
+#   packages.appimage = harbor-rs.lib.mkAppImage {
 #     inherit system nix-appimage;
 #     program = "${myPackage}/bin/my-app";
 #   };

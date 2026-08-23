@@ -2,7 +2,7 @@ use dioxus::prelude::*;
 
 fn App() -> Element {
     rsx! {
-        main { "rs-harbor Dioxus fixture" }
+        main { "harbor-rs Dioxus fixture" }
     }
 }
 

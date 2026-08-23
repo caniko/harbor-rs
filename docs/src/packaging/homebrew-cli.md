@@ -1,13 +1,13 @@
 # Homebrew CLI
 
-`rs-harbor brew bump` renders a Homebrew formula from release metadata and archive files that already exist on disk. It computes sha256 sums from the local archive paths and writes a ready-to-commit formula to a tap repository.
+`harbor-rs brew bump` renders a Homebrew formula from release metadata and archive files that already exist on disk. It computes sha256 sums from the local archive paths and writes a ready-to-commit formula to a tap repository.
 
 The archive URL is embedded in the formula, while the archive path is only used for hashing. The URL must point at the same bytes as the local path; otherwise `brew install` will fail with a checksum mismatch.
 
 ## Example
 
 ```bash
-rs-harbor brew bump \
+harbor-rs brew bump \
   --tap ../homebrew-tap \
   --name my-app \
   --version 1.0.0 \
@@ -23,7 +23,7 @@ rs-harbor brew bump \
 Use `--stdout` instead of `--tap` to print the formula for review or piping:
 
 ```bash
-rs-harbor brew bump --stdout \
+harbor-rs brew bump --stdout \
   --name my-app \
   --version 1.0.0 \
   --description "My example application" \

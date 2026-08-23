@@ -21,8 +21,8 @@
     consumable ? false,
     files ? [name],
   }:
-    assert lib.assertMsg (builtins.isString pname && pname != "") "rs-harbor: release pname must be a non-empty string";
-    assert lib.assertMsg (builtins.isString version && version != "") "rs-harbor: release version must be a non-empty string"; {
+    assert lib.assertMsg (builtins.isString pname && pname != "") "harbor-rs: release pname must be a non-empty string";
+    assert lib.assertMsg (builtins.isString version && version != "") "harbor-rs: release version must be a non-empty string"; {
       schemaVersion = 2;
       inherit pname version name kind format system rustTarget validation consumable files;
     };
@@ -95,7 +95,7 @@
     validationScript =
       if validation == "static-elf"
       then
-        assert lib.assertMsg (system != null) "rs-harbor: static-elf artifacts require system"; ''
+        assert lib.assertMsg (system != null) "harbor-rs: static-elf artifacts require system"; ''
           for binary in ${entryArgs}; do
             ${staticElfValidation {
             readelf = "readelf";
@@ -111,7 +111,7 @@
       then ''tar ${deterministicTarFlags} --mtime='@0' -czf "$out/${archiveName}" -C "$stage" .''
       else if format == "zip"
       then ''cd "$stage" && zip -X -q "$out/${archiveName}" $(find . -type f -print | LC_ALL=C sort)''
-      else throw "rs-harbor: unsupported release archive format '${format}'";
+      else throw "harbor-rs: unsupported release archive format '${format}'";
   in
     pkgs.runCommand "${pname}-${version}-${archiveName}-release-artifact" ((artifactPassthru meta)
       // {
@@ -157,7 +157,7 @@
   in
     assert lib.assertMsg
     (builtins.length descriptorNames == builtins.length (lib.unique descriptorNames))
-    "rs-harbor: release bundle artifact names must be unique";
+    "harbor-rs: release bundle artifact names must be unique";
       pkgs.runCommand "${pname}-${version}-release-bundle" {
         nativeBuildInputs = [pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq];
         passthru.rsHarborReleaseBundle = true;
@@ -168,7 +168,7 @@
           while IFS= read -r file; do
             name="$(basename "$file")"
             test ! -e "$out/$name" || {
-              echo "rs-harbor: release bundle asset collision: $name" >&2
+              echo "harbor-rs: release bundle asset collision: $name" >&2
               exit 1
             }
             cp -L "$file" "$out/$name"

@@ -18,7 +18,7 @@
 ## Example
 
 ```nix
-packages.flatpak-manifest = (rs-harbor.lib.mkFlatpakManifest {
+packages.flatpak-manifest = (harbor-rs.lib.mkFlatpakManifest {
   inherit pkgs;
   appId = "com.example.MyApp";
   pname = "my-app";

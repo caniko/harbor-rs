@@ -52,7 +52,7 @@ jobs:
           }
           trap cleanup_validation EXIT
           git worktree add --detach "$tag_worktree" "$VERSION"
-          test "$(nix eval --raw "$tag_worktree#rs-harbor.version")" = "$VERSION"
+          test "$(nix eval --raw "$tag_worktree#harbor-rs.version")" = "$VERSION"
           test -s "$tag_worktree/keys/maintainers.gpg"
           if ! grep -q "^## \[$VERSION\] - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]" "$tag_worktree/CHANGELOG.md"; then
             echo "CHANGELOG.md missing section for $VERSION" >&2
@@ -168,7 +168,7 @@ jobs:
           nix shell nixpkgs#cosign nixpkgs#curl nixpkgs#jq -c bash <<'SCRIPT'
           set -euo pipefail
           . ./release-env
-          repo_url="https://github.com/caniko/rs-harbor"
+          repo_url="https://github.com/caniko/harbor-rs"
           git_sha="$(git rev-parse HEAD)"
           workflow_sha="$(sha256sum .github/workflows/release.yml | awk '{print $1}')"
           flake_lock_sha="missing"; if [ -f flake.lock ]; then flake_lock_sha="$(sha256sum flake.lock | awk '{print $1}')"; fi
@@ -193,7 +193,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_API: https://api.github.com
-          GITHUB_REPO: caniko/rs-harbor
+          GITHUB_REPO: caniko/harbor-rs
         run: |
           set -euo pipefail
           test -n "$GITHUB_TOKEN"

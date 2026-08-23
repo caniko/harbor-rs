@@ -1,4 +1,4 @@
-//! `rs-harbor cache` - Attic cache helpers.
+//! `harbor-rs cache` - Attic cache helpers.
 
 use clap::Subcommand;
 

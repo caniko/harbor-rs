@@ -1,7 +1,7 @@
 # mkCrossPackages :: {
 #   pkgs,            # native build-system pkgs with rust-overlay applied
-#   craneLib,        # native craneLib from rs-harbor.lib.mkToolchain
-#   cross,           # result of rs-harbor.lib.mkCross
+#   craneLib,        # native craneLib from harbor-rs.lib.mkToolchain
+#   cross,           # result of harbor-rs.lib.mkCross
 #   pname,           # base package name, e.g. "modde"
 #   commonArgs,      # base crane args shared across targets; MUST include 'src'
 #   targets ? [ "native" ],   # subset of the supported target names
@@ -53,11 +53,11 @@
   unknownTargets = lib.filter (t: !(builtins.elem t supportedTargets)) targets;
 in
   assert lib.assertMsg (commonArgs ? src)
-  "rs-harbor: mkCrossPackages 'commonArgs' must include 'src'";
+  "harbor-rs: mkCrossPackages 'commonArgs' must include 'src'";
   assert lib.assertMsg (builtins.isList targets)
-  "rs-harbor: mkCrossPackages 'targets' must be a list of target names";
+  "harbor-rs: mkCrossPackages 'targets' must be a list of target names";
   assert lib.assertMsg (unknownTargets == [])
-  "rs-harbor: mkCrossPackages received unsupported target(s): ${lib.concatStringsSep ", " unknownTargets}. Supported: ${lib.concatStringsSep ", " supportedTargets}"; let
+  "harbor-rs: mkCrossPackages received unsupported target(s): ${lib.concatStringsSep ", " unknownTargets}. Supported: ${lib.concatStringsSep ", " supportedTargets}"; let
     # Per-target extra args injected by the consumer (buildInputs, postInstall,
     # cargoBuildExtraArgs, doCheck, ...). Merged LAST so they win over our env.
     extraFor = target: targetArgs.${target} or {};

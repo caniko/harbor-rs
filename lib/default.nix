@@ -1,14 +1,14 @@
 {
   crane,
   osxcross,
-  meta-harbor ? null,
+  harbor-meta ? null,
   nixBundle ? null,
   harbor-android ? null,
 }: let
   devShellLib = import ./dev-shell.nix {
     metaDevShell =
-      if meta-harbor != null
-      then meta-harbor.devShell
+      if harbor-meta != null
+      then harbor-meta.devShell
       else null;
   };
   adapterLib = import ./adapter.nix;
@@ -21,25 +21,25 @@
   hardeningProfiles = import ./hardening-profiles.nix;
   mkSccacheLib = import ./sccache.nix {};
   packageTests =
-    if meta-harbor != null
-    then meta-harbor.packageTests
-    else throw "rs-harbor: package-test helpers require the meta-harbor flake input";
+    if harbor-meta != null
+    then harbor-meta.packageTests
+    else throw "harbor-rs: package-test helpers require the harbor-meta flake input";
   templateTests =
-    if meta-harbor != null
-    then meta-harbor.templateTests
-    else throw "rs-harbor: template-test helpers require the meta-harbor flake input";
+    if harbor-meta != null
+    then harbor-meta.templateTests
+    else throw "harbor-rs: template-test helpers require the harbor-meta flake input";
   devShellTests =
-    if meta-harbor != null
-    then meta-harbor.devShellTests
-    else throw "rs-harbor: dev-shell-test helpers require the meta-harbor flake input";
+    if harbor-meta != null
+    then harbor-meta.devShellTests
+    else throw "harbor-rs: dev-shell-test helpers require the harbor-meta flake input";
   dioxusLib = import ./dioxus.nix {inherit packageTests;};
 in {
   inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests templateTests devShellTests mkCargoConfig;
   buildContract = import ./build-contract.nix {};
   opencode =
-    if meta-harbor != null
-    then meta-harbor.opencode
-    else throw "rs-harbor: opencode helpers require the meta-harbor flake input";
+    if harbor-meta != null
+    then harbor-meta.opencode
+    else throw "harbor-rs: opencode helpers require the harbor-meta flake input";
 
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
@@ -61,7 +61,7 @@ in {
         then args.bundlers
         else if nixBundle != null
         then builtins.mapAttrs (_: value: value.nix-bundle) nixBundle.bundlers
-        else throw "rs-harbor: mkPortableBinaryRelease requires nixBundle or bundlers";
+        else throw "harbor-rs: mkPortableBinaryRelease requires nixBundle or bundlers";
     }).mkPortableBinaryRelease
     (builtins.removeAttrs args ["pkgs" "bundlers"]);
   mkPortableReleaseBinaryPackage = args:
@@ -110,7 +110,7 @@ in {
   inherit
     (if harbor-android != null
     then harbor-android
-    else throw "rs-harbor: Android helpers require the harbor-android flake input")
+    else throw "harbor-rs: Android helpers require the harbor-android flake input")
     findLocalMavenCache
     mkAndroidApk
     mkAndroidApkDevBuilder
@@ -128,7 +128,7 @@ in {
   mkFlatpakManifest = import ./flatpak-manifest.nix {inherit packageTests;};
   mkHomebrewFormula = import ./homebrew-formula.nix {inherit packageTests;};
   mkScoopManifest = import ./scoop-manifest.nix {inherit packageTests;};
-  mkSccacheEnv = mkSccacheLib; # backward compat: rs-harbor.lib.mkSccacheEnv.mkSccacheEnv { ... }
+  mkSccacheEnv = mkSccacheLib; # backward compat: harbor-rs.lib.mkSccacheEnv.mkSccacheEnv { ... }
   mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
   wrapRustPackageWithSccache = mkSccacheLib.wrapRustPackageWithSccache;
 }

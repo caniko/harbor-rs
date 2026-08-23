@@ -1,4 +1,4 @@
-# NixOS host integration for rs-harbor's generic derivation build policy.
+# NixOS host integration for harbor-rs's generic derivation build policy.
 #
 # The sccache module owns transport and credentials.  This module owns the
 # writable sandbox mount and exposes the same pure policy object to NixOS
@@ -10,7 +10,7 @@
   rsHarborBuildPkgs ? pkgs.buildPackages,
   ...
 }: let
-  cfg = config.programs.rsHarbor.buildCache;
+  cfg = config.programs.harborRs.buildCache;
   policy = (import ../lib/build-cache.nix {}).mkBuildCachePolicy {
     inherit pkgs;
     buildPackageSet = rsHarborBuildPkgs;
@@ -24,8 +24,8 @@
 in {
   imports = [./sccache-module.nix];
 
-  options.programs.rsHarbor.buildCache = {
-    enable = lib.mkEnableOption "rs-harbor derivation compiler-cache policy";
+  options.programs.harborRs.buildCache = {
+    enable = lib.mkEnableOption "harbor-rs derivation compiler-cache policy";
 
     package = lib.mkPackageOption pkgs "sccache" {};
 
@@ -75,7 +75,7 @@ in {
       type = lib.types.raw;
       readOnly = true;
       internal = true;
-      description = "Resolved rs-harbor compiler-cache contract.";
+      description = "Resolved harbor-rs compiler-cache contract.";
     };
   };
 
@@ -83,15 +83,15 @@ in {
     assertions = [
       {
         assertion = cfg.executionModel == "sandbox-local";
-        message = "rs-harbor build cache currently supports only sandbox-local execution";
+        message = "harbor-rs build cache currently supports only sandbox-local execution";
       }
       {
         assertion = cfg.cacheRoot != "/";
-        message = "rs-harbor build cache refuses / as a sandbox cache root";
+        message = "harbor-rs build cache refuses / as a sandbox cache root";
       }
     ];
 
-    programs.rsHarbor.sccache = {
+    programs.harborRs.sccache = {
       enable = lib.mkDefault true;
       package = lib.mkDefault cfg.package;
       cacheNamespaceScope = lib.mkDefault cfg.namespaceScope;
@@ -101,7 +101,7 @@ in {
       setGlobalEnvironment = lib.mkDefault false;
     };
 
-    programs.rsHarbor.buildCache.contract = policy.contract;
+    programs.harborRs.buildCache.contract = policy.contract;
 
     _module.args.rsHarborBuildCache = policy;
 

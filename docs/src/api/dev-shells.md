@@ -25,7 +25,7 @@ Important parameters:
 Use `mkProjectCliShellTools` when a project wants its flake-built CLI available in `direnv` or `nix develop`:
 
 ```nix
-projectCli = rs-harbor.lib.mkProjectCliShellTools {
+projectCli = harbor-rs.lib.mkProjectCliShellTools {
   inherit pkgs;
   package = self'.packages.my-cli;
   commandName = "my-cli";
@@ -55,7 +55,7 @@ Use `mkDocsShell` for CI and local workflows that only need mdBook documentation
 - `nix develop .#docs -c mdbook serve docs`
 
 The Plinth-powered project site is intentionally isolated from the reusable
-`rs-harbor` flake so consumers cannot create a dependency cycle. Run its
+`harbor-rs` flake so consumers cannot create a dependency cycle. Run its
 dedicated nested flake when needed:
 
 ```bash
@@ -67,7 +67,7 @@ nix build ./site#site
 
 ```nix
 devShells =
-  (rs-harbor.lib.mkDevShells {
+  (harbor-rs.lib.mkDevShells {
     inherit pkgs cross;
     inherit (toolchain) craneLib;
     packages = with pkgs; [ just vulkan-loader ];
@@ -81,7 +81,7 @@ devShells =
   };
   })
   // {
-    docs = rs-harbor.lib.mkDocsShell {
+    docs = harbor-rs.lib.mkDocsShell {
       inherit pkgs cross;
       inherit (toolchain) craneLib;
       packages = with pkgs; [ mdbook ];

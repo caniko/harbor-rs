@@ -1,5 +1,5 @@
 [book]
-title = "rs-harbor Documentation"
+title = "harbor-rs Documentation"
 authors = ["caniko"]
 language = "en"
 src = "src"
@@ -8,8 +8,8 @@ src = "src"
 build-dir = "book"
 
 [output.html]
-site-url = "/rs-harbor/docs/"
+site-url = "/harbor-rs/docs/"
 default-theme = "coal"
 preferred-dark-theme = "coal"
-git-repository-url = "https://github.com/caniko/rs-harbor"
-edit-url-template = "https://github.com/caniko/rs-harbor/edit/trunk/docs/{path}"
+git-repository-url = "https://github.com/caniko/harbor-rs"
+edit-url-template = "https://github.com/caniko/harbor-rs/edit/trunk/docs/{path}"

@@ -10,13 +10,13 @@ provider = "actions"
 all_features = false
 
 [ci.pages]
-repo = "caniko/rs-harbor"
-canonical_domain = "rs-harbor.tartanoglu.com"
+repo = "caniko/harbor-rs"
+canonical_domain = "harbor-rs.tartanoglu.com"
 site_output = "./site#site"
 deploy_app = "./site#deploy-pages"
 
 [release.github]
-repo = "caniko/rs-harbor"
+repo = "caniko/harbor-rs"
 target_branch = "trunk"
 
 [release.changelog]
@@ -30,7 +30,7 @@ trusted_public_keys = [
   "canix:lPzPzKrmYqW5Rxa5r0uQWvCqD3S5nx0h2eCy7XD5JM8=",
   "cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=",
 ]
-version_attr = "rs-harbor"
+version_attr = "harbor-rs"
 build_commands = []
 checksum_globs = ["*.tar.gz"]
 minisign_pub = "keys/minisign.pub"

@@ -1,4 +1,4 @@
-//! `rs-harbor audit macho` — macOS Mach-O dependency auditor.
+//! `harbor-rs audit macho` — macOS Mach-O dependency auditor.
 
 #![allow(
     clippy::needless_pass_by_value,

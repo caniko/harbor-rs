@@ -1,4 +1,4 @@
-//! `rs-harbor audit pe` — Windows PE dependency auditor.
+//! `harbor-rs audit pe` — Windows PE dependency auditor.
 
 #![allow(
     clippy::needless_pass_by_value,

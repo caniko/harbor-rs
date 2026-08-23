@@ -23,13 +23,13 @@
   extraServiceConfig ? {},
 }:
 assert pkgs.lib.assertMsg (name != "")
-"rs-harbor.mkRustCommandServiceModule: 'name' is required";
+"harbor-rs.mkRustCommandServiceModule: 'name' is required";
 assert pkgs.lib.assertMsg (executable != "")
-"rs-harbor.mkRustCommandServiceModule: 'executable' is required"; let
+"harbor-rs.mkRustCommandServiceModule: 'executable' is required"; let
   inherit (pkgs.lib) optionalAttrs;
   profile =
     if builtins.isString hardening
-    then hardeningProfiles.${hardening} or (throw "rs-harbor.mkRustCommandServiceModule: unknown hardening profile '${hardening}'")
+    then hardeningProfiles.${hardening} or (throw "harbor-rs.mkRustCommandServiceModule: unknown hardening profile '${hardening}'")
     else hardening;
   baseServiceConfig = builtins.removeAttrs profile [
     "CapabilityBoundingSet"

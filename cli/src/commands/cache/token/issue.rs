@@ -23,7 +23,7 @@ pub struct TokenIssueArgs {
     #[arg(
         long = "subject-prefix",
         value_name = "PREFIX",
-        default_value = "rs-harbor-"
+        default_value = "harbor-rs-"
     )]
     pub subject_prefix: String,
 }
@@ -53,8 +53,8 @@ mod tests {
 
     #[test]
     fn defaults_subject_prefix_and_validity() {
-        let args = Wrapper::parse_from(["rs-harbor", "--project", "proj", "--ssh-host", "host"]);
+        let args = Wrapper::parse_from(["harbor-rs", "--project", "proj", "--ssh-host", "host"]);
         assert_eq!(args.args.validity, "2y");
-        assert_eq!(args.args.subject_prefix, "rs-harbor-");
+        assert_eq!(args.args.subject_prefix, "harbor-rs-");
     }
 }

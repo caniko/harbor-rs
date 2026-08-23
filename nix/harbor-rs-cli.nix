@@ -12,13 +12,14 @@
         (craneLib.filterCargoSources path type)
         || (builtins.match ".*/tests/fixtures/.*" path != null)
       );
-    name = "rs-harbor-source";
+    name = "harbor-rs-source";
   };
 in
   craneLib.buildPackage {
-    pname = "rs-harbor";
+    pname = "harbor-rs";
     inherit version;
     src = rsHarborSrc;
+    cargoExtraArgs = "-p nix_harbor_rs";
     strictDeps = true;
     doCheck = true;
     nativeBuildInputs = [

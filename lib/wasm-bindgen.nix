@@ -107,11 +107,11 @@
     (builtins.attrNames pkgs);
 in
   assert lib.assertMsg (lockedVersion != null)
-  "rs-harbor.resolveWasmBindgenCli: Cargo.lock has no wasm-bindgen package";
+  "harbor-rs.resolveWasmBindgenCli: Cargo.lock has no wasm-bindgen package";
   assert lib.assertMsg (!versionMismatch || allowMismatch)
-  "rs-harbor.resolveWasmBindgenCli: supplied wasm-bindgen-cli ${toString suppliedVersion} does not match Cargo.lock ${toString lockedVersion}";
+  "harbor-rs.resolveWasmBindgenCli: supplied wasm-bindgen-cli ${toString suppliedVersion} does not match Cargo.lock ${toString lockedVersion}";
   assert lib.assertMsg (wasmBindgenCli != null || exactPackage != null)
-  "rs-harbor.resolveWasmBindgenCli: Cargo.lock requires wasm-bindgen ${lockedVersion} (${attrName}), but nixpkgs has none of: ${lib.concatStringsSep ", " available}"; {
+  "harbor-rs.resolveWasmBindgenCli: Cargo.lock requires wasm-bindgen ${lockedVersion} (${attrName}), but nixpkgs has none of: ${lib.concatStringsSep ", " available}"; {
     version = lockedVersion;
     inherit attrName;
     package =

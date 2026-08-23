@@ -1,7 +1,7 @@
 # NixOS module for sccache — the shared Rust/C/C++ compilation cache.
 #
 # Three modes:
-#   - Local-only:     `programs.rsHarbor.sccache.enable = true`
+#   - Local-only:     `programs.harborRs.sccache.enable = true`
 #   - Shared (S3):    add `cacheEndpoint` + `cacheBucket`
 #   - Authenticated:  add `accessKeyId` + `secretAccessKey`
 #
@@ -28,7 +28,7 @@
 #     Remove sandboxCacheDir when enabling the daemon.
 #
 #   Layer 2 — derivation-level injection (opt-in, for S3 creds):
-#     config.programs.rsHarbor.sccache.envVars exports RUSTC_WRAPPER,
+#     config.programs.harborRs.sccache.envVars exports RUSTC_WRAPPER,
 #     S3 endpoint/bucket, and AWS credentials. Consumers read this
 #     via builtins.tryEval and apply overrideAttrs to their crane
 #     builds. S3 credentials NEVER pass through impure-env.
@@ -48,7 +48,7 @@
   inherit (lib) mkIf mkMerge mkOption optionalAttrs types;
   sccacheDefault = import ../lib/generated/sccache-default.nix;
   sccacheService = import ../lib/sccache-service.nix {inherit pkgs;};
-  cfg = config.programs.rsHarbor.sccache;
+  cfg = config.programs.harborRs.sccache;
   sccacheLib = import ../lib/sccache.nix {};
   sandboxPolicy =
     if cfg.sandboxCacheDir != null && !cfg.daemon.enable
@@ -137,11 +137,11 @@
 in {
   imports = [
     (lib.mkRenamedOptionModule
-      ["programs" "rsHarbor" "sccache" "extraEnv"]
-      ["programs" "rsHarbor" "sccache" "sandboxExtraEnv"])
+      ["programs" "harborRs" "sccache" "extraEnv"]
+      ["programs" "harborRs" "sccache" "sandboxExtraEnv"])
   ];
 
-  options.programs.rsHarbor.sccache = {
+  options.programs.harborRs.sccache = {
     enable = lib.mkEnableOption "sccache shared compilation cache";
 
     package = lib.mkPackageOption pkgs "sccache" {};
@@ -343,7 +343,7 @@ in {
       type = types.attrsOf types.str;
       internal = true;
       readOnly = true;
-      description = "Computed sccache environment variables. Read from config.programs.rsHarbor.sccache.envVars.";
+      description = "Computed sccache environment variables. Read from config.programs.harborRs.sccache.envVars.";
     };
 
     remoteEnvVars = mkOption {
@@ -359,7 +359,7 @@ in {
       {
         assertion = !(cfg.daemon.enable && cfg.sandboxCacheDir != null);
         message = ''
-          programs.rsHarbor.sccache: sandboxCacheDir (= "${cfg.sandboxCacheDir}") and
+          programs.harborRs.sccache: sandboxCacheDir (= "${cfg.sandboxCacheDir}") and
           daemon.enable are mutually exclusive.
 
           In daemon mode the daemon owns all disk caching at
@@ -372,8 +372,8 @@ in {
       }
     ];
 
-    programs.rsHarbor.sccache.envVars = computedEnvVars;
-    programs.rsHarbor.sccache.remoteEnvVars = remoteEnvVars;
+    programs.harborRs.sccache.envVars = computedEnvVars;
+    programs.harborRs.sccache.remoteEnvVars = remoteEnvVars;
 
     environment.systemPackages = [cfg.package];
 

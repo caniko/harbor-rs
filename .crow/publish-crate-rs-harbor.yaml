@@ -9,5 +9,5 @@ steps:
 - name: publish
   image: ghcr.io/cachix/devenv:latest
   commands:
-  - nix develop -c cargo publish --dry-run -p rs-harbor
-  - nix develop -c cargo publish -p rs-harbor
+  - nix develop -c cargo publish --dry-run -p nix_harbor_rs
+  - nix develop -c cargo publish -p nix_harbor_rs

@@ -28,15 +28,15 @@ _: let
     secretAccessKey ? null,
   }:
     assert isString bucket
-    || throw "rs-harbor: mkSccacheEnv 'bucket' is required and must be a string";
+    || throw "harbor-rs: mkSccacheEnv 'bucket' is required and must be a string";
     assert stringLength bucket
     > 0
-    || throw "rs-harbor: mkSccacheEnv 'bucket' must not be empty";
+    || throw "harbor-rs: mkSccacheEnv 'bucket' must not be empty";
     assert isString endpoint
-    || throw "rs-harbor: mkSccacheEnv 'endpoint' is required and must be a string";
+    || throw "harbor-rs: mkSccacheEnv 'endpoint' is required and must be a string";
     assert stringLength endpoint
     > 0
-    || throw "rs-harbor: mkSccacheEnv 'endpoint' must not be empty";
+    || throw "harbor-rs: mkSccacheEnv 'endpoint' must not be empty";
       {
         SCCACHE_BUCKET = bucket;
         SCCACHE_ENDPOINT = endpoint;

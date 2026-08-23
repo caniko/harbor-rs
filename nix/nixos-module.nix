@@ -1,9 +1,9 @@
 /*
-Pure consumer-shape NixOS module for rs-harbor macOS SDK
+Pure consumer-shape NixOS module for harbor-rs macOS SDK
 cross-compilation.
 
 Producer workflow (operator-driven, not declarative):
-  nix run rs-harbor#publish-macos-sdk -- \
+  nix run harbor-rs#publish-macos-sdk -- \
     --archive /path/to/MacOSX.sdk.tar.xz \
     --version 26.1 \
     --attic-server https://attic.candee.baby \
@@ -26,10 +26,10 @@ the imperative equivalent for the host that publishes the SDK.
   lib,
   ...
 }: let
-  cfg = config.programs.rsHarbor.macosSdk;
+  cfg = config.programs.harborRs.macosSdk;
 in {
-  options.programs.rsHarbor.macosSdk = {
-    enable = lib.mkEnableOption "rs-harbor macOS SDK realization for osxcross cross-compilation";
+  options.programs.harborRs.macosSdk = {
+    enable = lib.mkEnableOption "harbor-rs macOS SDK realization for osxcross cross-compilation";
 
     sdkVersion = lib.mkOption {
       type = lib.types.str;
@@ -41,8 +41,8 @@ in {
       type = lib.types.nullOr lib.types.str;
       default = null;
       description = ''
-        Realized macOS SDK store path injected into rs-harbor project wrappers
-        via `mkCrossArgs`. Produce it with `nix run rs-harbor#publish-macos-sdk
+        Realized macOS SDK store path injected into harbor-rs project wrappers
+        via `mkCrossArgs`. Produce it with `nix run harbor-rs#publish-macos-sdk
         -- ...` from any host, then commit the printed store path into the
         consuming NixOS configuration.
       '';
@@ -85,10 +85,10 @@ in {
         };
       defaultText = lib.literalExpression ''
         {
-          osxSdkVersion = config.programs.rsHarbor.macosSdk.sdkVersion;
+          osxSdkVersion = config.programs.harborRs.macosSdk.sdkVersion;
         } // optional macosSdkStorePath and macosSdkOutputHash
       '';
-      description = "Arguments to merge into rs-harbor.lib.mkCross from project wrappers.";
+      description = "Arguments to merge into harbor-rs.lib.mkCross from project wrappers.";
     };
   };
 

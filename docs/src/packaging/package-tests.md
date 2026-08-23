@@ -1,6 +1,6 @@
 # Package Tests
 
-`rs-harbor` exposes package build and package-test plans through `meta-harbor`
+`harbor-rs` exposes package build and package-test plans through `harbor-meta`
 so downstream flakes can describe package verification consistently before each
 package format has a runnable backend.
 
@@ -24,7 +24,7 @@ local backend explicitly.
 
 ```nix
 let
-  choco = rs-harbor.lib.mkChocoPackage {
+  choco = harbor-rs.lib.mkChocoPackage {
     inherit pkgs;
     id = "my-app";
     version = "1.0.0";
@@ -39,7 +39,7 @@ let
     };
   };
 
-  chocoTest = rs-harbor.lib.mkChocoTestEnvironment {
+  chocoTest = harbor-rs.lib.mkChocoTestEnvironment {
     inherit pkgs;
     chocoPackage = choco;
     verifyPowerShell = [''
@@ -71,7 +71,7 @@ does not yet have a runner:
 
 ```nix
 let
-  deb = rs-harbor.lib.mkDebPackage {
+  deb = harbor-rs.lib.mkDebPackage {
     inherit pkgs;
     packageName = "my-app";
     version = "1.0.0";
@@ -86,7 +86,7 @@ let
       }
     ];
   };
-in rs-harbor.lib.mkPackageTestPlan {
+in harbor-rs.lib.mkPackageTestPlan {
   inherit pkgs;
   kind = "debian";
   artifactBuilder = deb.artifactBuilder;
@@ -96,4 +96,4 @@ in rs-harbor.lib.mkPackageTestPlan {
 ```
 
 Use `mkPackageArtifactBuilder` directly when a downstream packaging helper is not
-implemented in `rs-harbor` yet but still has a concrete output path.
+implemented in `harbor-rs` yet but still has a concrete output path.

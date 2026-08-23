@@ -51,7 +51,7 @@ Both parameters are pure `.cargo/config.toml` annotations. They do not add binar
 ## Example
 
 ```nix
-cargoConfig = rs-harbor.lib.mkCargoConfig {
+cargoConfig = harbor-rs.lib.mkCargoConfig {
   inherit pkgs;
   extraConfig = ''
     [alias]
@@ -60,7 +60,7 @@ cargoConfig = rs-harbor.lib.mkCargoConfig {
 };
 ```
 
-Pass the result into `mkDevShell` or `mkDevShells` and `rs-harbor` will install
+Pass the result into `mkDevShell` or `mkDevShells` and `harbor-rs` will install
 it into a hash-specific directory under the user cache. That directory is
 exported as `CARGO_HOME` only when the caller has not already selected one, so
 the project tree stays free of generated configuration.

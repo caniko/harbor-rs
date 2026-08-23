@@ -279,11 +279,11 @@ in
 
     # The reusable library flake must not acquire a consumer-site input. The
     # optional Pages publisher lives in ./site, keeping the dependency graph
-    # one-way when Plinth consumes rs-harbor. Root path inputs are equally
+    # one-way when Plinth consumes harbor-rs. Root path inputs are equally
     # non-portable: a downstream lock cannot resolve them inside this source.
-    rs-harbor-root-inputs-no-consumer-site = assert !(builtins.elem "plinth" rootInputNames);
+    harbor-rs-root-inputs-no-consumer-site = assert !(builtins.elem "plinth" rootInputNames);
     assert !rootHasPathInput;
-      pkgs.runCommand "check-rs-harbor-root-inputs-no-consumer-site" {} "touch $out";
+      pkgs.runCommand "check-harbor-rs-root-inputs-no-consumer-site" {} "touch $out";
 
     # mkToolchain returns expected attributes
     mkToolchain-shape = let
@@ -361,7 +361,7 @@ in
       assert t ? craneLib;
         pkgs.runCommand "check-mkToolchain-stable" {} "touch $out";
 
-    # Fleet profiles are optional, pinned by rs-harbor, and select matching
+    # Fleet profiles are optional, pinned by harbor-rs, and select matching
     # Cargo configuration so stable consumers do not inherit nightly -Z flags.
     mkToolchain-fleet-profiles = let
       stable = self.lib.mkToolchain {
@@ -1011,7 +1011,7 @@ in
             };
           }
           {
-            programs.rsHarbor.macosSdk = {
+            programs.harborRs.macosSdk = {
               enable = true;
               sdkVersion = "26.1";
               storePath = "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
@@ -1020,7 +1020,7 @@ in
           }
         ];
       };
-      args = evaluated.config.programs.rsHarbor.macosSdk.mkCrossArgs;
+      args = evaluated.config.programs.harborRs.macosSdk.mkCrossArgs;
     in
       assert args.osxSdkVersion == "26.1";
       assert args.macosSdkStorePath == "/nix/store/00000000000000000000000000000000-macosx-sdk-26.1";
@@ -1086,7 +1086,7 @@ in
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay treefmt-nix git-hooks;
-          rs-harbor = self;
+          harbor-rs = self;
         };
         requiredFiles = [
           "flake.nix"
@@ -1097,7 +1097,7 @@ in
           "nix/treefmt.nix"
           "nix/pre-commit.nix"
         ];
-        requiredInputs = ["rs-harbor" "treefmt-nix" "git-hooks"];
+        requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
         commands = ["cargo"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
@@ -1108,7 +1108,7 @@ in
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay treefmt-nix git-hooks;
-          rs-harbor = self;
+          harbor-rs = self;
         };
       };
     in
@@ -1138,7 +1138,7 @@ in
         flakeNix = ./templates/bevy/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay treefmt-nix git-hooks;
-          rs-harbor = self;
+          harbor-rs = self;
         };
         requiredFiles = [
           "flake.nix"
@@ -1151,7 +1151,7 @@ in
           "nix/treefmt.nix"
           "nix/pre-commit.nix"
         ];
-        requiredInputs = ["rs-harbor" "treefmt-nix" "git-hooks"];
+        requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
         commands = ["cargo"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
@@ -1246,7 +1246,7 @@ in
 
     # mkDevShells accepts the full parameter set simit's cross_template()
     # passes: packages list with all audit/release tools, extraShellHook,
-    # and checks.  This is the rs-harbor side of the simit↔rs-harbor
+    # and checks.  This is the harbor-rs side of the simit↔harbor-rs
     # bidirectional contract — if this check fails, simit's generated
     # cross-compilation dev-shells are broken.
     mkDevShells-accepts-simit-parameters = let
@@ -1299,7 +1299,7 @@ in
     # dev-shell built by mkDevShells — packages in `packages` end up in
     # the shell's PATH via nativeBuildInputs.
     #
-    # This is the companion to the simit↔rs-harbor bidirectional contract:
+    # This is the companion to the simit↔harbor-rs bidirectional contract:
     # simit's generated cross-compilation flake passes these tools to
     # mkDevShells and expects them to resolve at evaluation time.
     mkDevShells-audit-tools-in-path =
@@ -1315,7 +1315,7 @@ in
           exit 1
         }
         command -v cargo-sweep >/dev/null || {
-          echo "cargo-sweep: not on PATH — rs-harbor base package is missing"
+          echo "cargo-sweep: not on PATH — harbor-rs base package is missing"
           exit 1
         }
         touch "$out"
@@ -1374,7 +1374,7 @@ in
         pkgs.runCommand "check-mkCrossPackages-validation" {} "touch $out";
 
     # Non-native outputs can preserve the consumer's pinned Rust channel and
-    # date instead of silently switching to rs-harbor's default toolchain.
+    # date instead of silently switching to harbor-rs's default toolchain.
     mkCrossPackages-toolchain-args = let
       fixtureSrc = ./templates/default;
       out = self.lib.mkCrossPackages {
@@ -1532,7 +1532,7 @@ in
     mkSteamRuntimeTools-shape = let
       s = self.lib.mkSteamRuntimeTools {
         inherit pkgs;
-        rsHarborCli = self.packages.${system}.rs-harbor;
+        rsHarborCli = self.packages.${system}.harbor-rs;
       };
     in
       assert s ? runtimes;
@@ -1610,12 +1610,12 @@ in
         pkgs.runCommand "check-mkWindowsMsvcDevShell-shape" {} "touch $out";
 
     # mkMacosUniversalStager exposes a stager package and the cargo profile snippet.
-    # The stager is a thin shim around the rs-harbor Rust CLI's
-    # `rs-harbor stage macos` subcommand.
+    # The stager is a thin shim around the harbor-rs Rust CLI's
+    # `harbor-rs stage macos` subcommand.
     mkMacosUniversalStager-shape = let
       s = self.lib.mkMacosUniversalStager {
         inherit pkgs;
-        rsHarborCli = self.packages.${system}.rs-harbor;
+        rsHarborCli = self.packages.${system}.harbor-rs;
       };
     in
       assert s ? stager;
@@ -1630,29 +1630,29 @@ in
           touch "$out"
         '';
 
-    # The rs-harbor CLI exposes top-level subcommands.
-    rs-harbor-cli-shape = pkgs.runCommand "check-rs-harbor-cli-shape" {} ''
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" --help > help
-      grep 'rs-harbor build helpers' help
+    # The harbor-rs CLI exposes top-level subcommands.
+    harbor-rs-cli-shape = pkgs.runCommand "check-harbor-rs-cli-shape" {} ''
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" --help > help
+      grep 'harbor-rs build helpers' help
       grep 'stage' help
       grep 'audit' help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" stage --help > stage-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" stage --help > stage-help
       grep 'macos' stage-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit --help > audit-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" audit --help > audit-help
       grep 'elf' audit-help
       grep 'pe' audit-help
       grep 'macho' audit-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit elf --help > elf-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" audit elf --help > elf-help
       grep -- '--allow-needed-regex' elf-help
       grep -- '--require-origin-rpath' elf-help
       grep -- '--skip-ldd' elf-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit pe --help > pe-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" audit pe --help > pe-help
       grep -- '--allow-dll-regex' pe-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" audit macho --help > macho-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" audit macho --help > macho-help
       grep -- '--allow-dylib-regex' macho-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" steam-runtime --help > sr-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" steam-runtime --help > sr-help
       grep 'exec' sr-help
-      "${self.packages.${system}.rs-harbor}/bin/rs-harbor" steam-runtime exec --help > sr-exec-help
+      "${self.packages.${system}.harbor-rs}/bin/harbor-rs" steam-runtime exec --help > sr-exec-help
       grep -- '--image' sr-exec-help
       grep -- '--container-runtime' sr-exec-help
       grep -- '--mount-nix-store' sr-exec-help
@@ -1660,16 +1660,16 @@ in
     '';
 
     # When mkSteamRuntimeTools is given an rsHarborCli, the audit helpers
-    # become thin shims around `rs-harbor audit ...`.
+    # become thin shims around `harbor-rs audit ...`.
     mkSteamRuntimeTools-rust-audit-shims = let
       s = self.lib.mkSteamRuntimeTools {
         inherit pkgs;
-        rsHarborCli = self.packages.${system}.rs-harbor;
+        rsHarborCli = self.packages.${system}.harbor-rs;
       };
     in
       pkgs.runCommand "check-mkSteamRuntimeTools-rust-audit-shims" {} ''
         "${s.auditElfRuntimeDeps}/bin/audit-elf-runtime-deps" --help > elf-help
-        grep 'rs-harbor audit elf' elf-help
+        grep 'harbor-rs audit elf' elf-help
         grep -- '--allow-needed-regex' elf-help
         "${s.auditWindowsRuntimeDeps}/bin/audit-windows-runtime-deps" --help > pe-help
         grep -- '--allow-dll-regex' pe-help
@@ -1682,7 +1682,7 @@ in
     mkSteamRuntimeTools-steamworks-subdir = let
       s = self.lib.mkSteamRuntimeTools {
         inherit pkgs;
-        rsHarborCli = self.packages.${system}.rs-harbor;
+        rsHarborCli = self.packages.${system}.harbor-rs;
         steamworksRsLibSubdir = "osx";
       };
     in
@@ -1693,7 +1693,7 @@ in
     mkSteamRuntimeTools-custom-image = let
       s = self.lib.mkSteamRuntimeTools {
         inherit pkgs;
-        rsHarborCli = self.packages.${system}.rs-harbor;
+        rsHarborCli = self.packages.${system}.harbor-rs;
         runtime = "custom";
         customImage = "registry.example.com/custom/steam-sdk:latest";
         containerRuntime = "docker";
@@ -1799,7 +1799,7 @@ in
       assert !(pkgs.lib.hasInfix "link-arg=-fuse-ld=lld" c.configText);
         pkgs.runCommand "check-mkCargoConfig-no-windows-gnu-lld" {} "touch $out";
 
-    # mkTrunkPackage includes the host linker tools needed by rs-harbor's
+    # mkTrunkPackage includes the host linker tools needed by harbor-rs's
     # generated Cargo config when Linux mold support is enabled.
     mkTrunkPackage-includes-linker-tools = let
       cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
@@ -1819,7 +1819,7 @@ in
         pkgs.runCommand "check-mkTrunkPackage-includes-linker-tools" {} "touch $out";
 
     # Dioxus packaging keeps the generic bundle and artifact contract in
-    # rs-harbor; downstream projects only provide their Cargo source policy.
+    # harbor-rs; downstream projects only provide their Cargo source policy.
     mkDioxusPackage-shape = let
       wasmToolchain = self.lib.mkWasmToolchain {inherit pkgs;};
       cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
@@ -3102,7 +3102,7 @@ in
           inherit pkgs;
           osConfig = {
             users.users.can.uid = 1000;
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               remoteEnvVars = {
                 SCCACHE_BUCKET = "sccache";
@@ -3135,7 +3135,7 @@ in
               };
               programs = {
                 nushell.environmentVariables = {};
-                rsHarbor.sccache.userDaemon = {
+                harborRs.sccache.userDaemon = {
                   enable = true;
                   basedirs = ["/build" "/workspace"];
                   basedirsFile = "/run/user/1000/canix/sccache-basedirs";
@@ -3222,7 +3222,7 @@ in
             };
           }
           {
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               cacheEndpoint = "http://127.0.0.1:3900";
               cacheBucket = "sccache";
@@ -3233,8 +3233,8 @@ in
         ];
         specialArgs = {inherit pkgs;};
       };
-      env = evaluated.config.programs.rsHarbor.sccache.envVars;
-      remote = evaluated.config.programs.rsHarbor.sccache.remoteEnvVars;
+      env = evaluated.config.programs.harborRs.sccache.envVars;
+      remote = evaluated.config.programs.harborRs.sccache.remoteEnvVars;
     in
       assert env ? RUSTC_WRAPPER;
       assert env ? SCCACHE_BUCKET;
@@ -3304,7 +3304,7 @@ in
           self.nixosModules.sccache
           mockBase
           {
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               daemon.enable = true;
               cacheEndpoint = "http://127.0.0.1:3900";
@@ -3328,7 +3328,7 @@ in
       assert svc.serviceConfig.Restart == "on-failure";
       assert svc.environment.SCCACHE_START_SERVER == "1";
       assert svc.environment.SCCACHE_NO_DAEMON == "1";
-      assert builtins.any (entry: pkgs.lib.hasInfix "rs-harbor-sccache-wait-for-socket" entry) svc.serviceConfig.ExecStartPost;
+      assert builtins.any (entry: pkgs.lib.hasInfix "harbor-rs-sccache-wait-for-socket" entry) svc.serviceConfig.ExecStartPost;
         pkgs.runCommand "check-sccache-module-daemon-shape" {} "touch $out";
 
     # NixOS module can disable interactive global env without breaking daemon env
@@ -3384,7 +3384,7 @@ in
           self.nixosModules.sccache
           mockBase
           {
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               daemon.enable = true;
               setGlobalEnvironment = false;
@@ -3397,7 +3397,7 @@ in
         ];
         specialArgs = {inherit pkgs;};
       };
-      env = evaluated.config.programs.rsHarbor.sccache.envVars;
+      env = evaluated.config.programs.harborRs.sccache.envVars;
       svc = evaluated.config.systemd.services.sccache-daemon;
       settings = evaluated.config.nix.settings;
     in
@@ -3463,7 +3463,7 @@ in
           self.nixosModules.sccache
           mockBase
           {
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               daemon.enable = true;
               sandboxCacheDir = "/tmp/sccache";
@@ -3534,7 +3534,7 @@ in
           self.nixosModules.sccache
           mockBase
           {
-            programs.rsHarbor.sccache = {
+            programs.harborRs.sccache = {
               enable = true;
               cacheEndpoint = "http://127.0.0.1:3900";
               cacheBucket = "sccache";
@@ -3672,7 +3672,7 @@ in
       inferredAttrs = (inferred.drvAttrs.env or {}) // inferred.drvAttrs;
       telemetryHooks =
         builtins.filter
-        (input: pkgs.lib.hasPrefix "rs-harbor-sccache-telemetry-hook" (input.name or ""))
+        (input: pkgs.lib.hasPrefix "harbor-rs-sccache-telemetry-hook" (input.name or ""))
         (wrapped.drvAttrs.nativeBuildInputs or []);
       hook = builtins.head telemetryHooks;
     in
@@ -3693,7 +3693,7 @@ in
         ${pkgs.gnugrep}/bin/grep -F 'no managed cache transport is available' ${policy.wrapperPath} >/dev/null
         ${pkgs.gnugrep}/bin/grep -F 'managed server failed to become ready' ${policy.wrapperPath} >/dev/null
         if ${pkgs.gnugrep}/bin/grep -F 'exec "$compiler" "$@"' ${policy.wrapperPath} >/dev/null; then
-          echo 'rs-harbor sandbox wrapper must not bypass sccache' >&2
+          echo 'harbor-rs sandbox wrapper must not bypass sccache' >&2
           exit 1
         fi
         touch "$out"
@@ -3739,7 +3739,7 @@ in
         (wrapped.drvAttrs.nativeBuildInputs or []);
       telemetryHooks =
         builtins.filter
-        (input: pkgs.lib.hasPrefix "rs-harbor-sccache-telemetry-hook" (input.name or ""))
+        (input: pkgs.lib.hasPrefix "harbor-rs-sccache-telemetry-hook" (input.name or ""))
         (wrapped.drvAttrs.nativeBuildInputs or []);
     in
       assert !(linked.rsHarborBuildCacheWrapped or false);

@@ -11,7 +11,7 @@
 #   4. flatpak-builder --user --install build-dir ./result
 #
 # Example:
-#   flatpakManifest = rs-harbor.lib.mkFlatpakManifest {
+#   flatpakManifest = harbor-rs.lib.mkFlatpakManifest {
 #     inherit pkgs;
 #     appId = "com.example.MyApp";
 #     pname = "my-app";

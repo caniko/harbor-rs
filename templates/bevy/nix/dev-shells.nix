@@ -1,6 +1,6 @@
 {
   pkgs,
-  rs-harbor,
+  harbor-rs,
   toolchain,
   cross,
   cargoConfig,
@@ -9,7 +9,7 @@
   extraPackages ? [],
   extraShellHook ? "",
 }:
-rs-harbor.lib.mkDevShells {
+harbor-rs.lib.mkDevShells {
   inherit pkgs cross cargoConfig checks extraShellHook;
   inherit (toolchain) craneLib;
   pkgConfigDeps = bevyDeps.buildInputs;

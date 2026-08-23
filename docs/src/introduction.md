@@ -1,6 +1,6 @@
-# rs-harbor
+# harbor-rs
 
-`rs-harbor` is reusable Rust cross-compilation and toolchain infrastructure for Nix flakes. It packages the common setup needed for Rust workspaces that target Linux, Windows, and macOS without forcing each project to rebuild the same Nix plumbing.
+`harbor-rs` is reusable Rust cross-compilation and toolchain infrastructure for Nix flakes. It packages the common setup needed for Rust workspaces that target Linux, Windows, and macOS without forcing each project to rebuild the same Nix plumbing.
 
 The library exposes:
 
@@ -14,4 +14,4 @@ The library exposes:
 
 Start with [Installation](./getting-started/installation.md) if you want to consume the flake in another project, or jump to [Quick Start](./getting-started/quick-start.md) for a minimal cross-compiling shell.
 
-Source repository: <https://github.com/caniko/rs-harbor>
+Source repository: <https://github.com/caniko/harbor-rs>

@@ -12,7 +12,7 @@ namespace `crossPackages.<build-system>.<host-system>`:
 
 ```nix
 let
-  outputs = rs-harbor.lib.mkCrossPackageOutputs {
+  outputs = harbor-rs.lib.mkCrossPackageOutputs {
     buildSystem = "x86_64-linux";
     hostSystem = "aarch64-linux";
     inherit pkgs craneLib cross commonArgs;
@@ -32,10 +32,10 @@ cross toolchain.
 ## Signature
 
 ```nix
-rs-harbor.lib.mkCrossPackages {
+harbor-rs.lib.mkCrossPackages {
   pkgs;            # native build-system pkgs with rust-overlay applied
-  craneLib;        # native craneLib from rs-harbor.lib.mkToolchain
-  cross;           # result of rs-harbor.lib.mkCross
+  craneLib;        # native craneLib from harbor-rs.lib.mkToolchain
+  cross;           # result of harbor-rs.lib.mkCross
   pname;           # base package name, e.g. "modde"
   commonArgs;      # base crane args shared across targets; MUST include `src`
   targets ? [ "native" ];   # subset of the supported target names
@@ -125,8 +125,8 @@ Pick the lightest mitigation that fits:
 
 ```nix
 let
-  toolchain = rs-harbor.lib.mkToolchain { inherit pkgs; };
-  cross = rs-harbor.lib.mkCross { inherit pkgs system; };
+  toolchain = harbor-rs.lib.mkToolchain { inherit pkgs; };
+  cross = harbor-rs.lib.mkCross { inherit pkgs system; };
 
   commonArgs = {
     inherit src;
@@ -134,7 +134,7 @@ let
     strictDeps = true;
   };
 
-  crossPkgs = rs-harbor.lib.mkCrossPackages {
+  crossPkgs = harbor-rs.lib.mkCrossPackages {
     inherit pkgs cross commonArgs;
     inherit (toolchain) craneLib;
     pname = "my-app";

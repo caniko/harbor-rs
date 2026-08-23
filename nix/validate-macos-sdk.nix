@@ -14,7 +14,7 @@ pkgs.writeShellApplication {
       validate-macos-sdk /path/to/MacOSX26.1.sdk [26.1]
 
     Validates that a macOS SDK root contains the files and frameworks
-    required by rs-harbor's osxcross integration.
+    required by harbor-rs's osxcross integration.
     USAGE
     }
 

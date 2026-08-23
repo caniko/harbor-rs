@@ -15,7 +15,7 @@ explicit opt-in output:
 
 ```nix
 let
-  release = rs-harbor.lib.mkBinaryRelease {
+  release = harbor-rs.lib.mkBinaryRelease {
     inherit pkgs;
     pname = "my-tool";
     version = "1.2.3";
@@ -49,7 +49,7 @@ inputs.my-tool-bin-x86_64.url =
   "https://codeberg.org/example/my-tool/releases/download/1.2.3/my-tool-1.2.3-x86_64-linux-musl.tar.gz";
 inputs.my-tool-bin-x86_64.flake = false;
 
-packages.my-tool-prebuilt = rs-harbor.lib.mkReleaseBinaryPackage {
+packages.my-tool-prebuilt = harbor-rs.lib.mkReleaseBinaryPackage {
   inherit pkgs;
   pname = "my-tool";
   version = "1.2.3";
@@ -65,12 +65,12 @@ the archives to Codeberg, and signs the checksum manifest with the committed
 `keys/minisign.pub` trust root.
 
 Before the first tag, provision the generated workflow's required secrets:
-`CODEBERG_TOKEN` at user scope, and a dedicated rs-harbor
+`CODEBERG_TOKEN` at user scope, and a dedicated harbor-rs
 `MINISIGN_SECRET_KEY`/`MINISIGN_PASSWORD` pair at repository scope. The public
 key in `keys/minisign.pub` must be the matching key; do not reuse another
 project's signing key. Check the contract with
 `simit release secrets contract --json` and the Canix declaration with
-`canix release secrets check --project /path/to/rs-harbor`.
+`canix release secrets check --project /path/to/harbor-rs`.
 
 ## Portable native applications
 
@@ -79,7 +79,7 @@ Applications that cannot satisfy the static ELF contract can use the pinned
 
 ```nix
 let
-  release = rs-harbor.lib.mkPortableBinaryRelease {
+  release = harbor-rs.lib.mkPortableBinaryRelease {
     inherit pkgs;
     pname = "my-app";
     version = "1.2.3";
@@ -111,7 +111,7 @@ installer work.
 
 ```nix
 let
-  archive = rs-harbor.lib.mkReleaseArchive {
+  archive = harbor-rs.lib.mkReleaseArchive {
     inherit pkgs;
     pname = "my-tool";
     version = "1.2.3";
@@ -123,7 +123,7 @@ let
   };
 in
 {
-  packages.release-bundle = rs-harbor.lib.mkReleaseBundle {
+  packages.release-bundle = harbor-rs.lib.mkReleaseBundle {
     inherit pkgs;
     pname = "my-tool";
     version = "1.2.3";

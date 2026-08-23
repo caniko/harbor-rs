@@ -15,7 +15,7 @@
       pkgs.attic-client
     ];
     text = ''
-      exec rs-harbor sdk publish-macos "$@"
+      exec harbor-rs sdk publish-macos "$@"
     '';
   };
 }
