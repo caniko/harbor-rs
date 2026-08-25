@@ -745,11 +745,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1783915482,
-        "narHash": "sha256-FmieJB8/OUvNxbkboi7+IGfIuSXY3nF/hZQm8kD0r50=",
+        "lastModified": 1787394516,
+        "narHash": "sha256-pRGOQSClnXNI2iLUG6DYpsGvYcuw0drOutVZFTJNw90=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6cdc7fc76e8bf7fde9fa43a849fcaaa70e230dee",
+        "rev": "c8f90650c15282fa8656a041bfbbd2403997a9a7",
         "type": "github"
       },
       "original": {
@@ -1045,11 +1045,11 @@
         "rust-overlay": "rust-overlay_4"
       },
       "locked": {
-        "lastModified": 1787616164,
-        "narHash": "sha256-L+y88RQVDOFXhEuwz95qZ1QXz5gelCrwh8Md2SchuLM=",
+        "lastModified": 1787616776,
+        "narHash": "sha256-Of53r4tkGreVfUnGwqKebDRRsHwn4wGP2HBptNe97yU=",
         "ref": "refs/heads/trunk",
-        "rev": "c2a1b385bdd87f45f24299041b2d0f574e7ed90f",
-        "revCount": 249,
+        "rev": "c4ae4c762d4258f122f2a4cc4f10155bcff1bb50",
+        "revCount": 250,
         "type": "git",
         "url": "https://github.com/caniko/plinth.git"
       },
