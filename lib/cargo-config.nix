@@ -1,9 +1,9 @@
 # mkCargoConfig :: { pkgs, channel?, ... } -> { configText, configPath }
 #
 # Generate optimized .cargo/config.toml content for fast Rust builds.
-# Configures mold linker (Linux), lld (Windows), cranelift dev backend,
-# share-generics, memory-saving dev profile defaults, and optional dev
-# codegen-units tuning. All nightly-only features auto-disable on stable.
+# Configures mold linker (Linux), lld (Windows), optional cranelift dev backend,
+# share-generics, memory-saving dev profile defaults, and optional dev codegen-
+# units tuning. All nightly-only features auto-disable on stable.
 #
 # enableDevProfileOpts controls debug-info reductions that lower peak memory
 # without changing Cargo's codegen-unit default. devCodegenUnits is separate
@@ -20,7 +20,8 @@
     "aarch64-apple-darwin"
   ],
   enableMold ? true,
-  enableCranelift ? (channel == "nightly"),
+  # Cranelift cannot yet honor LLVM's \x01 no-mangle marker used by some FFI bindings.
+  enableCranelift ? false,
   enableShareGenerics ? (channel == "nightly"),
   enableParallelFrontend ? (channel == "nightly"),
   enableDevProfileOpts ? true,

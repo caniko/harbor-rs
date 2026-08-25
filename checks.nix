@@ -310,6 +310,7 @@ in
       assert t.buildCache == null;
       assert t.craneLib.rsHarborBuildCachePolicy == null;
       assert t.cargoConfig ? configText;
+      assert !(pkgs.lib.hasInfix "codegen-backend" t.cargoConfig.configText);
       assert t.craneLib.rsHarborCargoConfig == t.cargoConfig;
       assert t ? crossTargets;
       assert builtins.isList t.crossTargets;
@@ -1754,18 +1755,42 @@ in
       assert !(pkgs.lib.hasInfix "threads" c.configText);
         pkgs.runCommand "check-mkCargoConfig-stable" {} "touch $out";
 
-    # mkCargoConfig nightly includes expected optimizations
+    # Stable Cargo configurations cannot opt into the nightly-only backend.
+    mkCargoConfig-stable-rejects-cranelift = let
+      result = builtins.tryEval ((self.lib.mkCargoConfig {
+          inherit pkgs;
+          channel = "stable";
+          enableCranelift = true;
+        }).configText);
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkCargoConfig-stable-rejects-cranelift" {} "touch $out";
+
+    # mkCargoConfig nightly includes safe-by-default optimizations
     mkCargoConfig-nightly = let
       c = self.lib.mkCargoConfig {
         inherit pkgs;
         channel = "nightly";
       };
     in
-      assert pkgs.lib.hasInfix "cranelift" c.configText;
+      assert !(pkgs.lib.hasInfix "codegen-backend" c.configText);
       assert pkgs.lib.hasInfix "share-generics" c.configText;
       assert pkgs.lib.hasInfix "mold" c.configText;
       assert pkgs.lib.hasInfix "threads" c.configText;
         pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
+
+    # Cranelift remains available to nightly projects that verify compatibility.
+    mkCargoConfig-cranelift-opt-in = let
+      c = self.lib.mkCargoConfig {
+        inherit pkgs;
+        channel = "nightly";
+        enableCranelift = true;
+      };
+    in
+      assert pkgs.lib.hasInfix ''codegen-backend = "cranelift"'' c.configText;
+      assert pkgs.lib.hasInfix ''[profile.dev.package."*"]'' c.configText;
+      assert pkgs.lib.hasInfix ''codegen-backend = "llvm"'' c.configText;
+        pkgs.runCommand "check-mkCargoConfig-cranelift-opt-in" {} "touch $out";
 
     # Duplicate crossTargets entries must not emit duplicate Cargo tables.
     mkCargoConfig-deduplicates-targets = let

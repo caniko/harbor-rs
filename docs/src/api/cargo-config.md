@@ -6,7 +6,8 @@
 
 - `mold` for Linux linker acceleration when enabled
 - `lld`-compatible Rust target configuration where appropriate
-- nightly-only optimizations such as Cranelift, shared generics, and parallel frontend work
+- nightly-only optimizations such as shared generics and parallel frontend work
+- optional Cranelift code generation for projects that have verified compatibility
 - dev-profile defaults that reduce debug info and peak link memory
 - extra target sections for the Rust triples you care about
 
@@ -16,12 +17,28 @@
 - `channel`: `"nightly"` or `"stable"`
 - `crossTargets`: target triples to emit configuration for
 - `enableMold`
-- `enableCranelift`
+- `enableCranelift` (default: `false`)
 - `enableShareGenerics`
 - `enableParallelFrontend`
 - `enableDevProfileOpts`
 - `devCodegenUnits`
 - `extraConfig`: raw TOML appended to the generated file
+
+### `enableCranelift` (default: `false`)
+
+Cranelift is opt-in because it does not yet support LLVM's `\x01` no-mangle
+marker used by some generated C and C++ FFI bindings. Affected projects can
+compile successfully but fail to link with unresolved symbols. See
+[rustc_codegen_cranelift#1689](https://github.com/rust-lang/rustc_codegen_cranelift/issues/1689).
+
+Nightly projects that have verified their dependency graph can enable it:
+
+```nix
+enableCranelift = true;
+```
+
+The generated dev profile then uses Cranelift for workspace crates and LLVM
+for dependencies.
 
 ### `enableDevProfileOpts` (default: `true`)
 

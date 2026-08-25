@@ -28,6 +28,8 @@
 
 ### Changed
 
+- Cranelift code generation is now opt-in because its unsupported LLVM `\x01`
+  no-mangle marker can break C and C++ FFI linkage.
 - `mkToolchain` maps legacy crane `stdenv` arguments onto `stdenvSelector`
   so per-derivation stdenv overrides no longer warn.
 - Android APK helpers now live in
