@@ -218,7 +218,7 @@
         "lastModified": 1787576641,
         "narHash": "sha256-LD/NY+EGxp80zrCV6Q88AFLlVEflW5OwG4Cc3p/iksY=",
         "ref": "trunk",
-        "rev": "f794f3d2a1d57996e0a8b3901c367a6c86fe03b7",
+        "rev": "61182b8380ff990058fdccb1bbb7a3e7d9575256",
         "revCount": 10,
         "type": "git",
         "url": "https://github.com/caniko/harbor-meta.git"
