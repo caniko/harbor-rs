@@ -28,6 +28,19 @@
   bevyTemplateHooks = builtins.readFile (bevyTemplateRoot + "/nix/pre-commit.nix");
 in
   {
+    mkRustServiceModule-lazy-pkgs = let
+      result = self.lib.mkRustServiceModule {
+        pkgs = throw "mkRustServiceModule forced pkgs";
+        name = "rust-service-fixture";
+        binary = "/bin/rust-service-fixture";
+        args = "--mode smoke";
+      };
+      service = result.systemd.services.rust-service-fixture;
+    in
+      assert service.serviceConfig.ExecStart == "/bin/rust-service-fixture --mode smoke";
+      assert result.users.users.rust-service-fixture.isSystemUser;
+        pkgs.runCommand "check-mkRustServiceModule-lazy-pkgs" {} "touch $out";
+
     mkRustCommandServiceModule-shape = let
       package = pkgs.writeShellScriptBin "rust-service-fixture" "exit 0";
       result = self.lib.mkRustCommandServiceModule {

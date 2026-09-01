@@ -19,15 +19,16 @@
   extraAddressFamilies ? [],
   tmpfiles ? [],
   extraServiceConfig ? {},
-}:
-assert pkgs.lib.assertMsg (name != "")
-"harbor-rs.mkRustServiceModule: 'name' is required";
-assert pkgs.lib.assertMsg (binary != "")
-"harbor-rs.mkRustServiceModule: 'binary' is required";
-assert pkgs.lib.assertMsg (args != "")
-"harbor-rs.mkRustServiceModule: 'args' is required"; let
+}: let
   inherit (builtins) filter concatStringsSep;
-  inherit (pkgs.lib) optionalAttrs;
+  assertMsg = condition: message:
+    if condition
+    then true
+    else throw message;
+  optionalAttrs = condition: attrs:
+    if condition
+    then attrs
+    else {};
 
   profile =
     if builtins.isString hardening
@@ -64,24 +65,30 @@ assert pkgs.lib.assertMsg (args != "")
     }
     // extraServiceConfig;
 in
-  {
-    users.users.${name} = {
-      isSystemUser = true;
-      group = name;
-    };
-    users.groups.${name} = {};
+  assert assertMsg (name != "")
+  "harbor-rs.mkRustServiceModule: 'name' is required";
+  assert assertMsg (binary != "")
+  "harbor-rs.mkRustServiceModule: 'binary' is required";
+  assert assertMsg (args != "")
+  "harbor-rs.mkRustServiceModule: 'args' is required";
+    {
+      users.users.${name} = {
+        isSystemUser = true;
+        group = name;
+      };
+      users.groups.${name} = {};
 
-    systemd.services.${name} = {
-      description = "${name} service";
-      after = ["network-online.target"];
-      wants = ["network-online.target"];
-      wantedBy = ["multi-user.target"];
-      inherit serviceConfig;
-    };
-  }
-  // optionalAttrs (tmpfiles != []) {
-    systemd.tmpfiles.rules = tmpfiles;
-  }
-  // optionalAttrs (configToml != null) {
-    environment.etc."${name}/config.toml".text = configToml;
-  }
+      systemd.services.${name} = {
+        description = "${name} service";
+        after = ["network-online.target"];
+        wants = ["network-online.target"];
+        wantedBy = ["multi-user.target"];
+        inherit serviceConfig;
+      };
+    }
+    // optionalAttrs (tmpfiles != []) {
+      systemd.tmpfiles.rules = tmpfiles;
+    }
+    // optionalAttrs (configToml != null) {
+      environment.etc."${name}/config.toml".text = configToml;
+    }
