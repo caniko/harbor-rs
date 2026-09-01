@@ -55,7 +55,12 @@
   serviceConfig =
     baseServiceConfig
     // {
-      ExecStart = "${binary} ${args}";
+      ExecStart =
+        if binary == ""
+        then throw "harbor-rs.mkRustServiceModule: 'binary' is required"
+        else if args == ""
+        then throw "harbor-rs.mkRustServiceModule: 'args' is required"
+        else "${binary} ${args}";
       Restart = "on-failure";
       RestartSec = 5;
       User = name;
@@ -67,10 +72,6 @@
 in
   assert assertMsg (name != "")
   "harbor-rs.mkRustServiceModule: 'name' is required";
-  assert assertMsg (binary != "")
-  "harbor-rs.mkRustServiceModule: 'binary' is required";
-  assert assertMsg (args != "")
-  "harbor-rs.mkRustServiceModule: 'args' is required";
     {
       users.users.${name} = {
         isSystemUser = true;
