@@ -31,6 +31,7 @@ in
     mkRustServiceModule-lazy-pkgs = let
       result = self.lib.mkRustServiceModule {
         pkgs = throw "mkRustServiceModule forced pkgs";
+        lib = pkgs.lib;
         name = "rust-service-fixture";
         binary = "/bin/rust-service-fixture";
         args = "--mode smoke";

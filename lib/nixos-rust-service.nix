@@ -1,5 +1,5 @@
 # mkRustServiceModule :: {
-#   pkgs, name, binary, args,
+#   lib ?, pkgs ?, name, binary, args,
 #   configToml ?, hardening ? "network-service",
 #   extraCapabilities ? [], extraAddressFamilies ? [],
 #   tmpfiles ? [], extraServiceConfig ? {}
@@ -9,7 +9,8 @@
 # Returns { users, groups, systemd, environment.etc } attrs
 # suitable for merging into config.
 {hardeningProfiles}: {
-  pkgs,
+  pkgs ? null,
+  lib ? pkgs.lib,
   name,
   binary,
   args,
@@ -25,10 +26,6 @@
     if condition
     then true
     else throw message;
-  optionalAttrs = condition: attrs:
-    if condition
-    then attrs
-    else {};
 
   profile =
     if builtins.isString hardening
@@ -71,25 +68,20 @@
     // extraServiceConfig;
 in
   assert assertMsg (name != "")
-  "harbor-rs.mkRustServiceModule: 'name' is required";
-    {
-      users.users.${name} = {
-        isSystemUser = true;
-        group = name;
-      };
-      users.groups.${name} = {};
+  "harbor-rs.mkRustServiceModule: 'name' is required"; {
+    users.users.${name} = {
+      isSystemUser = true;
+      group = name;
+    };
+    users.groups.${name} = {};
 
-      systemd.services.${name} = {
-        description = "${name} service";
-        after = ["network-online.target"];
-        wants = ["network-online.target"];
-        wantedBy = ["multi-user.target"];
-        inherit serviceConfig;
-      };
-    }
-    // optionalAttrs (tmpfiles != []) {
-      systemd.tmpfiles.rules = tmpfiles;
-    }
-    // optionalAttrs (configToml != null) {
-      environment.etc."${name}/config.toml".text = configToml;
-    }
+    systemd.services.${name} = {
+      description = "${name} service";
+      after = ["network-online.target"];
+      wants = ["network-online.target"];
+      wantedBy = ["multi-user.target"];
+      inherit serviceConfig;
+    };
+    systemd.tmpfiles.rules = lib.mkIf (tmpfiles != []) tmpfiles;
+    environment.etc."${name}/config.toml".text = lib.mkIf (configToml != null) configToml;
+  }
