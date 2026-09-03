@@ -80,7 +80,7 @@ pub fn cargo_ci_plan_with_nextest_args(
             plan = plan.step(audit_spec(cfg));
         }
         if options.deny {
-            plan = plan.step(deny_spec(cfg, options));
+            plan = plan.step(deny_spec(cfg));
         }
         if options.package {
             plan = plan.step(package_spec(cfg, options));
@@ -230,15 +230,11 @@ fn audit_spec(cfg: &ProjectConfig) -> CommandSpec {
         .arg("audit")
 }
 
-fn deny_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {
-    let mut spec = CommandSpec::new("cargo deny", "cargo")
+fn deny_spec(cfg: &ProjectConfig) -> CommandSpec {
+    CommandSpec::new("cargo deny", "cargo")
         .cwd(&cfg.workspace_root)
         .arg("deny")
-        .arg("check");
-    if options.locked {
-        spec = spec.arg("--locked");
-    }
-    spec
+        .arg("check")
 }
 
 fn package_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {
