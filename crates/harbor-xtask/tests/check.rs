@@ -72,6 +72,7 @@ fn full_plan_adds_configured_quality_steps() {
     );
     assert_eq!(plan.steps().len(), 8);
     assert_eq!(plan.steps()[2].args[0..2], ["nextest", "run"]);
+    assert_eq!(plan.steps()[5].args, ["audit"]);
     assert_eq!(plan.steps()[7].args[0..2], ["package", "--workspace"]);
 }
 

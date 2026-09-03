@@ -15,7 +15,7 @@
   rootHasPathInput =
     builtins.any
     (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
-    (builtins.attrValues rootLock.nodes.root.inputs);
+    (builtins.filter builtins.isString (builtins.attrValues rootLock.nodes.root.inputs));
   defaultTemplateRoot = ./templates/default;
   defaultTemplateFlake = builtins.readFile (defaultTemplateRoot + "/flake.nix");
   defaultTemplateSimit = builtins.fromTOML (builtins.readFile (defaultTemplateRoot + "/simit.toml"));
