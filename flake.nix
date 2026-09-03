@@ -87,6 +87,7 @@
           macosSdk = import ./nix/nixos-module.nix;
           sccache = import ./nix/sccache-module.nix;
           buildCache = import ./nix/build-cache-module.nix;
+          mavenCache = import ./nix/maven-cache-module.nix;
         };
 
         homeManagerModules.sccache = import ./nix/sccache-home.nix;

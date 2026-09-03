@@ -41,6 +41,136 @@ in
       assert service.serviceConfig.ExecStart == "/bin/rust-service-fixture --mode smoke";
       assert result.users.users.rust-service-fixture.isSystemUser;
         pkgs.runCommand "check-mkRustServiceModule-lazy-pkgs" {} "touch $out";
+    maven-cache-module-shape = let
+      evaluated = nixpkgs.lib.nixosSystem {
+        inherit system;
+        modules = [
+          self.nixosModules.mavenCache
+          {
+            services.harborRs.mavenCache = {
+              enable = true;
+              mirrors = ["https://upstream.example.test/maven/"];
+              storageMount = "/var/cache/reposilite";
+            };
+          }
+        ];
+      };
+      cfg = evaluated.config;
+      cache = cfg.services.harborRs.mavenCache;
+      initScript = self.lib.mkGradleMavenProxyInitScript {
+        inherit pkgs;
+        repositoryUrl = "http://127.0.0.1:8081/cache";
+      };
+    in
+      assert cfg.services.reposilite.enable;
+      assert cfg.services.reposilite.database.type == "sqlite";
+      assert cfg.services.reposilite.database.path == "reposilite.db";
+        pkgs.runCommand "check-maven-cache-module-shape" {
+          nativeBuildInputs = [pkgs.gradle pkgs.jq];
+        } ''
+          jq -e '
+            .maven.repositories == [{
+              id: "cache",
+              metadataMaxAge: 0,
+              preserveSnapshots: false,
+              proxied: [{
+                allowedExtensions: [".jar", ".war", ".pom", ".xml", ".module", ".md5", ".sha1", ".sha256", ".sha512", ".asc", ".aar"],
+                allowedGroups: [],
+                authenticatedFetchingOnly: false,
+                connectTimeout: 3,
+                httpProxy: "",
+                readTimeout: 15,
+                reference: "https://upstream.example.test/maven/",
+                store: true
+              }],
+              redeployment: false,
+              storagePolicy: "PRIORITIZE_UPSTREAM_METADATA",
+              storageProvider: {
+                maxResourceLockLifetimeInSeconds: 60,
+                mount: "/var/cache/reposilite",
+                quota: "64GB",
+                type: "fs"
+              },
+              visibility: "PUBLIC"
+            }]
+          ' ${cache.sharedConfiguration}
+
+          mkdir fixture
+          cat > fixture/settings.gradle <<'EOF'
+          import org.gradle.api.initialization.resolve.RepositoriesMode
+
+          pluginManagement {
+            repositories {
+              gradlePluginPortal()
+              maven { name = "privatePlugin"; url = uri("https://private.example.test/plugins") }
+            }
+          }
+          dependencyResolutionManagement {
+            repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+            repositories {
+              google()
+              mavenCentral()
+              maven { name = "privateDependency"; url = uri("https://private.example.test/maven") }
+            }
+          }
+          rootProject.name = "maven-cache-fixture"
+
+          gradle.settingsEvaluated { settings ->
+            def pluginUrls = settings.pluginManagement.repositories.findAll { it.hasProperty("url") }.collect { it.url.toString() }
+            def dependencyUrls = settings.dependencyResolutionManagement.repositories.findAll { it.hasProperty("url") }.collect { it.url.toString() }
+            assert pluginUrls.contains("http://127.0.0.1:8081/cache")
+            assert pluginUrls.contains("https://private.example.test/plugins")
+            assert !pluginUrls.any { it.startsWith("https://plugins.gradle.org") }
+            assert dependencyUrls.contains("http://127.0.0.1:8081/cache")
+            assert dependencyUrls.contains("https://private.example.test/maven")
+            assert !dependencyUrls.any { it.startsWith("https://repo.maven.apache.org") || it.startsWith("https://dl.google.com") }
+          }
+          EOF
+          touch fixture/build.gradle
+          export GRADLE_USER_HOME="$TMPDIR/gradle-home"
+          gradle --offline --no-daemon --init-script ${initScript} -p fixture help
+          touch "$out"
+        '';
+
+    maven-cache-proxy-persistence = pkgs.testers.nixosTest {
+      name = "maven-cache-proxy-persistence";
+      nodes.machine = {pkgs, ...}: {
+        imports = [self.nixosModules.mavenCache];
+
+        services.harborRs.mavenCache = {
+          enable = true;
+          mirrors = ["http://127.0.0.1:9000/"];
+        };
+        services.reposilite.settings.port = 8081;
+
+        systemd.services.maven-upstream = {
+          wantedBy = ["multi-user.target"];
+          before = ["reposilite.service"];
+          serviceConfig.Type = "exec";
+          preStart = ''
+            install -d /var/lib/maven-upstream/com/example/demo/1.0
+            printf fixture-aar > /var/lib/maven-upstream/com/example/demo/1.0/demo-1.0.aar
+          '';
+          script = "exec ${pkgs.python3}/bin/python -m http.server 9000 --directory /var/lib/maven-upstream";
+        };
+
+        environment.systemPackages = [pkgs.curl];
+      };
+      testScript = ''
+        start_all()
+        machine.wait_for_unit("maven-upstream.service")
+        machine.wait_for_unit("reposilite.service")
+        machine.wait_for_open_port(8081)
+        machine.succeed("curl -fsS http://127.0.0.1:8081/cache/com/example/demo/1.0/demo-1.0.aar -o /tmp/first.aar")
+        machine.succeed("grep -qx fixture-aar /tmp/first.aar")
+        machine.succeed("test -s /var/lib/reposilite/reposilite.db")
+        machine.succeed("systemctl stop maven-upstream.service")
+        machine.succeed("systemctl restart reposilite.service")
+        machine.wait_for_open_port(8081)
+        machine.succeed("curl -fsS http://127.0.0.1:8081/cache/com/example/demo/1.0/demo-1.0.aar -o /tmp/second.aar")
+        machine.succeed("cmp /tmp/first.aar /tmp/second.aar")
+      '';
+    };
 
     mkRustCommandServiceModule-shape = let
       package = pkgs.writeShellScriptBin "rust-service-fixture" "exit 0";
@@ -1546,16 +1676,14 @@ in
           pkgs.runCommand "check-mkCrossPackages-cross-targets" {} "touch $out"
       else pkgs.runCommand "check-mkCrossPackages-cross-targets-skipped" {} "touch $out";
 
-
     # Compatibility: Android helpers now live in harbor-android and are re-exported.
-    harbor-android-reexports =
-      assert self.lib ? mkAndroidSdk;
-      assert self.lib ? mkAndroidDevShell;
-      assert self.lib ? findLocalMavenCache;
-      assert self.lib ? mkAndroidApk;
-      assert self.lib ? mkAndroidApkDevBuilder;
-      assert self.lib ? mkAndroidFlavorTable;
-        pkgs.runCommand "check-harbor-android-reexports" {} "touch $out";
+    harbor-android-reexports = assert self.lib ? mkAndroidSdk;
+    assert self.lib ? mkAndroidDevShell;
+    assert self.lib ? findLocalMavenCache;
+    assert self.lib ? mkAndroidApk;
+    assert self.lib ? mkAndroidApkDevBuilder;
+    assert self.lib ? mkAndroidFlavorTable;
+      pkgs.runCommand "check-harbor-android-reexports" {} "touch $out";
 
     # mkSteamRuntimeTools returns expected metadata and packages.
     # rsHarborCli is now required, so we pass the flake-built CLI here.
@@ -1758,10 +1886,10 @@ in
     # Stable Cargo configurations cannot opt into the nightly-only backend.
     mkCargoConfig-stable-rejects-cranelift = let
       result = builtins.tryEval ((self.lib.mkCargoConfig {
-          inherit pkgs;
-          channel = "stable";
-          enableCranelift = true;
-        }).configText);
+        inherit pkgs;
+        channel = "stable";
+        enableCranelift = true;
+      }).configText);
     in
       assert !result.success;
         pkgs.runCommand "check-mkCargoConfig-stable-rejects-cranelift" {} "touch $out";
@@ -3018,7 +3146,6 @@ in
       assert pkgs.lib.hasInfix "share=network" m.manifestText;
       assert pkgs.lib.hasInfix "socket=x11" m.manifestText;
         pkgs.runCommand "check-mkFlatpakManifest-finish-args" {} "touch $out";
-
 
     mkMinisignSign-shape = let
       app = self.lib.mkMinisignSign {

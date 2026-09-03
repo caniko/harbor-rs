@@ -90,6 +90,7 @@ in {
 
   mkWasmToolchain = import ./wasm-toolchain.nix {inherit crane;};
   mkGradlePackage = import ./gradle-package.nix;
+  mkGradleMavenProxyInitScript = import ./maven-cache.nix;
   mkJetBrainsPlugin = import ./jetbrains-plugin.nix;
   mkJetBrainsSigningMaterial = import ./jetbrains-signing.nix;
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
@@ -108,9 +109,11 @@ in {
   fetchMavenCache = import ./fetch-maven-cache.nix;
   mkAtticPush = import ./attic-push.nix;
   inherit
-    (if harbor-android != null
-    then harbor-android
-    else throw "harbor-rs: Android helpers require the harbor-android flake input")
+    (
+      if harbor-android != null
+      then harbor-android
+      else throw "harbor-rs: Android helpers require the harbor-android flake input"
+    )
     findLocalMavenCache
     mkAndroidApk
     mkAndroidApkDevBuilder
