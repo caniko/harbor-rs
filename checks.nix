@@ -3872,6 +3872,7 @@ in
       pkgs.runCommand "check-build-cache-policy-fail-closed" {} ''
         ${pkgs.gnugrep}/bin/grep -F 'refusing an uncached build' ${policy.wrapperPath} >/dev/null
         ${pkgs.gnugrep}/bin/grep -F 'no managed cache transport is available' ${policy.wrapperPath} >/dev/null
+        ${pkgs.gnugrep}/bin/grep -F 'host_cache_dir="$host_cache_root"/${policy.contract.namespace}' ${policy.wrapperPath} >/dev/null
         ${pkgs.gnugrep}/bin/grep -F 'managed server failed to become ready' ${policy.wrapperPath} >/dev/null
         if ${pkgs.gnugrep}/bin/grep -F 'exec "$compiler" "$@"' ${policy.wrapperPath} >/dev/null; then
           echo 'harbor-rs sandbox wrapper must not bypass sccache' >&2

@@ -93,6 +93,26 @@
         state_root="''${NIX_BUILD_TOP:-''${TMPDIR:-/tmp}}"
         compiler_socket="$state_root/harbor-rs-sccache-server.sock"
         configured_cache_dir=${lib.escapeShellArg wrapperCacheDir}
+        host_cache_root=/var/cache/sccache
+        host_cache_dir="$host_cache_root"/${lib.escapeShellArg namespace}
+
+        host_cache_root_is_admissible() {
+          [ -d "$host_cache_root" ] \
+            && [ ! -L "$host_cache_root" ] \
+            && [ -w "$host_cache_root" ] \
+            || return 1
+
+          owner_uid="$(${packageSet.coreutils}/bin/stat -c %u "$host_cache_root")"
+          mode="$(${packageSet.coreutils}/bin/stat -c %a "$host_cache_root")"
+          case "$owner_uid" in
+            0 | 65534) ;;
+            *) return 1 ;;
+          esac
+          case "$mode" in
+            "" | *[!0-7]*) return 1 ;;
+          esac
+          [ "$((8#$mode & 07777))" -eq "$((01777))" ]
+        }
 
         shared_cache_is_admissible() {
           current_uid="$(${packageSet.coreutils}/bin/id -u)"
@@ -172,6 +192,9 @@
           unset XDG_CACHE_HOME
 
           umask 0007
+          if [ -z "$configured_cache_dir" ] && host_cache_root_is_admissible; then
+            configured_cache_dir="$host_cache_dir"
+          fi
           if [ -n "$configured_cache_dir" ]; then
             if ! shared_cache_is_admissible; then
               echo "harbor-rs sccache: configured sandbox cache is not admissible; refusing an uncached build" >&2
