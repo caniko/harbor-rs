@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Development shells report when an existing `CARGO_HOME` prevents generated
+  Cargo configuration from activating, and propagate configuration installation
+  failures instead of reporting successful activation.
+
 ### Added
 
 - `mkPkgConfigEnv` and `mkDioxusPackage` helpers, with shape checks and
