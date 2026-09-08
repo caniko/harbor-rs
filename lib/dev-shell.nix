@@ -4,9 +4,7 @@
 #
 # Build devShells with Rust cross-compilation environment variables pre-configured.
 # mkDevShells calls mkDevShell internally, so both live in the same file.
-{
-  metaDevShell ? null,
-}: rec {
+{metaDevShell ? null}: rec {
   mkPkgConfigEnv = {
     pkgs,
     deps ? [],
@@ -118,9 +116,13 @@
         if [ -z "''${CARGO_HOME:-}" ]; then
           export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
         fi
-        mkdir -p "$RS_HARBOR_CARGO_HOME"
-        install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml"
-        echo "harbor-rs: cargo config at $RS_HARBOR_CARGO_HOME/config.toml"
+        if [ "$CARGO_HOME" = "$RS_HARBOR_CARGO_HOME" ]; then
+          mkdir -p "$RS_HARBOR_CARGO_HOME" || return 1
+          install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml" || return 1
+          echo "harbor-rs: cargo config at $CARGO_HOME/config.toml" >&2
+        else
+          echo "harbor-rs: keeping existing CARGO_HOME=$CARGO_HOME; generated Cargo config is not activated" >&2
+        fi
       ''
       else "";
 

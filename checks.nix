@@ -1462,6 +1462,51 @@ in
     # This is the companion to the simit↔harbor-rs bidirectional contract:
     # simit's generated cross-compilation flake passes these tools to
     # mkDevShells and expects them to resolve at evaluation time.
+    mkDevShells-cargo-home = let
+      shell =
+        (self.lib.mkDevShells {
+          inherit pkgs cross;
+          inherit (toolchain) craneLib;
+        }).default;
+      hook = pkgs.writeText "cargo-home-shell-hook" shell.shellHook;
+    in
+      pkgs.runCommand "check-mkDevShells-cargo-home" {
+        nativeBuildInputs = shell.nativeBuildInputs;
+      } ''
+        export HOME="$TMPDIR/home"
+        export XDG_CACHE_HOME="$TMPDIR/cache"
+        unset CARGO_HOME
+        source ${hook}
+        test "$CARGO_HOME" = "$RS_HARBOR_CARGO_HOME"
+        test -s "$CARGO_HOME/config.toml"
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        source ${hook}
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+
+        export CARGO_HOME="$TMPDIR/previous-harbor-home"
+        source ${hook} 2>diagnostic
+        test "$CARGO_HOME" = "$TMPDIR/previous-harbor-home"
+        test ! -e "$CARGO_HOME"
+        grep -q 'generated Cargo config is not activated' diagnostic
+
+        export CARGO_HOME="$TMPDIR/user-cargo"
+        mkdir -p "$CARGO_HOME"
+        printf '# user-owned config\n' > "$CARGO_HOME/config.toml"
+        source ${hook} 2>diagnostic
+        test "$CARGO_HOME" = "$TMPDIR/user-cargo"
+        test "$(cat "$CARGO_HOME/config.toml")" = '# user-owned config'
+        grep -q 'generated Cargo config is not activated' diagnostic
+
+        unset CARGO_HOME
+        export XDG_CACHE_HOME="$TMPDIR/not-a-directory"
+        touch "$XDG_CACHE_HOME"
+        if source ${hook} 2>diagnostic; then
+          echo 'Cargo config installation failure was ignored' >&2
+          exit 1
+        fi
+        touch "$out"
+      '';
+
     mkDevShells-audit-tools-in-path =
       pkgs.runCommand "check-mkDevShells-audit-tools-in-path" {
         buildInputs = with pkgs; [cargo-audit cargo-deny cargo-sweep];
