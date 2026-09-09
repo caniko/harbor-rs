@@ -118,7 +118,13 @@
         fi
         if [ "$CARGO_HOME" = "$RS_HARBOR_CARGO_HOME" ]; then
           mkdir -p "$RS_HARBOR_CARGO_HOME" || return 1
-          install -m 0644 ${cargoConfig.configPath} "$RS_HARBOR_CARGO_HOME/config.toml" || return 1
+          # Concurrent direnv shells must not unlink or expose a partial config.
+          __rs_harbor_cfg_tmp="$(mktemp "$RS_HARBOR_CARGO_HOME/.config.toml.XXXXXX")" || return 1
+          if ! install -m 0644 ${cargoConfig.configPath} "$__rs_harbor_cfg_tmp" \
+            || ! ${pkgs.coreutils}/bin/mv -fT "$__rs_harbor_cfg_tmp" "$RS_HARBOR_CARGO_HOME/config.toml"; then
+            rm -f "$__rs_harbor_cfg_tmp"
+            return 1
+          fi
           echo "harbor-rs: cargo config at $CARGO_HOME/config.toml" >&2
         else
           echo "harbor-rs: keeping existing CARGO_HOME=$CARGO_HOME; generated Cargo config is not activated" >&2

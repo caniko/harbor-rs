@@ -28,6 +28,8 @@
   bevyTemplateHooks = builtins.readFile (bevyTemplateRoot + "/nix/pre-commit.nix");
 in
   {
+    opencode-rust-default = assert !(pkgs.lib.hasInfix "openpencil" (self.lib.opencode.configText "rust"));
+      pkgs.runCommand "check-opencode-rust-default" {} "touch $out";
     mkRustServiceModule-lazy-pkgs = let
       result = self.lib.mkRustServiceModule {
         pkgs = throw "mkRustServiceModule forced pkgs";
@@ -1482,6 +1484,22 @@ in
         cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
         source ${hook}
         cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        chmod a-w "$CARGO_HOME"
+        if source ${hook} 2>diagnostic; then
+          echo 'unwritable Cargo home was ignored' >&2
+          exit 1
+        fi
+        chmod u+w "$CARGO_HOME"
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+
+        unset CARGO_HOME
+        export XDG_CACHE_HOME="$TMPDIR/concurrent-cache"
+        pids=()
+        for i in $(seq 1 32); do
+          (source ${hook} >/dev/null && cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml") &
+          pids+=("$!")
+        done
+        for pid in "''${pids[@]}"; do wait "$pid"; done
 
         export CARGO_HOME="$TMPDIR/previous-harbor-home"
         source ${hook} 2>diagnostic
