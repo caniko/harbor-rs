@@ -92,4 +92,35 @@ devShells =
 The shell installs the selected configuration in a hash-specific directory
 under the user cache and uses it as `CARGO_HOME` only when the caller has not
 already selected one. Pass `cargoConfig` explicitly only to override the
-configuration attached to `craneLib` by `mkToolchain`.
+configuration attached to `craneLib` by `mkToolchain`. Prefer
+`toolchain.cargoConfig` over reconstructing the same file with `mkCargoConfig`.
+
+## Activation
+
+Harbor produces shell packages, environment variables, and hooks. It does not
+activate a repository. Each project chooses its toolchain and direnv policy.
+
+This `.envrc` pattern requires nix-direnv. Register source watches before
+`use flake`. Disable stale-cache fallback so a failed rebuild is not reported
+as success. Do not update lockfiles from direnv.
+
+```bash
+watch_file flake.nix flake.lock
+nix_direnv_disallow_fallback
+use flake . --no-update-lock-file || return 1
+```
+
+A nested checkout that must not inherit a parent Harbor shell needs its own
+`.envrc`: either `use flake .` for that project, or a no-op file such as
+`true`. An absent `.envrc` inherits the parent.
+
+Harbor's Cargo hook:
+
+- installs generated config only into Harbor's hashed cache directory
+- leaves an existing `CARGO_HOME` unchanged and reports that generated config
+  is not activated
+- fails the shell when that install cannot complete
+
+`checks.mkDevShells-cargo-home` covers repeated, concurrent, user-owned, and
+failed-install cases. `lib.devShellTests.mkCheck` covers executable
+availability. Real direnv transitions remain a consumer check.

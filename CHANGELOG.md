@@ -7,8 +7,14 @@
 - Development shells report when an existing `CARGO_HOME` prevents generated
   Cargo configuration from activating, and propagate configuration installation
   failures instead of reporting successful activation.
+- Generated Cargo configuration is installed atomically so concurrent shells
+  cannot observe a partial file, and an unwritable Cargo home preserves the
+  previous configuration.
 
 ### Added
+
+- `treefmtModules.rust` for composing rustfmt with harbor-meta Nix and TOML
+  modules.
 
 - `mkPkgConfigEnv` and `mkDioxusPackage` helpers, with shape checks and
   packaging documentation.

@@ -14,7 +14,9 @@
 ## Parameters
 
 - `pkgs` (required)
-- `channel`: `"nightly"` or `"stable"`
+- `channel`: `"nightly"` or `"stable"`. This is not `toolchainProfile`; that
+  argument belongs to `mkToolchain`. Reuse `toolchain.cargoConfig` unless you
+  need a different Cargo file than the selected toolchain.
 - `crossTargets`: target triples to emit configuration for
 - `enableMold`
 - `enableCranelift` (default: `false`)
