@@ -43,7 +43,7 @@
           && craneLib.filterCargoSources path type;
       };
       build = import ./nix/package.nix {inherit craneLib bevyDeps src;};
-      treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix);
+      treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix {inherit harbor-rs;});
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
         hooks = import ./nix/pre-commit.nix {

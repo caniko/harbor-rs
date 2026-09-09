@@ -258,11 +258,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1786574736,
-        "narHash": "sha256-w0UHPwyVbHKMIB/J82XBhG9OSqIn68X6jYOZ5UXgGIM=",
+        "lastModified": 1788975598,
+        "narHash": "sha256-e2uYv4RDL+/XSCE1Qi04iFJUY/LrKvYpOWSR+zz3SSU=",
         "ref": "trunk",
-        "rev": "7e03c2bfd32c35da8c6531a5867dfdb66eeae766",
-        "revCount": 8,
+        "rev": "b158ee4c3cc9c0d6ca7ab2216906b51990699c8a",
+        "revCount": 9,
         "type": "git",
         "url": "https://github.com/caniko/nix-opencode-lsp.git"
       },

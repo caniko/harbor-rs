@@ -80,6 +80,7 @@
         };
       in {
         inherit lib;
+        treefmtModules.rust = ./nix/treefmt/rust.nix;
 
         sccache = sccacheLib;
 
@@ -119,6 +120,11 @@
         };
         cross = self.lib.mkCross {inherit pkgs system;};
         cargoConfig = toolchain.cargoConfig;
+        treefmt = inputs.treefmt-nix.lib.evalModule pkgs {
+          imports = [harbor-meta.treefmtModules.nix harbor-meta.treefmtModules.toml self.treefmtModules.rust];
+          projectRootFile = "flake.nix";
+          programs.rustfmt.package = toolchain.rustToolchain;
+        };
         rsHarborVersion = (builtins.fromTOML (builtins.readFile ./cli/Cargo.toml)).package.version;
 
         bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {
@@ -263,11 +269,23 @@
           inherit pkgs toolchain cross cargoConfig rsHarborCli harborCi;
         };
 
-        checks = import ./checks.nix {
-          inherit self pkgs system toolchain cross nixpkgs rust-overlay;
-          inherit (inputs) treefmt-nix git-hooks;
-          rootInputNames = builtins.attrNames inputs;
-        };
+        formatter = treefmt.config.build.wrapper;
+
+        checks =
+          (import ./checks.nix {
+            inherit self pkgs system toolchain cross nixpkgs rust-overlay;
+            inherit (inputs) treefmt-nix git-hooks;
+            rootInputNames = builtins.attrNames inputs;
+          })
+          // {
+            treefmt-modules = import ./nix/treefmt/check.nix {
+              inherit pkgs;
+              inherit (inputs) treefmt-nix;
+              inherit (toolchain) rustToolchain;
+              rustModule = self.treefmtModules.rust;
+              baseModules = [harbor-meta.treefmtModules.nix harbor-meta.treefmtModules.toml];
+            };
+          };
       };
     };
 }
