@@ -1,4 +1,4 @@
-{harbor-rs}: {pkgs, ...}: {
+{harbor-rs, rustfmtPackage}: {pkgs, ...}: {
   imports = [
     harbor-rs.inputs.harbor-meta.treefmtModules.nix
     harbor-rs.inputs.harbor-meta.treefmtModules.toml
@@ -6,10 +6,10 @@
   ];
   projectRootFile = "flake.nix";
 
+  # rustfmt comes from harbor-rs's pinned nightly profile, never a floating
+  # `nightly.latest`, so template formatting matches the fleet toolchain.
   programs.rustfmt = {
     edition = "2024";
-    package = pkgs.rust-bin.nightly.latest.default.override {
-      extensions = ["rustfmt"];
-    };
+    package = rustfmtPackage;
   };
 }

@@ -28,6 +28,7 @@
       toolchain = harbor-rs.lib.mkToolchain {inherit pkgs;};
       inherit (toolchain) craneLib rustToolchain;
       cross = harbor-rs.lib.mkCross {inherit pkgs system;};
+      fmtToolchain = harbor-rs.lib.mkToolchain {inherit pkgs; toolchainProfile = "nightly";};
       cargoConfig = harbor-rs.lib.mkCargoConfig {
         inherit pkgs;
         extraConfig = ''
@@ -43,7 +44,10 @@
           && craneLib.filterCargoSources path type;
       };
       build = import ./nix/package.nix {inherit craneLib bevyDeps src;};
-      treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix {inherit harbor-rs;});
+      treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix {
+        inherit harbor-rs;
+        rustfmtPackage = fmtToolchain.rustToolchain;
+      });
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
         hooks = import ./nix/pre-commit.nix {
