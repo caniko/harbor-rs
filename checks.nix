@@ -2130,7 +2130,7 @@ in
         };
         cargoHash = "sha256-VucqkXbCi4qtQzY/HrXiDnbSURsagPsdNVMn1Tw3UiY=";
         nativeBuildInputs = [pkgs.pkg-config];
-        buildInputs = [pkgs.openssl] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [pkgs.curl];
+        buildInputs = [pkgs.openssl] ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isDarwin [pkgs.curl];
         doCheck = false;
       };
       drv = self.lib.mkDioxusFullstackPackage {
