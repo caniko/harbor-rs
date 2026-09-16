@@ -217,11 +217,11 @@
         "treefmt-nix": "treefmt-nix_2"
       },
       "locked": {
-        "lastModified": 1789530522,
-        "narHash": "sha256-5jUOARnJaT4LTdGlOZfGRuKi9JPnivGZ+MPxYKl+SeA=",
+        "lastModified": 1789534750,
+        "narHash": "sha256-e1tiTm8W7Mm1mTEgYIA0szp/H9JMbNIA4pP44a9lkSE=",
         "ref": "trunk",
-        "rev": "55e634666d3f0fe0ca5e8102be1e1e81ba194e7e",
-        "revCount": 17,
+        "rev": "db4d3f7d1e672e498dc16e2cb34248e0a29742cb",
+        "revCount": 19,
         "type": "git",
         "url": "https://github.com/caniko/harbor-meta.git"
       },
