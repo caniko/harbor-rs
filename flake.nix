@@ -22,12 +22,11 @@
       url = "git+https://github.com/caniko/harbor-meta.git?ref=trunk";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    meta-harbor.follows = "harbor-meta";
 
     harbor-android = {
       url = "github:caniko/harbor-android/trunk";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.meta-harbor.follows = "harbor-meta";
+      inputs.harbor-meta.follows = "harbor-meta";
     };
 
     nix-opencode-lsp = {

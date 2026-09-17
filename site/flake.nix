@@ -7,14 +7,13 @@
     plinth = {
       url = "git+https://github.com/caniko/plinth.git?ref=refs/heads/trunk";
       inputs.nixpkgs.follows = "nixpkgs";
-      inputs.rs-harbor.follows = "harbor-rs";
+      inputs.harbor-rs.follows = "harbor-rs";
     };
 
     harbor-rs = {
       url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=f0ba05cb4f7b650f9785457e25d7b896382cb292";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    rs-harbor.follows = "harbor-rs";
   };
 
   outputs = {
