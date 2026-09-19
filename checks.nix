@@ -4026,4 +4026,23 @@ in
       assert attrs.CARGO_INCREMENTAL == "0";
       assert wrapped.passthru.rsHarborBuildCacheWrapped;
         pkgs.runCommand "check-build-cache-policy-preserves-direct-env" {} "touch $out";
+
+    # Fail if flake inputs ever point at retired forge mirrors again
+    # (fleet migrated to github.com/caniko/*). sourceUrl package metadata
+    # is informational only, never fetched, so it is excluded.
+    site-host-pinning = pkgs.runCommand "check-site-host-pinning" {
+      rootFlakeNix = ./flake.nix;
+      rootFlakeLock = ./flake.lock;
+      siteFlakeNix = ./site/flake.nix;
+      siteFlakeLock = ./site/flake.lock;
+    } ''
+      if ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
+        | ${pkgs.gnugrep}/bin/grep -E -q "codeberg|codefloe"; then
+        echo "ERROR: retired forge host in flake inputs:" >&2
+        ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
+          | ${pkgs.gnugrep}/bin/grep -E -n "codeberg|codefloe" >&2 || true
+        exit 1
+      fi
+      touch "$out"
+    '';
   }
