@@ -11,7 +11,12 @@
     };
 
     harbor-rs = {
-      url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=7a3328e186258dca31f9801227bc4e6fd8db4f36";
+      url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=7c9ad1d1a71e425e316a32542842aa06b8f22246";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+
+    harbor-docs = {
+      url = "github:caniko/harbor-docs";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -20,6 +25,7 @@
     nixpkgs,
     plinth,
     harbor-rs,
+    harbor-docs,
     ...
   }: let
     systems = ["x86_64-linux" "aarch64-linux"];
@@ -34,6 +40,7 @@
       packages = import "${harbor-rs}/nix/site.nix" {
         inherit pkgs projectSiteLib;
         lib = nixpkgs.lib;
+        harborDocs = harbor-docs.lib;
       };
     in {inherit pkgs projectSiteLib packages;};
   in {
