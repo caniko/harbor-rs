@@ -383,7 +383,7 @@ mod tests {
         let cli = TestCli::try_parse_from(["stage-macos", "--binary", "myapp"]).expect("parses");
         assert_eq!(cli.args.binary, "myapp");
         assert_eq!(cli.args.archs, "x86_64,aarch64");
-        assert!(cli.args.dylib.is_empty());
+        assert_eq!(cli.args.dylib, Vec::new());
         assert!(!cli.args.skip_per_arch);
         assert!(!cli.args.skip_universal);
     }
