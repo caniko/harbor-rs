@@ -5,8 +5,11 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     plinth = {
+      # NOTE: no nixpkgs follows here. Plinth pins the newest nixpkgs whose
+      # dioxus-cli matches its Cargo.lock and asserts the match at eval;
+      # following unstable in breaks evaluation (hub site uses the same
+      # policy). Revisit when plinth migrates to dioxus 0.7.10.
       url = "git+https://github.com/caniko/plinth.git?ref=refs/heads/trunk";
-      inputs.nixpkgs.follows = "nixpkgs";
       inputs.harbor-rs.follows = "harbor-rs";
     };
 
