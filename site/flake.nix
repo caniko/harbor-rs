@@ -14,7 +14,7 @@
     };
 
     harbor-rs = {
-      url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=ed89d0b13fc61dd1b2217bf4bba97f32cec27ba7";
+      url = "git+https://github.com/caniko/harbor-rs.git?ref=trunk&rev=720a933c1d7a9ceac7caccc494425f2a3d54a91c";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
