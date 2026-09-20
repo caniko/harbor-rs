@@ -45,10 +45,11 @@
     connectTimeout ? "2",
     executionModel ? "sandbox-local",
     # Explicit opt-in for hosts without a managed transport (CI runners,
-    # laptops, containers). When set, the wrapper creates and uses this
-    # directory after every managed option fails. Unset (null) preserves
-    # the fail-closed behavior: an uncached build is a hard error.
-    ephemeralFallbackDir ? null,
+    # laptops, containers). When true, the wrapper uses a private
+    # build-scoped directory after every managed option fails. False
+    # (default) preserves the fail-closed behavior: an uncached build is
+    # a hard error.
+    ephemeralFallback ? false,
     # Atlas mounts this socket into Nix sandboxes.  The wrapper discovers it
     # at runtime so every consumer using harbor-rs gets the host transport
     # without copying host-specific Redis settings into project flakes.
@@ -98,7 +99,7 @@
         state_root="''${NIX_BUILD_TOP:-''${TMPDIR:-/tmp}}"
         compiler_socket="$state_root/harbor-rs-sandbox-sccache-server.sock"
         configured_cache_dir=${lib.escapeShellArg wrapperCacheDir}
-        ephemeral_fallback_dir=${lib.escapeShellArg (if ephemeralFallbackDir == null then "" else ephemeralFallbackDir)}
+        ephemeral_fallback=${lib.boolToString ephemeralFallback}
         host_cache_root=/var/cache/sccache
         host_cache_dir="$host_cache_root"/${lib.escapeShellArg namespace}
 
@@ -209,15 +210,38 @@
             cache_dir="$configured_cache_dir"
            elif [ -n "''${SCCACHE_DIR:-}" ] && [ -d "''${SCCACHE_DIR}" ] && [ -w "''${SCCACHE_DIR}" ]; then
              cache_dir="''${SCCACHE_DIR}"
-           elif [ -n "$ephemeral_fallback_dir" ]; then
-             # Explicitly opted in via ephemeralFallbackDir. No admission
-             # gate: the operator chose this path knowing it is local and
-             # non-shared.
-             ${packageSet.coreutils}/bin/mkdir -p "$ephemeral_fallback_dir" 2>/dev/null || {
-               echo "harbor-rs sccache: cannot create ephemeral fallback dir $ephemeral_fallback_dir; refusing an uncached build" >&2
+           elif [ "$ephemeral_fallback" = "true" ]; then
+             # Explicitly opted in via ephemeralFallback. Uses a private
+             # build-scoped directory (never a fixed shared path), created
+             # with owner-only permissions. Pre-existing symlinks, files,
+             # or foreign-owned directories are refused.
+             fallback_dir="$state_root/harbor-rs-sccache-cache"
+             if [ -L "$fallback_dir" ]; then
+               echo "harbor-rs sccache: ephemeral fallback path is a symlink; refusing an uncached build" >&2
+               exit 75
+             fi
+             if [ -e "$fallback_dir" ] && [ ! -d "$fallback_dir" ]; then
+               echo "harbor-rs sccache: ephemeral fallback path is not a directory; refusing an uncached build" >&2
+               exit 75
+             fi
+             if [ -d "$fallback_dir" ]; then
+               owner_uid="$(${packageSet.coreutils}/bin/stat -c %u "$fallback_dir")"
+               current_uid="$(${packageSet.coreutils}/bin/id -u)"
+               if [ "$owner_uid" != "$current_uid" ]; then
+                 echo "harbor-rs sccache: ephemeral fallback dir is not owned by the build user; refusing an uncached build" >&2
+                 exit 75
+               fi
+             else
+               ${packageSet.coreutils}/bin/mkdir -p "$fallback_dir" 2>/dev/null || {
+                 echo "harbor-rs sccache: cannot create ephemeral fallback dir; refusing an uncached build" >&2
+                 exit 75
+               }
+             fi
+             ${packageSet.coreutils}/bin/chmod 0700 "$fallback_dir" 2>/dev/null || {
+               echo "harbor-rs sccache: cannot secure ephemeral fallback dir; refusing an uncached build" >&2
                exit 75
              }
-             cache_dir="$ephemeral_fallback_dir"
+             cache_dir="$fallback_dir"
            else
              echo "harbor-rs sccache: no managed cache transport is available; refusing an uncached build" >&2
              exit 75

@@ -3947,16 +3947,32 @@ in
     build-cache-policy-ephemeral-fallback = let
       withFallback = self.lib.mkBuildCachePolicy {
         inherit pkgs;
-        ephemeralFallbackDir = "/tmp/fallback-test";
+        ephemeralFallback = true;
       };
       withoutFallback = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      fallbackRoot = "$NIX_BUILD_TOP/harbor-rs-sccache-cache";
     in
       pkgs.runCommand "check-build-cache-policy-ephemeral-fallback" {} ''
-        ${pkgs.gnugrep}/bin/grep -F "ephemeral_fallback_dir='/tmp/fallback-test'" ${withFallback.wrapperPath} >/dev/null
-        if ${pkgs.gnugrep}/bin/grep -F "ephemeral_fallback_dir=" ${withoutFallback.wrapperPath} | ${pkgs.gnugrep}/bin/grep -q "fallback-test"; then
-          echo 'default policy must leave the ephemeral fallback unset' >&2
+        # Fallback executes: the wrapper starts a server on a private
+        # build-scoped dir and sccache answers.
+        ${withFallback.wrapperPath} --version >/dev/null
+        test -d "${fallbackRoot}"
+        mode=$(${pkgs.coreutils}/bin/stat -c %a "${fallbackRoot}")
+        test "$mode" = "700"
+        ${withFallback.wrapperPath} --stop-server >/dev/null 2>&1 || true
+        # Default policy still refuses without a transport.
+        if ${withoutFallback.wrapperPath} --version >/dev/null 2>&1; then
+          echo 'default policy must refuse without a managed transport' >&2
           exit 1
         fi
+        # A pre-existing symlink at the fallback path is refused.
+        ${pkgs.coreutils}/bin/rm -rf "${fallbackRoot}"
+        ${pkgs.coreutils}/bin/ln -s /tmp "${fallbackRoot}"
+        if ${withFallback.wrapperPath} --version >/dev/null 2>&1; then
+          echo 'fallback must refuse a symlinked cache path' >&2
+          exit 1
+        fi
+        ${pkgs.coreutils}/bin/rm -f "${fallbackRoot}"
         touch "$out"
       '';
 
