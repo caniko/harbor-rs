@@ -585,17 +585,17 @@
         "treefmt-nix": "treefmt-nix_5"
       },
       "locked": {
-        "lastModified": 1789828225,
-        "narHash": "sha256-boea5qulyvSdBDFj5UeZXzEhXykR/mmnBVO1Nx8IFwg=",
+        "lastModified": 1789897434,
+        "narHash": "sha256-tOPe7vvNHu5h2qjwoogZHQF2fvfffduNBlUu/i9JRtY=",
         "ref": "trunk",
-        "rev": "7c9ad1d1a71e425e316a32542842aa06b8f22246",
-        "revCount": 228,
+        "rev": "ed89d0b13fc61dd1b2217bf4bba97f32cec27ba7",
+        "revCount": 235,
         "type": "git",
         "url": "https://github.com/caniko/harbor-rs.git"
       },
       "original": {
         "ref": "trunk",
-        "rev": "7c9ad1d1a71e425e316a32542842aa06b8f22246",
+        "rev": "ed89d0b13fc61dd1b2217bf4bba97f32cec27ba7",
         "type": "git",
         "url": "https://github.com/caniko/harbor-rs.git"
       }
