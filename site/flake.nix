@@ -15,8 +15,8 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    harbor-docs = {
-      url = "github:caniko/harbor-docs";
+    harbor-projects = {
+      url = "github:caniko/harbor-projects";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
@@ -25,7 +25,7 @@
     nixpkgs,
     plinth,
     harbor-rs,
-    harbor-docs,
+    harbor-projects,
     ...
   }: let
     systems = ["x86_64-linux" "aarch64-linux"];
@@ -40,7 +40,7 @@
       packages = import "${harbor-rs}/nix/site.nix" {
         inherit pkgs projectSiteLib;
         lib = nixpkgs.lib;
-        harborDocs = harbor-docs.lib;
+        harborDocs = harbor-projects.lib;
       };
     in {inherit pkgs projectSiteLib packages;};
   in {

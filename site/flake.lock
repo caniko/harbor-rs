@@ -397,7 +397,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "nixpkgs": [
-          "harbor-docs",
+          "harbor-projects",
           "nixpkgs"
         ]
       },
@@ -494,35 +494,11 @@
         "type": "github"
       }
     },
-    "harbor-docs": {
-      "inputs": {
-        "flake-utils": "flake-utils",
-        "git-hooks": "git-hooks",
-        "harbor-meta": "harbor-meta",
-        "nixpkgs": [
-          "nixpkgs"
-        ],
-        "treefmt-nix": "treefmt-nix_2"
-      },
-      "locked": {
-        "lastModified": 1789828203,
-        "narHash": "sha256-l7ENh1XEIqxPGbQtQyNWxt2JIUYK+DOwqoiWT5GgBZ0=",
-        "owner": "caniko",
-        "repo": "harbor-docs",
-        "rev": "2969a7e9a27b0cb234807ca03f3761319999dc53",
-        "type": "github"
-      },
-      "original": {
-        "owner": "caniko",
-        "repo": "harbor-docs",
-        "type": "github"
-      }
-    },
     "harbor-meta": {
       "inputs": {
         "flake-parts": "flake-parts",
         "nixpkgs": [
-          "harbor-docs",
+          "harbor-projects",
           "nixpkgs"
         ],
         "rust-overlay": "rust-overlay",
@@ -566,6 +542,30 @@
         "ref": "trunk",
         "type": "git",
         "url": "https://github.com/caniko/harbor-meta.git"
+      }
+    },
+    "harbor-projects": {
+      "inputs": {
+        "flake-utils": "flake-utils",
+        "git-hooks": "git-hooks",
+        "harbor-meta": "harbor-meta",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": "treefmt-nix_2"
+      },
+      "locked": {
+        "lastModified": 1789883771,
+        "narHash": "sha256-Tq5OnbN3Y5DbueJNUaLByEuKjxfwZOB7c975jQr7Woc=",
+        "owner": "caniko",
+        "repo": "harbor-projects",
+        "rev": "503a806c5ea8161d71b5472c1eee4fa0e054c502",
+        "type": "github"
+      },
+      "original": {
+        "owner": "caniko",
+        "repo": "harbor-projects",
+        "type": "github"
       }
     },
     "harbor-rs": {
@@ -1155,7 +1155,7 @@
     },
     "root": {
       "inputs": {
-        "harbor-docs": "harbor-docs",
+        "harbor-projects": "harbor-projects",
         "harbor-rs": "harbor-rs",
         "nixpkgs": "nixpkgs",
         "plinth": "plinth"
@@ -1203,7 +1203,7 @@
     "rust-overlay": {
       "inputs": {
         "nixpkgs": [
-          "harbor-docs",
+          "harbor-projects",
           "harbor-meta",
           "nixpkgs"
         ]
@@ -1417,7 +1417,7 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
-          "harbor-docs",
+          "harbor-projects",
           "harbor-meta",
           "nixpkgs"
         ]
@@ -1439,7 +1439,7 @@
     "treefmt-nix_2": {
       "inputs": {
         "nixpkgs": [
-          "harbor-docs",
+          "harbor-projects",
           "nixpkgs"
         ]
       },
