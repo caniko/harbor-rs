@@ -3944,6 +3944,22 @@ in
         touch "$out"
       '';
 
+    build-cache-policy-ephemeral-fallback = let
+      withFallback = self.lib.mkBuildCachePolicy {
+        inherit pkgs;
+        ephemeralFallbackDir = "/tmp/fallback-test";
+      };
+      withoutFallback = self.lib.mkBuildCachePolicy {inherit pkgs;};
+    in
+      pkgs.runCommand "check-build-cache-policy-ephemeral-fallback" {} ''
+        ${pkgs.gnugrep}/bin/grep -F "ephemeral_fallback_dir='/tmp/fallback-test'" ${withFallback.wrapperPath} >/dev/null
+        if ${pkgs.gnugrep}/bin/grep -F "ephemeral_fallback_dir=" ${withoutFallback.wrapperPath} | ${pkgs.gnugrep}/bin/grep -q "fallback-test"; then
+          echo 'default policy must leave the ephemeral fallback unset' >&2
+          exit 1
+        fi
+        touch "$out"
+      '';
+
     build-cache-policy-concurrent-start = let
       policy = self.lib.mkBuildCachePolicy {
         inherit pkgs;
