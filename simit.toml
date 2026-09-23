@@ -2,8 +2,8 @@
 runtime = "nix"
 runner = "ubuntu-24.04"
 workspace = true
-workspace_strategy = "aggregate"
-check_command = "harbor-ci default"
+workspace_strategy = "members"
+required_gates = [{ id = "harbor-ci", run = "nix develop -c harbor-ci default" }]
 publish_crates = true
 platform = "github"
 provider = "actions"
