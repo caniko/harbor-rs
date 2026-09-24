@@ -10,11 +10,20 @@
       if harbor-meta != null
       then harbor-meta.devShell
       else null;
+    opencodeProfiles = opencodeLib.profiles;
   };
   adapterLib = import ./adapter.nix;
+  opencodeLib =
+    if harbor-meta != null
+    then import ./opencode.nix {inherit harbor-meta;}
+    else throw "harbor-rs: opencode helpers require the harbor-meta flake input";
+  metaShellTools =
+    if harbor-meta != null
+    then harbor-meta.devShell
+    else throw "harbor-rs: shell helpers require the harbor-meta flake input";
   minisignLib = import ./minisign.nix;
   mkCargoConfig = import ./cargo-config.nix;
-  mkBuildCachePolicy = (import ./build-cache.nix {}).mkBuildCachePolicy;
+  inherit ((import ./build-cache.nix {})) mkBuildCachePolicy;
   mkToolchain = import ./toolchain.nix {
     inherit crane mkBuildCachePolicy mkCargoConfig;
   };
@@ -40,6 +49,8 @@ in {
     if harbor-meta != null
     then harbor-meta.opencode
     else throw "harbor-rs: opencode helpers require the harbor-meta flake input";
+  opencodeRust = opencodeLib;
+  hooks = import ./hooks.nix {inherit harbor-meta;};
 
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   mkCross = import ./cross.nix {inherit osxcross;};
@@ -48,43 +59,42 @@ in {
     mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   };
   mkBinaryRelease = args:
-    (import ./binary-release.nix {pkgs = args.pkgs;}).mkBinaryRelease
+    (import ./binary-release.nix {inherit (args) pkgs;}).mkBinaryRelease
     (builtins.removeAttrs args ["pkgs"]);
   mkReleaseBinaryPackage = args:
-    (import ./binary-release.nix {pkgs = args.pkgs;}).mkReleaseBinaryPackage
+    (import ./binary-release.nix {inherit (args) pkgs;}).mkReleaseBinaryPackage
     (builtins.removeAttrs args ["pkgs"]);
   mkPortableBinaryRelease = args:
     (import ./portable-release.nix {
-      pkgs = args.pkgs;
+      inherit (args) pkgs;
       bundlers =
-        if args ? bundlers
-        then args.bundlers
-        else if nixBundle != null
+        args.bundlers or (if nixBundle != null
         then builtins.mapAttrs (_: value: value.nix-bundle) nixBundle.bundlers
-        else throw "harbor-rs: mkPortableBinaryRelease requires nixBundle or bundlers";
+        else throw "harbor-rs: mkPortableBinaryRelease requires nixBundle or bundlers");
     }).mkPortableBinaryRelease
     (builtins.removeAttrs args ["pkgs" "bundlers"]);
   mkPortableReleaseBinaryPackage = args:
     (import ./portable-release.nix {
-      pkgs = args.pkgs;
+      inherit (args) pkgs;
       bundlers = {};
     }).mkPortableReleaseBinaryPackage
     (builtins.removeAttrs args ["pkgs"]);
   mkReleaseArtifact = args:
-    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseArtifact
+    (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseArtifact
     (builtins.removeAttrs args ["pkgs"]);
   mkReleaseArchive = args:
-    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseArchive
+    (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseArchive
     (builtins.removeAttrs args ["pkgs"]);
   mkReleaseBundle = args:
-    (import ./release-artifacts.nix {pkgs = args.pkgs;}).mkReleaseBundle
+    (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseBundle
     (builtins.removeAttrs args ["pkgs"]);
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;
   mkOsxcrossHooks = import ./osxcross-hooks.nix;
   mkWindowsMsvcDevShell = import ./windows-msvc-shell.nix;
-  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells mkProjectCliShellTools mkPkgConfigEnv;
+  inherit (devShellLib) mkDevShell mkDocsShell mkDevShells;
+  inherit (metaShellTools) mkProjectCliShellTools mkPkgConfigEnv;
   inherit (adapterLib) mkAdapter isHarborAdapter;
   inherit (minisignLib) mkMinisignSign mkMinisignVerify;
 
@@ -132,6 +142,6 @@ in {
   mkHomebrewFormula = import ./homebrew-formula.nix {inherit packageTests;};
   mkScoopManifest = import ./scoop-manifest.nix {inherit packageTests;};
   mkSccacheEnv = mkSccacheLib; # backward compat: harbor-rs.lib.mkSccacheEnv.mkSccacheEnv { ... }
-  mkSccacheCraneEnv = mkSccacheLib.mkSccacheCraneEnv;
-  wrapRustPackageWithSccache = mkSccacheLib.wrapRustPackageWithSccache;
+  inherit (mkSccacheLib) mkSccacheCraneEnv;
+  inherit (mkSccacheLib) wrapRustPackageWithSccache;
 }

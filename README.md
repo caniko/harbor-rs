@@ -23,7 +23,8 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the harbor-rs Rust toolchain
-- `lib.opencode` (from harbor-meta) for generated `.opencode/opencode.jsonc`; OpenPencil MCP is opt-in via `harbor-opencode sync --kind rust --openpencil`
+- `lib.opencodeRust` for the Rust OpenCode profile (`rustLsp`, `profiles`, and a registry-bound `mkCli` behind the `harbor-opencode` package/app); OpenPencil MCP stays opt-in via `--openpencil`
+- `lib.hooks.mkRustHooks` for the shared pre-commit composition (treefmt plus cargo fmt/clippy/audit plus a manual nix flake check); both templates forward to it instead of copying hook blocks
 - `templates.default` and `templates.bevy` for `nix flake init`
 
 ### More helpers

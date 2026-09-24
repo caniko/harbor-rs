@@ -28,12 +28,18 @@
   bevyTemplateHooks = builtins.readFile (bevyTemplateRoot + "/nix/pre-commit.nix");
 in
   {
-    opencode-rust-default = assert !(pkgs.lib.hasInfix "openpencil" (self.lib.opencode.configText "rust"));
-      pkgs.runCommand "check-opencode-rust-default" {} "touch $out";
+    opencode-rust-default = let
+      rustConfig = self.lib.opencode.configTextFor {lsp = self.lib.opencodeRust.rustLsp;};
+    in
+      assert !(pkgs.lib.hasInfix "openpencil" rustConfig);
+      assert pkgs.lib.hasInfix "rust-analyzer" rustConfig;
+      assert pkgs.lib.hasInfix "nixd" rustConfig;
+      assert pkgs.lib.hasInfix "taplo" rustConfig;
+        pkgs.runCommand "check-opencode-rust-default" {} "touch $out";
     mkRustServiceModule-lazy-pkgs = let
       result = self.lib.mkRustServiceModule {
         pkgs = throw "mkRustServiceModule forced pkgs";
-        lib = pkgs.lib;
+        inherit (pkgs) lib;
         name = "rust-service-fixture";
         binary = "/bin/rust-service-fixture";
         args = "--mode smoke";
@@ -227,13 +233,13 @@ in
         pkgs.runCommand "check-binary-release-helper-shape" {} "touch $out";
 
     binary-release-consumer-rejects-missing-system = let
-      result = builtins.tryEval ((self.lib.mkReleaseBinaryPackage {
+      result = builtins.tryEval (self.lib.mkReleaseBinaryPackage {
         inherit pkgs;
         pname = "fixture";
         version = "0.1.0";
         sources = {};
         binaries = ["fixture"];
-      }).drvPath);
+      }).drvPath;
     in
       assert !result.success;
         pkgs.runCommand "check-binary-release-consumer-rejects-missing-system" {} "touch $out";
@@ -275,25 +281,25 @@ in
         pkgs.runCommand "check-portable-release-helper-shape" {} "touch $out";
 
     portable-release-consumer-rejects-missing-system = let
-      result = builtins.tryEval ((self.lib.mkPortableReleaseBinaryPackage {
+      result = builtins.tryEval (self.lib.mkPortableReleaseBinaryPackage {
         inherit pkgs;
         pname = "fixture";
         version = "0.1.0";
         sources = {};
         binaries = ["fixture"];
-      }).drvPath);
+      }).drvPath;
     in
       assert !result.success;
         pkgs.runCommand "check-portable-release-consumer-rejects-missing-system" {} "touch $out";
 
     portable-release-producer-rejects-empty-binaries = let
-      result = builtins.tryEval ((self.lib.mkPortableBinaryRelease {
+      result = builtins.tryEval (self.lib.mkPortableBinaryRelease {
         inherit pkgs;
         pname = "fixture";
         version = "0.1.0";
         artifacts.x86_64-linux.entries = {};
         artifacts.x86_64-linux.bundler = _: pkgs.writeScript "empty-fixture-bundle" "exit 1";
-      }).releaseBundle.drvPath);
+      }).releaseBundle.drvPath;
     in
       assert !result.success;
         pkgs.runCommand "check-portable-release-producer-rejects-empty-binaries" {} "touch $out";
@@ -384,12 +390,12 @@ in
         version = "0.1.0";
         name = "same-name";
       };
-      result = builtins.tryEval ((self.lib.mkReleaseBundle {
+      result = builtins.tryEval (self.lib.mkReleaseBundle {
         inherit pkgs;
         pname = "fixture";
         version = "0.1.0";
         artifacts = {inherit one two;};
-      }).drvPath);
+      }).drvPath;
     in
       assert !result.success;
         pkgs.runCommand "check-release-bundle-rejects-name-collisions" {} "touch $out";
@@ -1105,13 +1111,13 @@ in
         };
         mkCross = import ./lib/cross.nix {osxcross = fakeOsxcross;};
         failure =
-          builtins.tryEval ((mkCross {
+          builtins.tryEval (mkCross {
               inherit pkgs system;
               macosSdkEnvPath = toString ./tests/fixtures/macos-sdk-incomplete/MacOSX26.1.sdk;
               osxSdkVersion = "26.1";
             })
         .macosSdk
-        .sdkRoot);
+        .sdkRoot;
       in
         assert failure.success == false;
           pkgs.runCommand "check-mkCross-osxcross-rejects-incomplete-env-sdk" {} "touch $out"
@@ -1241,8 +1247,8 @@ in
     assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" defaultTemplateFlake;
     assert pkgs.lib.hasInfix "pre-commit-check.shellHook" defaultTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2021\"" defaultTemplateTreefmt;
-    assert pkgs.lib.hasInfix "treefmt =" defaultTemplateHooks;
-    assert pkgs.lib.hasInfix "cargo-clippy" defaultTemplateHooks;
+    assert pkgs.lib.hasInfix "mkRustHooks" defaultTemplateHooks;
+    assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" defaultTemplateFlake;
       self.lib.templateTests.mkCheck {
         inherit pkgs system;
         flakeNix = ./templates/default/flake.nix;
@@ -1260,7 +1266,7 @@ in
           "nix/pre-commit.nix"
         ];
         requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
-        commands = ["cargo"];
+        commands = ["cargo" "rustc" "rust-analyzer"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
       };
@@ -1293,8 +1299,8 @@ in
     assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" bevyTemplateFlake;
     assert pkgs.lib.hasInfix "pre-commit-check.shellHook" bevyTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2024\"" bevyTemplateTreefmt;
-    assert pkgs.lib.hasInfix "treefmt =" bevyTemplateHooks;
-    assert pkgs.lib.hasInfix "cargo-clippy" bevyTemplateHooks;
+    assert pkgs.lib.hasInfix "mkRustHooks" bevyTemplateHooks;
+    assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" bevyTemplateFlake;
       self.lib.templateTests.mkCheck {
         inherit pkgs system;
         flakeNix = ./templates/bevy/flake.nix;
@@ -1314,10 +1320,30 @@ in
           "nix/pre-commit.nix"
         ];
         requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
-        commands = ["cargo"];
+        commands = ["cargo" "rustc" "rust-analyzer"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
       };
+
+    # Template pre-commit files are thin forwarders to lib.hooks.mkRustHooks.
+    # This evaluates the forwarder and pins the composed hook shapes: the
+    # shared treefmt fragment, the three cargo hooks, and the manual-only
+    # nix flake check.
+    template-hooks-shape = let
+      hooks = import ./templates/default/nix/pre-commit.nix {
+        inherit pkgs;
+        inherit (toolchain) rustToolchain;
+        treefmtWrapper = pkgs.treefmt;
+        harbor-rs = self;
+      };
+    in
+      assert builtins.attrNames hooks == ["cargo-audit" "cargo-clippy" "cargo-fmt" "nix-flake-check" "treefmt"];
+      assert pkgs.lib.hasInfix "cargo fmt --all" hooks.cargo-fmt.entry;
+      assert pkgs.lib.hasInfix "cargo clippy --all-targets" hooks.cargo-clippy.entry;
+      assert pkgs.lib.hasInfix "cargo audit" hooks.cargo-audit.entry;
+      assert pkgs.lib.hasInfix "treefmt --fail-on-change" hooks.treefmt.entry;
+      assert hooks.nix-flake-check.stages == ["manual"];
+        pkgs.runCommand "check-template-hooks-shape" {} "touch $out";
 
     # mkDevShells returns expected shell variants
     mkDevShells-shape = let
@@ -1473,7 +1499,7 @@ in
       hook = pkgs.writeText "cargo-home-shell-hook" shell.shellHook;
     in
       pkgs.runCommand "check-mkDevShells-cargo-home" {
-        nativeBuildInputs = shell.nativeBuildInputs;
+        inherit (shell) nativeBuildInputs;
       } ''
         export HOME="$TMPDIR/home"
         export XDG_CACHE_HOME="$TMPDIR/cache"
@@ -1802,7 +1828,7 @@ in
 
     # mkOsxcrossHooks emits both shell-hook fragments
     mkOsxcrossHooks-shape = let
-      h = self.lib.mkOsxcrossHooks {llvmPackages = pkgs.llvmPackages;};
+      h = self.lib.mkOsxcrossHooks {inherit (pkgs) llvmPackages;};
     in
       assert h ? appleClangShimsHook;
       assert h ? macosShellGuard;
@@ -1817,8 +1843,8 @@ in
     mkWindowsMsvcDevShell-shape = let
       s = self.lib.mkWindowsMsvcDevShell {
         inherit pkgs;
-        lib = pkgs.lib;
-        llvmPackages = pkgs.llvmPackages;
+        inherit (pkgs) lib;
+        inherit (pkgs) llvmPackages;
         inherit toolchain;
       };
     in
@@ -1948,11 +1974,11 @@ in
 
     # Stable Cargo configurations cannot opt into the nightly-only backend.
     mkCargoConfig-stable-rejects-cranelift = let
-      result = builtins.tryEval ((self.lib.mkCargoConfig {
+      result = builtins.tryEval (self.lib.mkCargoConfig {
         inherit pkgs;
         channel = "stable";
         enableCranelift = true;
-      }).configText);
+      }).configText;
     in
       assert !result.success;
         pkgs.runCommand "check-mkCargoConfig-stable-rejects-cranelift" {} "touch $out";
@@ -2053,7 +2079,7 @@ in
         src = ./tests/fixtures/dioxus-fixture;
         inherit cargoLock;
         pname = "check-trunk-linker-tools";
-        craneLib = toolchain.craneLib;
+        inherit (toolchain) craneLib;
       };
     in
       assert builtins.elem pkgs.clang drv.nativeBuildInputs;
@@ -2076,8 +2102,8 @@ in
         inherit pkgs cargoLock;
         src = ./tests/fixtures/dioxus-fixture;
         pname = "check-dioxus-package";
-        craneLib = toolchain.craneLib;
-        rustToolchain = wasmToolchain.rustToolchain;
+        inherit (toolchain) craneLib;
+        inherit (wasmToolchain) rustToolchain;
         cargoVendorDir = vendor;
         # This nixpkgs snapshot does not expose 0.2.126 as an attribute. The
         # explicit opt-out is intentional here; production callers should
@@ -2138,8 +2164,8 @@ in
         src = ./tests/fixtures/dioxus-fixture;
         cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
         pname = "check-dioxus-fullstack";
-        craneLib = toolchain.craneLib;
-        rustToolchain = wasmToolchain.rustToolchain;
+        inherit (toolchain) craneLib;
+        inherit (wasmToolchain) rustToolchain;
         inherit wasmBindgenCli;
         package = "dioxus-harbor-fixture";
         webFeatures = ["web"];
@@ -2166,7 +2192,7 @@ in
 
     mkDioxusBuildPlan-fixture = let
       plan = self.lib.mkDioxusBuildPlan {
-        lib = pkgs.lib;
+        inherit (pkgs) lib;
         package = "dioxus-harbor-fixture";
         sharedFeatures = [];
         webFeatures = ["web"];
@@ -2190,7 +2216,7 @@ in
     resolveWasmBindgenCli-rejects-mismatch = let
       result = builtins.tryEval (self.lib.resolveWasmBindgenCli {
         inherit pkgs;
-        lib = pkgs.lib;
+        inherit (pkgs) lib;
         cargoLock = ./tests/fixtures/dioxus-fixture/Cargo.lock;
         wasmBindgenCli = pkgs.wasm-bindgen-cli_0_2_120;
       });
@@ -4062,19 +4088,20 @@ in
     # Fail if flake inputs ever point at retired forge mirrors again
     # (fleet migrated to github.com/caniko/*). sourceUrl package metadata
     # is informational only, never fetched, so it is excluded.
-    site-host-pinning = pkgs.runCommand "check-site-host-pinning" {
-      rootFlakeNix = ./flake.nix;
-      rootFlakeLock = ./flake.lock;
-      siteFlakeNix = ./site/flake.nix;
-      siteFlakeLock = ./site/flake.lock;
-    } ''
-      if ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
-        | ${pkgs.gnugrep}/bin/grep -E -q "codeberg|codefloe"; then
-        echo "ERROR: retired forge host in flake inputs:" >&2
-        ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
-          | ${pkgs.gnugrep}/bin/grep -E -n "codeberg|codefloe" >&2 || true
-        exit 1
-      fi
-      touch "$out"
-    '';
+    site-host-pinning =
+      pkgs.runCommand "check-site-host-pinning" {
+        rootFlakeNix = ./flake.nix;
+        rootFlakeLock = ./flake.lock;
+        siteFlakeNix = ./site/flake.nix;
+        siteFlakeLock = ./site/flake.lock;
+      } ''
+        if ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
+          | ${pkgs.gnugrep}/bin/grep -E -q "codeberg|codefloe"; then
+          echo "ERROR: retired forge host in flake inputs:" >&2
+          ${pkgs.gnugrep}/bin/grep -v sourceUrl "$rootFlakeNix" "$rootFlakeLock" "$siteFlakeNix" "$siteFlakeLock" \
+            | ${pkgs.gnugrep}/bin/grep -E -n "codeberg|codefloe" >&2 || true
+          exit 1
+        fi
+        touch "$out"
+      '';
   }

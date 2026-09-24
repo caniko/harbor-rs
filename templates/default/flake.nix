@@ -27,7 +27,10 @@
       toolchain = harbor-rs.lib.mkToolchain {inherit pkgs;};
       inherit (toolchain) craneLib rustToolchain;
       cross = harbor-rs.lib.mkCross {inherit pkgs system;};
-      fmtToolchain = harbor-rs.lib.mkToolchain {inherit pkgs; toolchainProfile = "nightly";};
+      fmtToolchain = harbor-rs.lib.mkToolchain {
+        inherit pkgs;
+        toolchainProfile = "nightly";
+      };
       treefmtEval = treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix {
         inherit harbor-rs;
         rustfmtPackage = fmtToolchain.rustToolchain;
@@ -35,7 +38,7 @@
       pre-commit-check = git-hooks.lib.${system}.run {
         src = ./.;
         hooks = import ./nix/pre-commit.nix {
-          inherit pkgs;
+          inherit pkgs harbor-rs;
           treefmtWrapper = treefmtEval.config.build.wrapper;
           inherit rustToolchain;
         };
@@ -44,7 +47,6 @@
         src = ./.;
         pname = "cross-fixture";
         version = "0.1.0";
-        doCheck = false;
       };
     in {
       inherit pkgs toolchain craneLib cross treefmtEval pre-commit-check package;

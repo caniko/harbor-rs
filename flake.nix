@@ -118,7 +118,7 @@
           toolchainProfile = "nightly";
         };
         cross = self.lib.mkCross {inherit pkgs system;};
-        cargoConfig = toolchain.cargoConfig;
+        inherit (toolchain) cargoConfig;
         treefmt = inputs.treefmt-nix.lib.evalModule pkgs {
           imports = [harbor-meta.treefmtModules.nix harbor-meta.treefmtModules.toml self.treefmtModules.rust];
           projectRootFile = "flake.nix";
@@ -210,13 +210,18 @@
         steamRuntimeTools = self.lib.mkSteamRuntimeTools {
           inherit pkgs rsHarborCli;
         };
+
+        # Language-aware `harbor-opencode`: the harbor-meta engine bound to
+        # the rust profile registry. The harbor-meta package itself stays
+        # profile-less (policy-only).
+        harborOpencode = self.lib.opencodeRust.mkCli {inherit pkgs;};
       in {
         packages =
           {
             # Consumers use this build-platform package to keep the
             # compiler-cache executable and version identical across the
             # Atlas fleet and every harbor-rs builder.
-            sccache = pkgs.sccache;
+            inherit (pkgs) sccache;
             sccache-user-daemon-client = sccacheLib.mkClientWrapper {
               inherit pkgs;
               sccachePackage = pkgs.sccache;
@@ -228,12 +233,13 @@
             harbor-rs = rsHarborCli;
             rs-harbor = rsHarborCli;
             harbor-ci = harborCi;
+            harbor-opencode = harborOpencode;
           }
           // (
             if rsHarborBinaryRelease != null
             then {
-              harbor-rs-x86_64-linux-musl = rsHarborStaticPackages.harbor-rs-x86_64-linux-musl;
-              harbor-rs-aarch64-linux-musl = rsHarborStaticPackages.harbor-rs-aarch64-linux-musl;
+              inherit (rsHarborStaticPackages) harbor-rs-x86_64-linux-musl;
+              inherit (rsHarborStaticPackages) harbor-rs-aarch64-linux-musl;
               release-bundle = rsHarborReleaseBundle;
             }
             else {}
@@ -259,6 +265,10 @@
           generate-jetbrains-signing-material = {
             type = "app";
             program = "${self.lib.mkJetBrainsSigningMaterial {inherit pkgs;}}/bin/generate-jetbrains-signing-material";
+          };
+          harbor-opencode = {
+            type = "app";
+            program = "${harborOpencode}/bin/harbor-opencode";
           };
         };
 
