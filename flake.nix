@@ -282,7 +282,7 @@
 
         checks =
           (import ./checks.nix {
-            inherit self pkgs system toolchain cross nixpkgs rust-overlay;
+            inherit self pkgs system toolchain cross nixpkgs rust-overlay crane;
             inherit (inputs) treefmt-nix git-hooks;
             rootInputNames = builtins.attrNames inputs;
           })

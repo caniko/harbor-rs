@@ -7,6 +7,7 @@
   rootInputNames,
   nixpkgs,
   rust-overlay,
+  crane,
   treefmt-nix,
   git-hooks,
 }: let
@@ -1246,6 +1247,9 @@ in
     assert pkgs.lib.hasInfix "git-hooks.follows" defaultTemplateFlake;
     assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" defaultTemplateFlake;
     assert pkgs.lib.hasInfix "pre-commit-check.shellHook" defaultTemplateFlake;
+    # Outputs must accept the full real input set (crane.follows still
+    # passes `crane`); a closed arg set rejects its own declared inputs.
+    assert pkgs.lib.hasInfix "..." defaultTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2021\"" defaultTemplateTreefmt;
     assert pkgs.lib.hasInfix "mkRustHooks" defaultTemplateHooks;
     assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" defaultTemplateFlake;
@@ -1253,7 +1257,7 @@ in
         inherit pkgs system;
         flakeNix = ./templates/default/flake.nix;
         inputs = {
-          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
+          inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
           harbor-rs = self;
         };
         requiredFiles = [
@@ -1275,7 +1279,7 @@ in
       outputs = self.lib.templateTests.eval {
         flakeNix = ./templates/default/flake.nix;
         inputs = {
-          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
+          inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
           harbor-rs = self;
         };
       };
@@ -1298,6 +1302,7 @@ in
     assert pkgs.lib.hasInfix "git-hooks.follows" bevyTemplateFlake;
     assert pkgs.lib.hasInfix "treefmtEval.config.build.check self" bevyTemplateFlake;
     assert pkgs.lib.hasInfix "pre-commit-check.shellHook" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "..." bevyTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2024\"" bevyTemplateTreefmt;
     assert pkgs.lib.hasInfix "mkRustHooks" bevyTemplateHooks;
     assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" bevyTemplateFlake;
@@ -1305,7 +1310,7 @@ in
         inherit pkgs system;
         flakeNix = ./templates/bevy/flake.nix;
         inputs = {
-          inherit nixpkgs rust-overlay treefmt-nix git-hooks;
+          inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
           harbor-rs = self;
         };
         requiredFiles = [
@@ -1326,22 +1331,27 @@ in
       };
 
     # Template pre-commit files are thin forwarders to lib.hooks.mkRustHooks.
-    # This evaluates the forwarder and pins the composed hook shapes: the
+    # This evaluates both forwarders and pins the composed hook shapes: the
     # shared treefmt fragment, the three cargo hooks, and the manual-only
     # nix flake check.
     template-hooks-shape = let
-      hooks = import ./templates/default/nix/pre-commit.nix {
-        inherit pkgs;
-        inherit (toolchain) rustToolchain;
-        treefmtWrapper = pkgs.treefmt;
-        harbor-rs = self;
-      };
+      mkHooks = preCommitNix:
+        import preCommitNix {
+          inherit pkgs;
+          inherit (toolchain) rustToolchain;
+          treefmtWrapper = pkgs.treefmt;
+          harbor-rs = self;
+        };
+      hooks = mkHooks ./templates/default/nix/pre-commit.nix;
+      bevyHooks = mkHooks ./templates/bevy/nix/pre-commit.nix;
     in
       assert builtins.attrNames hooks == ["cargo-audit" "cargo-clippy" "cargo-fmt" "nix-flake-check" "treefmt"];
+      assert builtins.attrNames bevyHooks == ["cargo-audit" "cargo-clippy" "cargo-fmt" "nix-flake-check" "treefmt"];
       assert pkgs.lib.hasInfix "cargo fmt --all" hooks.cargo-fmt.entry;
       assert pkgs.lib.hasInfix "cargo clippy --all-targets" hooks.cargo-clippy.entry;
       assert pkgs.lib.hasInfix "cargo audit" hooks.cargo-audit.entry;
       assert pkgs.lib.hasInfix "treefmt --fail-on-change" hooks.treefmt.entry;
+      assert pkgs.lib.hasInfix "cargo fmt --all" bevyHooks.cargo-fmt.entry;
       assert hooks.nix-flake-check.stages == ["manual"];
         pkgs.runCommand "check-template-hooks-shape" {} "touch $out";
 

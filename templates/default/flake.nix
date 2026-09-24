@@ -17,6 +17,7 @@
     rust-overlay,
     treefmt-nix,
     git-hooks,
+    ...
   }: let
     systems = ["x86_64-linux" "aarch64-linux"];
     forSystem = system: let
