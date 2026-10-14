@@ -1,5 +1,67 @@
 # Binary release archives
 
+## Publisher-owned static archives
+
+`mkUpstreamBinaryPackage` installs static Linux executables from upstream
+`tar.gz` or `tar.xz` archives without requiring a Harbor manifest. Use it when
+the publisher owns the release layout. Keep `mkReleaseBinaryPackage` for
+Harbor's manifest-based releases; its validation contract is unchanged.
+
+```nix
+harbor-rs.lib.mkUpstreamBinaryPackage {
+  inherit pkgs;
+  pname = "example";
+  version = "1.2.3";
+  sources = {
+    x86_64-linux = pkgs.fetchurl {
+      url = "https://example.org/releases/1.2.3/example-x86_64-linux-musl.tar.gz";
+      hash = "sha256-...";
+    };
+    aarch64-linux = pkgs.fetchurl {
+      url = "https://example.org/releases/1.2.3/example-aarch64-linux-musl.tar.xz";
+      hash = "sha256-...";
+    };
+  };
+  # Installed name -> archive-root-relative source. Include enclosing directories.
+  binaries.example = "example-1.2.3/example";
+  meta.mainProgram = "example";
+}
+```
+
+The default target is `pkgs.stdenv.hostPlatform.system`. Set
+`targetSystem = "aarch64-linux"` explicitly to assemble an ARM package using
+native x86_64 build tools. The builder inspects ELF headers without executing
+the target binary. Only `x86_64-linux` and `aarch64-linux` are supported.
+
+Mappings must be nonempty. Installed names are single safe filename components;
+source paths must be relative with no empty, `.` or `..` components or line
+breaks. Sources must be regular executable files, with no symlinks in any path
+component. Wrong ELF machines, interpreters, and dynamic dependencies fail the
+build. Only executable ELF types (`ET_EXEC` and static PIE `ET_DYN`) with a
+nonzero entry point in executable, file-backed `PT_LOAD` data are accepted;
+relocatable objects, core dumps and non-executable shared libraries are rejected.
+Fixup is disabled so the installed executable's bytes match the archive.
+No wrappers, runtime libraries, manifests, or auxiliary assets are inferred.
+
+Some publishers archive ELF binaries without the executable bit (Stalwart's
+server release uses mode `0644`). Set `requireExecutable = false` explicitly
+for those archives. Regular-file, symlink, architecture and static-link checks
+still apply; installation sets mode `0755` and preserves file contents. The
+default continues to reject sources without executable permissions.
+
+Callers own fetching, license metadata, feature compatibility, and release
+provenance. Pin each archive with a fixed-output hash or a locked non-flake
+input. Both archive files and already-unpacked source trees are supported.
+For directory inputs, mappings are relative to the returned tree's root, without
+an extra store-name directory. Nix's tarball fetcher may strip a single enclosing
+directory when creating that tree; use the layout of the returned input rather
+than the original compressed archive in that case.
+Verify any publisher signatures against the expected repository,
+workflow identity and release tag before updating those pins, and retain the
+verification evidence. Signature verification is an update-time operation;
+the helper does not contact a provenance service during evaluation or build.
+Treat a prebuilt output as opt-in until its runtime behavior is qualified.
+
 The v1-compatible `mkBinaryRelease` packages one or more already-built binaries into a
 deterministic, static MUSL archive. The archive contains `bin/` and a
 `manifest.json` describing the package name, version, Nix system, Rust target,
