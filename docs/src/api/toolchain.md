@@ -4,7 +4,7 @@
 
 ## Parameters
 
-- `pkgs` (required): nixpkgs with `rust-overlay` applied
+- `pkgs` (required): native or cross nixpkgs with `rust-overlay` applied to its build package set
 - `toolchainProfile`: optional harbor-rs-owned pin, either `"stable"` or `"nightly"`. Stable is currently pinned to Rust `1.98.1`; nightly uses the repository's checked-in `rust-toolchain.toml` (currently `nightly-2026-09-15`). Omitting it preserves the legacy channel/date behavior.
 - `toolchainFile`: optional path to a standard `rust-toolchain.toml`; when set, its channel, components, and targets are authoritative
 - `channel`: `"nightly"` or `"stable"`; defaults to `"nightly"`
@@ -23,6 +23,11 @@
 - `buildCache`: the compiler-cache policy when enabled, otherwise `null`
 - `cargoConfig`: matching `mkCargoConfig` output, inherited automatically by harbor-rs dev shells using this `craneLib`
 - `crossTargets`
+
+Cargo, rustc, and the other toolchain executables always run on
+`pkgs.stdenv.buildPlatform`, including when `pkgs` is a cross package set.
+The requested standard-library targets remain available through `crossTargets`;
+Crane still uses the supplied target stdenv and linker for the output package.
 
 ## Path-patched crates and `buildDepsOnly`
 

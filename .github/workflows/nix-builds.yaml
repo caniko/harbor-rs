@@ -22,6 +22,8 @@ jobs:
       max-parallel: 2
       matrix:
         installable:
+          - ".#checks.x86_64-linux.mkToolchain-build-native"
+          - ".#checks.x86_64-linux.mkCrossPackages-toolchain-args"
           - ".#checks.x86_64-linux.upstream-binary-installation"
           - ".#checks.x86_64-linux.upstream-binary-invalid-mappings"
           - ".#checks.x86_64-linux.upstream-binary-invalid-payloads"
