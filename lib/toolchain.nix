@@ -26,8 +26,8 @@
   # Compiler caching requires host transport and is therefore explicit.
   cache ? {},
 }:
-assert pkgs.lib.assertMsg (pkgs ? rust-bin)
-"harbor-rs: mkToolchain requires pkgs with rust-overlay applied (pkgs.rust-bin must exist)";
+assert pkgs.lib.assertMsg (pkgs.buildPackages ? rust-bin)
+"harbor-rs: mkToolchain requires rust-overlay on the build package set (pkgs.buildPackages.rust-bin must exist)";
 assert pkgs.lib.assertMsg (toolchainProfile == null || builtins.elem toolchainProfile ["nightly" "stable"])
 "harbor-rs: mkToolchain 'toolchainProfile' must be \"nightly\" or \"stable\", got \"${toString toolchainProfile}\"";
 assert pkgs.lib.assertMsg (toolchainProfile == null || (toolchainFile == null && channel == null && date == null))
@@ -131,10 +131,13 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       components = legacyExtensions';
       targets = legacyCrossTargets;
     };
+  # Cargo/rustc run on the build platform; only their standard libraries target
+  # the host. Selecting pkgs.rust-bin here runs ARM tools under emulation.
+  rustBin = pkgs.buildPackages.rust-bin;
   channelSet =
     if legacyChannel == "nightly"
-    then pkgs.rust-bin.nightly
-    else pkgs.rust-bin.stable;
+    then rustBin.nightly
+    else rustBin.stable;
   dateSet =
     if legacyDate == "latest"
     then channelSet.latest
@@ -144,7 +147,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
       "harbor-rs: mkToolchain 'toolchainFile' must contain [toolchain].channel";
-        (pkgs.rust-bin.fromRustupToolchainFile resolvedToolchainFile).override {
+        (rustBin.fromRustupToolchainFile resolvedToolchainFile).override {
           extensions = fileExtensions;
           targets = fileTargets;
         }

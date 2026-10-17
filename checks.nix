@@ -564,6 +564,26 @@ in
       assert t.rustToolchain != null;
         pkgs.runCommand "check-mkToolchain-toolchain-file" {} "touch $out";
 
+    # Rust tools execute on the build platform even when Crane targets ARM.
+    mkToolchain-build-native = let
+      modes = [
+        {toolchainFile = ./rust-toolchain.toml;}
+        {toolchainProfile = "nightly";}
+        {channel = "stable";}
+      ];
+      matchesNative = args: let
+        native = self.lib.mkToolchain ({inherit pkgs;} // args);
+        target = self.lib.mkToolchain ({pkgs = cross.linuxAarch64.pkgsCross;} // args);
+      in
+        native.rustToolchain.stdenv.hostPlatform.system
+        == system
+        && target.rustToolchain.stdenv.hostPlatform.system == system
+        && target.rustToolchain.version == native.rustToolchain.version
+        && target.crossTargets == native.crossTargets;
+    in
+      assert pkgs.lib.all matchesNative modes;
+        pkgs.runCommand "check-mkToolchain-build-native" {} "touch $out";
+
     # Fleet profile manifests already list the cross targets; a consumer that
     # passes overlapping explicit targets must get each target and its Cargo
     # table exactly once.
@@ -1662,6 +1682,11 @@ in
     # date instead of silently switching to harbor-rs's default toolchain.
     mkCrossPackages-toolchain-args = let
       fixtureSrc = ./templates/default;
+      targetToolchain = self.lib.mkToolchain {
+        pkgs = cross.linuxAarch64.pkgsCross;
+        channel = "stable";
+        extensions = ["rust-src"];
+      };
       out = self.lib.mkCrossPackages {
         inherit pkgs cross;
         inherit (toolchain) craneLib;
@@ -1680,6 +1705,12 @@ in
     in
       assert out ? "fixture-aarch64-linux";
       assert builtins.isString out."fixture-aarch64-linux".drvPath;
+      assert targetToolchain.rustToolchain.stdenv.hostPlatform.system == system;
+      assert pkgs.lib.all (build:
+        build.stdenv.buildPlatform.system
+        == system
+        && build.stdenv.hostPlatform.system == "aarch64-linux"
+        && builtins.elem (toString targetToolchain.rustToolchain) (map toString build.nativeBuildInputs)) [out."fixture-aarch64-linux" out."fixture-aarch64-linux".cargoArtifacts];
         pkgs.runCommand "check-mkCrossPackages-toolchain-args" {} "touch $out";
 
     # A selected native profile is inherited by non-native outputs unless the
