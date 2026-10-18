@@ -43,9 +43,8 @@ assert pkgs.lib.assertMsg (devCodegenUnits == null || (builtins.isInt devCodegen
   inherit (pkgs.lib) concatStringsSep hasInfix optionalString;
   inherit (builtins) filter length;
 
-  # Classify a target triple
-  isLinux = t: hasInfix "-linux-" t;
-  isWindowsGnu = t: hasInfix "-windows-gnu" t;
+  # Android targets use the NDK linker even though their triples contain linux.
+  isLinux = t: hasInfix "-linux-" t && !(hasInfix "-android" t);
   isDarwin = t: hasInfix "-apple-darwin" t;
 
   # Build rustflags array string from a list of flag pairs/singles

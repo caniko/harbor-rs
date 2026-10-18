@@ -11,6 +11,7 @@ platform = "github"
 provider = "actions"
 all_features = false
 nix_builds = [
+  ".#checks.x86_64-linux.mkCargoConfig-android-linker",
   ".#checks.x86_64-linux.mkToolchain-build-native",
   ".#checks.x86_64-linux.mkCrossPackages-toolchain-args",
   ".#checks.x86_64-linux.upstream-binary-installation",

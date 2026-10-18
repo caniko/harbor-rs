@@ -2139,6 +2139,33 @@ in
       assert !(pkgs.lib.hasInfix "link-arg=-fuse-ld=lld" c.configText);
         pkgs.runCommand "check-mkCargoConfig-no-windows-gnu-lld" {} "touch $out";
 
+    # Android's NDK owns its target linker, including when CARGO_HOME is shared.
+    mkCargoConfig-android-linker = let
+      android = ["aarch64-linux-android" "armv7-linux-androideabi" "i686-linux-android" "x86_64-linux-android"];
+      linux = ["x86_64-unknown-linux-gnu" "aarch64-unknown-linux-gnu" "x86_64-unknown-linux-musl"];
+      config = channel:
+        builtins.fromTOML
+        (self.lib.mkCargoConfig {
+          inherit pkgs channel;
+          crossTargets = android ++ linux;
+        }).configText;
+    in
+      assert builtins.all (channel: let
+        targets = (config channel).target;
+      in
+        builtins.all (triple: let
+          target = targets.${triple} or {};
+        in
+          !(target ? linker)
+          && !(builtins.elem "link-arg=-fuse-ld=mold" (target.rustflags or [])))
+        android
+        && builtins.all (triple:
+          targets.${triple}.linker
+          == "clang"
+          && builtins.elem "link-arg=-fuse-ld=mold" targets.${triple}.rustflags)
+        linux) ["stable" "nightly"];
+        pkgs.runCommand "check-mkCargoConfig-android-linker" {} "touch $out";
+
     # mkTrunkPackage includes the host linker tools needed by harbor-rs's
     # generated Cargo config when Linux mold support is enabled.
     mkTrunkPackage-includes-linker-tools = let

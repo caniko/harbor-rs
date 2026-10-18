@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- Android Cargo targets retain NDK-owned linkers instead of host clang/mold,
+  allowing offline builds to reuse the same Cargo home as dependency fetching.
 - Direnv loads the Rust tools and OpenCode LSP configuration through one shell,
   preventing the two shell loads from deleting each other's cached profiles.
 - Generated GitHub workflows scope required-gate permissions to the job, isolate
