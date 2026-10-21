@@ -120,3 +120,26 @@ fn keep_going_executes_following_steps() {
         .expect_err("a kept-going failure remains a failure");
     assert!(format!("{report:#}").contains("fail"));
 }
+
+#[test]
+fn failed_plan_keeps_a_machine_readable_report() {
+    let (report, error) = PipelinePlan::new()
+        .step(CommandSpec::new("boom", "false"))
+        .run_with_report();
+    assert!(error.is_some());
+    assert!(!report.success);
+    assert_eq!(report.steps.len(), 1);
+    assert!(!report.steps[0].success);
+}
+
+#[test]
+fn timed_out_step_reports_a_failure() {
+    let result = run_step(
+        &CommandSpec::new("slow", "sh")
+            .args(["-c", "sleep 1"])
+            .timeout(Duration::from_millis(10)),
+    )
+    .expect("spawn");
+    assert!(!result.success);
+    assert!(result.stderr.contains("timed out"));
+}

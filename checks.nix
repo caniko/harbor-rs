@@ -288,6 +288,24 @@ in
       assert builtins.length t.crossTargets > 0;
         pkgs.runCommand "check-mkToolchain-shape" {} "touch $out";
 
+    mkToolchain-devshell-has-linker = let
+      t = self.lib.mkToolchain {inherit pkgs;};
+      shell = t.craneLib.devShell {};
+    in
+      pkgs.runCommand "check-mkToolchain-devshell-has-linker" {
+        nativeBuildInputs = shell.nativeBuildInputs;
+      } ''
+        command -v cc >/dev/null || {
+          echo "cc: not on PATH — mkToolchain craneLib.devShell must provide a linker"
+          exit 1
+        }
+        command -v mold >/dev/null || {
+          echo "mold: not on PATH — mkToolchain craneLib.devShell must provide mold"
+          exit 1
+        }
+        touch "$out"
+      '';
+
     # The cache policy is applied at Crane's derivation-construction boundary,
     # so ordinary and dependency-only builds cannot silently bypass it.
     mkToolchain-cache-opt-in = let
@@ -1392,6 +1410,36 @@ in
           pkgs.runCommand "check-mkCrossPackages-cross-targets" {} "touch $out"
       else pkgs.runCommand "check-mkCrossPackages-cross-targets-skipped" {} "touch $out";
 
+    # Evaluation alone does not realize the target compiler. Build the fixture
+    # and inspect its ELF header so a target package set cannot masquerade as
+    # the build-host compiler.
+    mkCrossPackages-cross-targets-realized =
+      if system == "x86_64-linux"
+      then let
+        fixtureSrc = ./tests/fixtures/cross-target-fixture;
+        out = self.lib.mkCrossPackages {
+          inherit pkgs cross;
+          inherit (toolchain) craneLib;
+          pname = "fixture-realized";
+          commonArgs = {
+            src = fixtureSrc;
+            version = "0.1.0";
+            doCheck = false;
+          };
+          targets = ["aarch64-linux"];
+        };
+        package = out."fixture-realized-aarch64-linux";
+      in
+        pkgs.runCommand "check-mkCrossPackages-cross-targets-realized" {
+          nativeBuildInputs = [pkgs.file];
+        } ''
+          binary=${package}/bin/cross-target-fixture
+          test -x "$binary"
+          file "$binary" | grep -q 'ARM aarch64'
+          touch "$out"
+        ''
+      else pkgs.runCommand "check-mkCrossPackages-cross-targets-realized-skipped" {} "touch $out";
+
     # findLocalMavenCache returns null until both hash and host tarball exist.
     findLocalMavenCache-missing-inputs = let
       missingHash = self.lib.findLocalMavenCache {
@@ -1701,6 +1749,20 @@ in
       assert pkgs.lib.hasInfix "mold" c.configText;
       assert pkgs.lib.hasInfix "threads" c.configText;
         pkgs.runCommand "check-mkCargoConfig-nightly" {} "touch $out";
+
+    # Toolchain manifest targets and explicit consumer targets may overlap;
+    # Cargo TOML tables must still be emitted exactly once.
+    mkCargoConfig-deduplicates-targets = let
+      c = self.lib.mkCargoConfig {
+        inherit pkgs;
+        channel = "nightly";
+        crossTargets = ["wasm32-unknown-unknown" "wasm32-unknown-unknown"];
+      };
+      wasmSections = builtins.filter (line: line == "[target.wasm32-unknown-unknown]")
+        (pkgs.lib.splitString "\n" c.configText);
+    in
+      assert builtins.length wasmSections == 1;
+        pkgs.runCommand "check-mkCargoConfig-deduplicates-targets" {} "touch $out";
 
     # mkCargoConfig enables memory-saving dev profile defaults by default
     mkCargoConfig-dev-profile-opts = let

@@ -73,6 +73,22 @@ fn full_plan_adds_configured_quality_steps() {
     assert_eq!(plan.steps().len(), 8);
     assert_eq!(plan.steps()[2].args[0..2], ["nextest", "run"]);
     assert_eq!(plan.steps()[7].args[0..2], ["package", "--workspace"]);
+    assert_eq!(plan.steps()[5].args, ["audit"]);
+    assert_eq!(plan.steps()[6].args, ["deny", "check"]);
+}
+
+#[test]
+fn default_plan_includes_package_validation_when_enabled() {
+    let plan = cargo_ci_plan(
+        &config(),
+        CheckProfile::Default,
+        CargoCiOptions {
+            package: true,
+            ..CargoCiOptions::default()
+        },
+    );
+    assert_eq!(plan.steps().len(), 5);
+    assert_eq!(plan.steps()[4].args[0..2], ["package", "--workspace"]);
 }
 
 #[test]

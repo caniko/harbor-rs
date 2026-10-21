@@ -72,6 +72,9 @@ pub fn cargo_ci_plan_with_nextest_args(
     if matches!(profile, CheckProfile::Default | CheckProfile::Full) {
         plan = plan.step(build_spec_with(cfg, false, options));
     }
+    if profile == CheckProfile::Default && options.package {
+        plan = plan.step(package_spec(cfg, options));
+    }
     if profile == CheckProfile::Full {
         if options.docs {
             plan = plan.step(doc_spec(cfg, options));
@@ -224,25 +227,18 @@ fn doc_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {
         .arg("--no-deps")
 }
 
-fn audit_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {
-    let mut spec = CommandSpec::new("cargo audit", "cargo")
+fn audit_spec(cfg: &ProjectConfig, _options: CargoCiOptions) -> CommandSpec {
+    let spec = CommandSpec::new("cargo audit", "cargo")
         .cwd(&cfg.workspace_root)
         .arg("audit");
-    if options.locked {
-        spec = spec.arg("--locked");
-    }
     spec
 }
 
-fn deny_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {
-    let mut spec = CommandSpec::new("cargo deny", "cargo")
+fn deny_spec(cfg: &ProjectConfig, _options: CargoCiOptions) -> CommandSpec {
+    let spec = CommandSpec::new("cargo deny", "cargo")
         .cwd(&cfg.workspace_root)
-        .arg("deny")
-        .arg("check");
-    if options.locked {
-        spec = spec.arg("--locked");
-    }
-    spec
+        .arg("deny");
+    spec.arg("check")
 }
 
 fn package_spec(cfg: &ProjectConfig, options: CargoCiOptions) -> CommandSpec {

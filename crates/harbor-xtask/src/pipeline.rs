@@ -1,6 +1,8 @@
 use std::fs;
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, Command, ExitStatus, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, anyhow};
@@ -21,6 +23,10 @@ pub struct CommandSpec {
     /// When true, stdout/stderr are captured into `CommandResult` instead of
     /// inherited.
     pub capture: bool,
+    /// When capturing, also tee stdout/stderr to the caller's console.
+    pub live_output: bool,
+    /// Kill the command when it exceeds this duration.
+    pub timeout: Option<Duration>,
 }
 
 impl CommandSpec {
@@ -34,6 +40,8 @@ impl CommandSpec {
             env_add: Vec::new(),
             env_remove: Vec::new(),
             capture: false,
+            live_output: false,
+            timeout: None,
         }
     }
 
@@ -70,6 +78,18 @@ impl CommandSpec {
     #[must_use]
     pub fn capture(mut self) -> Self {
         self.capture = true;
+        self
+    }
+
+    #[must_use]
+    pub fn live_output(mut self) -> Self {
+        self.live_output = true;
+        self
+    }
+
+    #[must_use]
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 }
@@ -122,9 +142,21 @@ impl PipelinePlan {
 
     /// Execute the plan and return a machine-readable report on success.
     pub fn run(&self) -> Result<PipelineReport> {
+        let (report, error) = self.run_with_report();
+        match error {
+            Some(error) => Err(error),
+            None => Ok(report),
+        }
+    }
+
+    /// Execute the plan while retaining its report when a step fails.
+    pub fn run_with_report(&self) -> (PipelineReport, Option<anyhow::Error>) {
         let started = Instant::now();
-        let results = execute_steps(&self.steps, &self.cleanup, self.keep_going)?;
-        Ok(PipelineReport::from_results(results, started.elapsed()))
+        let (results, error) = execute_steps(&self.steps, &self.cleanup, self.keep_going);
+        (
+            PipelineReport::from_results(results, started.elapsed()),
+            error,
+        )
     }
 }
 
@@ -187,14 +219,18 @@ pub fn write_report(path: impl AsRef<Path>, report: &PipelineReport) -> Result<(
 ///
 /// A failing captured step surfaces its stdout/stderr in the error message.
 pub fn run_pipeline(steps: &[CommandSpec]) -> Result<Vec<CommandResult>> {
-    execute_steps(steps, &[], false)
+    let (results, error) = execute_steps(steps, &[], false);
+    match error {
+        Some(error) => Err(error),
+        None => Ok(results),
+    }
 }
 
 fn execute_steps(
     steps: &[CommandSpec],
     cleanup: &[CommandSpec],
     keep_going: bool,
-) -> Result<Vec<CommandResult>> {
+) -> (Vec<CommandResult>, Option<anyhow::Error>) {
     let mut results = Vec::with_capacity(steps.len() + cleanup.len());
     let mut first_error = None;
 
@@ -212,8 +248,9 @@ fn execute_steps(
             }
             Err(error) => {
                 if first_error.is_none() {
-                    first_error = Some(error);
+                    first_error = Some(anyhow!(error.to_string()));
                 }
+                results.push(spawn_failure(spec, &error));
                 if !keep_going {
                     break;
                 }
@@ -231,16 +268,23 @@ fn execute_steps(
             }
             Err(error) => {
                 if first_error.is_none() {
-                    first_error = Some(error);
+                    first_error = Some(anyhow!(error.to_string()));
                 }
+                results.push(spawn_failure(spec, &error));
             }
         }
     }
 
-    if let Some(error) = first_error {
-        Err(error)
-    } else {
-        Ok(results)
+    (results, first_error)
+}
+
+fn spawn_failure(spec: &CommandSpec, error: &anyhow::Error) -> CommandResult {
+    CommandResult {
+        label: spec.label.clone(),
+        success: false,
+        elapsed: Duration::ZERO,
+        stdout: String::new(),
+        stderr: error.to_string(),
     }
 }
 
@@ -279,18 +323,41 @@ pub fn run_step(spec: &CommandSpec) -> Result<CommandResult> {
 
     let start = Instant::now();
     let (success, stdout, stderr) = if spec.capture {
-        let output = command
-            .output()
-            .with_context(|| format!("running {command_line}"))?;
+        let output = if spec.timeout.is_none() && !spec.live_output {
+            let output = command
+                .output()
+                .with_context(|| format!("running {command_line}"))?;
+            (output.status, output.stdout, output.stderr)
+        } else {
+            collect_output(&mut command, spec.timeout, spec.live_output)
+                .with_context(|| format!("running {command_line}"))?
+        };
         (
-            output.status.success(),
-            String::from_utf8_lossy(&output.stdout).into_owned(),
-            String::from_utf8_lossy(&output.stderr).into_owned(),
+            output.0.success(),
+            String::from_utf8_lossy(&output.1).into_owned(),
+            String::from_utf8_lossy(&output.2).into_owned(),
         )
     } else {
-        let status = command
-            .status()
-            .with_context(|| format!("running {command_line}"))?;
+        let status = if let Some(timeout) = spec.timeout {
+            let mut child = command
+                .spawn()
+                .with_context(|| format!("running {command_line}"))?;
+            let (status, timed_out) = wait_with_timeout(&mut child, timeout)?;
+            if timed_out {
+                return Ok(CommandResult {
+                    label: spec.label.clone(),
+                    success: false,
+                    elapsed: start.elapsed(),
+                    stdout: String::new(),
+                    stderr: format!("timed out after {timeout:?}"),
+                });
+            }
+            status
+        } else {
+            command
+                .status()
+                .with_context(|| format!("running {command_line}"))?
+        };
         (status.success(), String::new(), String::new())
     };
     let elapsed = start.elapsed();
@@ -302,4 +369,72 @@ pub fn run_step(spec: &CommandSpec) -> Result<CommandResult> {
         stdout,
         stderr,
     })
+}
+
+fn collect_output(
+    command: &mut Command,
+    timeout: Option<Duration>,
+    live_output: bool,
+) -> Result<(ExitStatus, Vec<u8>, Vec<u8>)> {
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("spawning captured command")?;
+    let stdout = child.stdout.take().context("capturing stdout")?;
+    let stderr = child.stderr.take().context("capturing stderr")?;
+    let stdout_thread = thread::spawn(move || read_pipe(stdout, live_output, false));
+    let stderr_thread = thread::spawn(move || read_pipe(stderr, live_output, true));
+    let (status, timed_out) = if let Some(timeout) = timeout {
+        wait_with_timeout(&mut child, timeout)?
+    } else {
+        (child.wait().context("waiting for command")?, false)
+    };
+    let stdout = stdout_thread
+        .join()
+        .map_err(|_| anyhow!("stdout reader thread panicked"))?;
+    let mut stderr = stderr_thread
+        .join()
+        .map_err(|_| anyhow!("stderr reader thread panicked"))?;
+    if timed_out {
+        stderr.extend_from_slice(format!("timed out after {timeout:?}\n").as_bytes());
+    }
+    Ok((status, stdout, stderr))
+}
+
+fn read_pipe<R: Read>(mut reader: R, live_output: bool, is_stderr: bool) -> Vec<u8> {
+    let mut output = Vec::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        match reader.read(&mut buffer) {
+            Ok(0) | Err(_) => break,
+            Ok(size) => {
+                output.extend_from_slice(&buffer[..size]);
+                if live_output {
+                    let writer: &mut dyn Write = if is_stderr {
+                        &mut io::stderr()
+                    } else {
+                        &mut io::stdout()
+                    };
+                    let _ = writer.write_all(&buffer[..size]);
+                    let _ = writer.flush();
+                }
+            }
+        }
+    }
+    output
+}
+
+fn wait_with_timeout(child: &mut Child, timeout: Duration) -> Result<(ExitStatus, bool)> {
+    let started = Instant::now();
+    loop {
+        if let Some(status) = child.try_wait().context("waiting for command")? {
+            return Ok((status, false));
+        }
+        if started.elapsed() >= timeout {
+            child.kill().context("stopping timed-out command")?;
+            return Ok((child.wait().context("waiting for timed-out command")?, true));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
 }

@@ -26,6 +26,9 @@
 - Flake packages and development shells now expose `harbor-ci` for local and
   generated CI checks.
 
+- `mkToolchain`'s `craneLib.devShell` now puts `cc` and `mold` on `PATH`.
+  `rawCraneLib.devShell` is unchanged.
+
 ### Changed
 
 - `mkToolchain` compiler caching is now opt-in because the sandbox wrapper
