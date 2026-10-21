@@ -68,7 +68,7 @@ toolchain = rs-harbor.lib.mkToolchain {
 };
 ```
 
-Most downstream projects only need `craneLib` from the result. [mkDevShell and mkDevShells](./dev-shells.md) inherit its matching Cargo configuration automatically.
+Most downstream projects only need `craneLib` from the result. `craneLib.devShell` includes `cc` and `mold`. Use [mkDevShell and mkDevShells](./dev-shells.md) for cargo-config, rust-analyzer-from-toolchain pairing, and cross shells.
 
 Compiler caching is host infrastructure rather than a portable toolchain
 default. Hosts with a managed cache transport can opt in explicitly:

@@ -87,15 +87,17 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       else []
     );
   fileTargets =
-    manifestTargets
-    ++ (
-      if crossTargets == null
-      then []
-      else crossTargets
+    pkgs.lib.unique (
+      manifestTargets
+      ++ (
+        if crossTargets == null
+        then []
+        else crossTargets
+      )
     );
   resolvedCrossTargets =
     if resolvedToolchainFile != null
-    then fileTargets
+    then pkgs.lib.unique fileTargets
     else legacyCrossTargets;
   legacyExtensions' =
     if withRustAnalyzer
@@ -302,59 +304,71 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   # Keep rs-harbor's path-patch safety checks at the crane scope boundary.
   # The cache wrapper is applied in the same scope so every crane helper that
   # constructs a Cargo derivation inherits it automatically.
+  scopedCraneLib = upstreamCraneLib.overrideScope (_final: prev: {
+    mkCargoDerivation =
+      if buildCache == null
+      then prev.mkCargoDerivation
+      else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
+
+    buildDepsOnly = args: let
+      allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
+      pathPatches =
+        if allow
+        then []
+        else patchCratesIoPathPatches args;
+      raw =
+        if pathPatches != []
+        then throw (pathPatchBuildDepsOnlyError pathPatches)
+        else prev.buildDepsOnly (stripRsHarborCraneArgs args);
+    in
+      if buildCache == null
+      then raw
+      else
+        buildCache.withRustCache {
+          package = raw;
+          telemetry = {
+            workloadKind = "dependency-artifacts";
+            reuseKey = args.rsHarborCacheReuseKey or "";
+          };
+        };
+
+    buildPackage = args: let
+      pathPatches =
+        if args ? cargoArtifacts
+        then []
+        else patchCratesIoPathPatches args;
+      args' = stripRsHarborCraneArgs args;
+      raw = prev.buildPackage (
+        if pathPatches != [] && !(args ? cargoArtifacts)
+        then args' // {cargoArtifacts = null;}
+        else args'
+      );
+    in
+      if buildCache == null
+      then raw
+      else
+        buildCache.withRustCache {
+          package = raw;
+          telemetry = {
+            workloadKind = "package";
+            reuseKey = args.rsHarborCacheReuseKey or "";
+          };
+        };
+  });
+
   craneLib =
-    (upstreamCraneLib.overrideScope (_final: prev: {
-      mkCargoDerivation =
-        if buildCache == null
-        then prev.mkCargoDerivation
-        else args: buildCache.withRustCache {package = prev.mkCargoDerivation args;};
-
-      buildDepsOnly = args: let
-        allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
-        pathPatches =
-          if allow
-          then []
-          else patchCratesIoPathPatches args;
-        raw =
-          if pathPatches != []
-          then throw (pathPatchBuildDepsOnlyError pathPatches)
-          else prev.buildDepsOnly (stripRsHarborCraneArgs args);
-      in
-        if buildCache == null
-        then raw
-        else
-          buildCache.withRustCache {
-            package = raw;
-            telemetry = {
-              workloadKind = "dependency-artifacts";
-              reuseKey = args.rsHarborCacheReuseKey or "";
-            };
-          };
-
-      buildPackage = args: let
-        pathPatches =
-          if args ? cargoArtifacts
-          then []
-          else patchCratesIoPathPatches args;
-        args' = stripRsHarborCraneArgs args;
-        raw = prev.buildPackage (
-          if pathPatches != [] && !(args ? cargoArtifacts)
-          then args' // {cargoArtifacts = null;}
-          else args'
-        );
-      in
-        if buildCache == null
-        then raw
-        else
-          buildCache.withRustCache {
-            package = raw;
-            telemetry = {
-              workloadKind = "package";
-              reuseKey = args.rsHarborCacheReuseKey or "";
-            };
-          };
-    }))
+    scopedCraneLib
     // {
+      # craneLib.devShell is rust-only. Prepend cc/mold so `cargo build`
+      # works without mkDevShells. No clang (needs LIBCLANG_PATH) and no
+      # cargo-config (that would change rustflags for existing shells).
+      # rawCraneLib stays unwrapped.
+      devShell = args:
+        scopedCraneLib.devShell (args
+          // {
+            packages = [pkgs.stdenv.cc pkgs.mold] ++ (args.packages or []);
+          });
+
       # Dioxus and cross helpers use these markers to inherit the same policy
       # without requiring every consumer to thread it through manually.
       rsHarborBuildCachePolicy = buildCache;

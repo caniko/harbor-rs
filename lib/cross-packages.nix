@@ -87,7 +87,9 @@ in
     aarch64LinuxTarget = "aarch64-unknown-linux-gnu";
     toolchainAarch64 = mkToolchain (
       {
-        pkgs = cross.linuxAarch64.pkgsCross;
+        # The compiler runs on the build host; the target package set only
+        # supplies the target libraries and linker.
+        pkgs = cross.linuxAarch64.pkgsCross.buildPackages;
       }
       // targetToolchainArgs
     );
