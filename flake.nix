@@ -77,8 +77,23 @@
           nixBundle = nix-bundle;
           harbor-android = harbor-android.lib;
         };
+        darwinTools =
+          if inputs ? harborRoot
+          then
+            import ./nix/darwin-tools.nix {
+              harbor = self;
+              inherit (inputs) harborRoot;
+              inherit nixpkgs;
+              nixpkgsDarwin = inputs.nixpkgs-darwin;
+              rustOverlay = rust-overlay;
+            }
+          else {
+            packages = {};
+            checks = {};
+          };
       in {
         inherit lib;
+        inherit (darwinTools) packages checks;
         treefmtModules.rust = ./nix/treefmt/rust.nix;
 
         sccache = sccacheLib;
@@ -132,14 +147,14 @@
         rsHarborCli = import ./nix/harbor-rs-cli.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
-          src = ./.;
+          src = ../..;
           version = rsHarborVersion;
         };
 
         harborCi = import ./nix/harbor-ci.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
-          src = ./.;
+          src = ../..;
           version = rsHarborVersion;
         };
 
@@ -151,7 +166,8 @@
               inherit (toolchain) craneLib;
               pname = "harbor-rs";
               commonArgs = {
-                src = ./.;
+                src = ../..;
+                cargoExtraArgs = "-p nix_harbor_rs";
                 version = rsHarborVersion;
                 strictDeps = true;
                 doCheck = false;
@@ -285,6 +301,14 @@
             inherit self pkgs system toolchain cross nixpkgs rust-overlay crane;
             inherit (inputs) treefmt-nix git-hooks;
             rootInputNames = builtins.attrNames inputs;
+          })
+          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./checks/release-archives.nix {
+            inherit pkgs self system;
+          })
+          // (import ./nix/checks-dev-sandbox.nix {
+            inherit pkgs;
+            harborRsCli = rsHarborCli;
+            inherit (self.lib) mkDevSandbox;
           })
           // {
             treefmt-modules = import ./nix/treefmt/check.nix {

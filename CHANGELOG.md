@@ -11,6 +11,12 @@
   replaced, and a developer's preset `CARGO_HOME` is not written.
 - Android Cargo targets retain NDK-owned linkers instead of host clang/mold,
   allowing offline builds to reuse the same Cargo home as dependency fetching.
+- Publish the macOS SDK helper as `caniko-harbor-sdk` because `harbor-sdk` is
+  owned by an unrelated crates.io project. The `harbor_sdk` library name and
+  CLI dependency alias remain stable. CLI path dependencies declare their
+  registry versions for packaging.
+- Nix builds of `harbor-rs` and `harbor-ci` retain workspace README files used
+  by dependency crates as compile-time documentation.
 - Direnv loads the Rust tools and OpenCode LSP configuration through one shell,
   preventing the two shell loads from deleting each other's cached profiles.
 - Generated GitHub workflows scope required-gate permissions to the job, isolate
@@ -27,13 +33,27 @@
 - Generated Cargo configuration is installed atomically so concurrent shells
   cannot observe a partial file, and an unwritable Cargo home preserves the
   previous configuration.
+- Compiler-cache fallback qualification isolates its transport paths so a
+  host-mounted cache cannot mask the fallback and fail-closed cases.
+- Template formatting hooks use cache-independent `treefmt --ci` checks.
 
 ### Added
 
-- `mkUpstreamBinaryPackage` consumes publisher-owned static Linux archives or
-  unpacked locked inputs with explicit, byte-preserving executable mappings.
-  It rejects non-executable ELF types and invalid entry points, supports static
-  PIE, and permits an explicit opt-in for archives missing executable permissions.
+- Command-scoped native Cargo runners compose a shared runtime with an existing
+  runner argument list, preserve cross-target runner settings, and reject
+  conflicting native runner overrides. Native Linux and macOS checks exercise
+  Cargo run, test, and bench while verifying parent-shell isolation.
+- Export the native `rust-sccache` package on both macOS systems so portable
+  consumers can retain their shared compiler-cache policy.
+- Expose `rust-harbor-rs` and `rust-harbor-ci` production packages on both
+  native macOS systems, with the Intel-compatible package pin and native tests
+  included in the Rust component's qualification aggregate.
+- Retain `harbor-sandbox`, `mkDevSandbox`, and the Linux CLI lifecycle for isolated
+  warm design previews, with native namespace and nested-desktop qualification.
+- Retain named-zone shell configuration, explicit archive timezones, and portable
+  release supporting files with declared modes in the shared Harbor workspace.
+- Verify archive destination collisions, whitespace-containing filenames, and
+  byte reproducibility through the relocated component checks.
 
 - `treefmtModules.rust` for composing rustfmt with harbor-meta Nix and TOML
   modules.
@@ -62,6 +82,8 @@
 
 ### Changed
 
+- Monorepo crate releases retain credential-free signed-tag archives and publish
+  through independent workflows using the protected `simit-crates-io` environment.
 - CI and template pre-commit hooks use treefmt as the sole formatter, and
   development shells include the configured treefmt wrapper.
 - Cranelift code generation is now opt-in because its unsupported LLVM `\x01`

@@ -12,7 +12,7 @@
   git-hooks,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
-  rootLock = builtins.fromJSON (builtins.readFile ./flake.lock);
+  rootLock = builtins.fromJSON (builtins.readFile ../../flake.lock);
   rootHasPathInput =
     builtins.any
     (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
@@ -33,6 +33,10 @@ in
     harborLib = self.lib;
   }))
   // {
+    native-runner = import ./nix/checks/native-runner.nix {
+      inherit pkgs;
+      metaDevShell = self.inputs.harbor-meta.lib.devShell;
+    };
     opencode-rust-default = let
       rustConfig = self.lib.opencode.configTextFor {lsp = self.lib.opencodeRust.rustLsp;};
     in
@@ -546,7 +550,7 @@ in
       assert stable.buildCache.contract.compiler == stable.rustToolchain.version;
       assert !(pkgs.lib.hasInfix "-Z" stable.cargoConfig.configText);
       assert nightly.toolchainProfile == "nightly";
-      assert nightly.buildCache.contract.rustToolchain.channel == "nightly-2026-09-15";
+      assert nightly.buildCache.contract.rustToolchain.channel == "nightly-2026-10-11";
       assert pkgs.lib.hasInfix "-Zthreads=0" nightly.cargoConfig.configText;
         pkgs.runCommand "check-mkToolchain-fleet-profiles" {} "touch $out";
 
@@ -1285,13 +1289,13 @@ in
     assert pkgs.lib.hasInfix "..." defaultTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2021\"" defaultTemplateTreefmt;
     assert pkgs.lib.hasInfix "mkRustHooks" defaultTemplateHooks;
-    assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" defaultTemplateFlake;
+    assert pkgs.lib.hasInfix "inherit pkgs harbor" defaultTemplateFlake;
       self.lib.templateTests.mkCheck {
         inherit pkgs system;
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor-rs = self;
+          harbor = self.inputs.harborRoot;
         };
         requiredFiles = [
           "flake.nix"
@@ -1302,7 +1306,7 @@ in
           "nix/treefmt.nix"
           "nix/pre-commit.nix"
         ];
-        requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
+        requiredInputs = ["harbor" "treefmt-nix" "git-hooks"];
         commands = ["cargo" "rustc" "rust-analyzer"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
@@ -1313,7 +1317,7 @@ in
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor-rs = self;
+          harbor = self.inputs.harborRoot;
         };
       };
     in
@@ -1338,17 +1342,18 @@ in
     assert pkgs.lib.hasInfix "..." bevyTemplateFlake;
     assert pkgs.lib.hasInfix "edition = \"2024\"" bevyTemplateTreefmt;
     assert pkgs.lib.hasInfix "mkRustHooks" bevyTemplateHooks;
-    assert pkgs.lib.hasInfix "inherit pkgs harbor-rs" bevyTemplateFlake;
+    assert pkgs.lib.hasInfix "inherit pkgs harbor" bevyTemplateFlake;
       self.lib.templateTests.mkCheck {
         inherit pkgs system;
         flakeNix = ./templates/bevy/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor-rs = self;
+          harbor = self.inputs.harborRoot;
         };
         requiredFiles = [
           "flake.nix"
           "Cargo.toml"
+          "Cargo.lock"
           "src/main.rs"
           "nix/package.nix"
           "nix/dev-shells.nix"
@@ -1357,7 +1362,7 @@ in
           "nix/treefmt.nix"
           "nix/pre-commit.nix"
         ];
-        requiredInputs = ["harbor-rs" "treefmt-nix" "git-hooks"];
+        requiredInputs = ["harbor" "treefmt-nix" "git-hooks"];
         commands = ["cargo" "rustc" "rust-analyzer"];
         hookContains = ["cargo config at"];
         inherit (self.lib) devShellTests;
@@ -1373,7 +1378,7 @@ in
           inherit pkgs;
           inherit (toolchain) rustToolchain;
           treefmtWrapper = pkgs.treefmt;
-          harbor-rs = self;
+          harbor = self.inputs.harborRoot;
         };
       hooks = mkHooks ./templates/default/nix/pre-commit.nix;
       bevyHooks = mkHooks ./templates/bevy/nix/pre-commit.nix;
@@ -1384,7 +1389,10 @@ in
       assert !builtins.hasAttr "cargo-fmt" bevyHooks;
       assert pkgs.lib.hasInfix "cargo clippy --all-targets" hooks.cargo-clippy.entry;
       assert pkgs.lib.hasInfix "cargo audit" hooks.cargo-audit.entry;
-      assert pkgs.lib.hasInfix "treefmt --fail-on-change" hooks.treefmt.entry;
+      assert hooks.treefmt.package == pkgs.treefmt;
+      assert hooks.treefmt.entry == "${pkgs.treefmt}/bin/treefmt --ci";
+      assert bevyHooks.treefmt.package == pkgs.treefmt;
+      assert bevyHooks.treefmt.entry == "${pkgs.treefmt}/bin/treefmt --ci";
       assert pkgs.lib.hasInfix "cargo clippy --all-targets" bevyHooks.cargo-clippy.entry;
       assert hooks.nix-flake-check.stages == ["manual"];
         pkgs.runCommand "check-template-hooks-shape" {} "touch $out";
@@ -2421,6 +2429,45 @@ in
       assert app ? program;
       assert builtins.isString app.program;
         pkgs.runCommand "check-mkAtticPush-shape" {} "touch $out";
+
+    # mkAtticPush accepts a flake source without explicit package paths.
+    mkAtticPush-flake-shape = let
+      adapter = self.lib.mkAdapter {
+        attic = {
+          endpoint = "https://x.com";
+          cache = "c";
+        };
+      };
+      app = self.lib.mkAtticPush {
+        inherit pkgs adapter;
+        flake = ".";
+      };
+    in
+      assert app.type == "app";
+      assert builtins.isString app.program;
+        pkgs.runCommand "check-mkAtticPush-flake-shape" {} "touch $out";
+
+    # The generated publisher fails before network access when no token exists.
+    mkAtticPush-rejects-missing-token = let
+      adapter = self.lib.mkAdapter {
+        attic = {
+          endpoint = "https://x.com";
+          cache = "c";
+        };
+      };
+      app = self.lib.mkAtticPush {
+        inherit pkgs adapter;
+        paths = [pkgs.hello];
+      };
+    in
+      pkgs.runCommand "check-mkAtticPush-rejects-missing-token" {} ''
+        if ${app.program} >log 2>&1; then
+          echo "publisher unexpectedly accepted a missing token" >&2
+          exit 1
+        fi
+        grep -F "must be a nonempty Attic JWT" log
+        touch $out
+      '';
 
     # mkCoprSpec returns expected attributes with default binary-shipping layout
     mkCoprSpec-shape = let
@@ -3998,8 +4045,9 @@ in
       assert policy.contract.namespace == "test-rust-v7-sccache-${pkgs.sccache.version}";
       assert policy.contract.sccacheVersion == pkgs.sccache.version;
       assert policy.contract.compiler == pkgs.buildPackages.rustc.version;
-      assert policy.contract.rustToolchain.channel == "nightly-2026-09-15";
+      assert policy.contract.rustToolchain.channel == "nightly-2026-10-11";
       assert policy.contract.redisSocketPath == "/run/redis-sccache/redis.sock";
+      assert policy.contract.hostCacheRoot == "/var/cache/sccache";
       assert policy.sharedCacheDir == "/tmp/sccache/test-rust-v7-sccache-${pkgs.sccache.version}";
         pkgs.runCommand "check-build-cache-policy-contract" {} "touch $out";
 
@@ -4086,14 +4134,20 @@ in
       '';
 
     build-cache-policy-ephemeral-fallback = let
-      withFallback = self.lib.mkBuildCachePolicy {
+      fixture = {
         inherit pkgs;
-        ephemeralFallback = true;
+        hostCacheRoot = "/build/absent-managed-cache";
+        redisSocketPath = "/build/absent-redis.sock";
       };
-      withoutFallback = self.lib.mkBuildCachePolicy {inherit pkgs;};
+      withFallback = self.lib.mkBuildCachePolicy (fixture // {ephemeralFallback = true;});
+      withoutFallback = self.lib.mkBuildCachePolicy fixture;
       fallbackRoot = "$NIX_BUILD_TOP/harbor-rs-sccache-cache";
     in
       pkgs.runCommand "check-build-cache-policy-ephemeral-fallback" {} ''
+        set -eux
+        unset SCCACHE_DIR SCCACHE_REDIS_ENDPOINT SCCACHE_REDIS_CLUSTER_ENDPOINTS
+        test ! -e /build/absent-managed-cache
+        test ! -e /build/absent-redis.sock
         # Fallback executes: the wrapper starts a server on a private
         # build-scoped dir and sccache answers.
         ${withFallback.wrapperPath} --version >/dev/null

@@ -13,22 +13,28 @@ machine, code = {
 }[system]
 base = 0x400000
 ident = b"\x7fELF\x02\x01\x01" + bytes(9)
-header = struct.pack("<16sHHIQQQIHHHHHH", ident, 2, machine, 1,
-                     base + 120, 64, 0, 0, 64, 56, 1, 0, 0, 0)
-segment = struct.pack("<IIQQQQQQ", 1, 5, 0, base, base,
-                      120 + len(code), 120 + len(code), 0x1000)
+header = struct.pack(
+    "<16sHHIQQQIHHHHHH", ident, 2, machine, 1, base + 120, 64, 0, 0, 64, 56, 1, 0, 0, 0
+)
+segment = struct.pack(
+    "<IIQQQQQQ", 1, 5, 0, base, base, 120 + len(code), 120 + len(code), 0x1000
+)
 payload = header + segment + code
+
 
 def write(name, data, mode=0o755):
     path = root / name
     path.write_bytes(data)
     path.chmod(mode)
 
+
 write("fixture", payload)
-pie_header = struct.pack("<16sHHIQQQIHHHHHH", ident, 3, machine, 1,
-                         120, 64, 0, 0, 64, 56, 1, 0, 0, 0)
-pie_segment = struct.pack("<IIQQQQQQ", 1, 5, 0, 0, 0,
-                          120 + len(code), 120 + len(code), 0x1000)
+pie_header = struct.pack(
+    "<16sHHIQQQIHHHHHH", ident, 3, machine, 1, 120, 64, 0, 0, 64, 56, 1, 0, 0, 0
+)
+pie_segment = struct.pack(
+    "<IIQQQQQQ", 1, 5, 0, 0, 0, 120 + len(code), 120 + len(code), 0x1000
+)
 write("static-pie", pie_header + pie_segment + code)
 for name, elf_type in [("relocatable", 1), ("core", 4)]:
     invalid = bytearray(payload)
