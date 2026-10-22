@@ -15,6 +15,7 @@
   # Build a devShell with Rust cross-compilation environment variables pre-configured.
   mkDevShell = {
     pkgs,
+    timeZone ? "UTC",
     craneLib,
     cross,
     enableWindowsEnv ? true,
@@ -23,6 +24,8 @@
     packages ? [],
     extraEnv ? {},
     extraShellHook ? "",
+    runtime ? null,
+    nativeRunner ? [],
     checks ? {},
     cargoConfig ? (craneLib.rsHarborCargoConfig or null),
     opencodeLsp ? {enable = true;},
@@ -106,29 +109,32 @@
       deps = pkgConfigDeps;
     };
 
-    mergedEnv = baseEnv // crossEnv // pkgConfigEnv // extraEnv;
+    native = import ./native-runner.nix {inherit pkgs runtime nativeRunner;};
+    runnerConflict = builtins.any (name: builtins.hasAttr name extraEnv) (builtins.attrNames native.env);
+    mergedEnv = baseEnv // crossEnv // pkgConfigEnv // native.env // extraEnv;
   in
-    if metaDevShell == null
-    then throw "harbor-rs: mkDevShell requires the harbor-meta flake input"
-    else
-      metaDevShell.mkShell {
-        inherit pkgs;
-        packages = basePackages ++ windowsPackages ++ osxPackages ++ opencodeLspPackages ++ packages;
-        env = mergedEnv;
-        extraShellHook = ''
-          ${cargoConfigHook}
-          ${osxShellHook}
-          ${extraShellHook}
-        '';
-        builder = spec:
-          craneLib.devShell (
-            spec.env
-            // {
-              inherit checks;
-              inherit (spec) packages shellHook;
-            }
-          );
-      };
+    assert pkgs.lib.assertMsg (!runnerConflict) "harbor-rs: pass an existing native runner through nativeRunner when configuring runtime";
+      if metaDevShell == null
+      then throw "harbor-rs: mkDevShell requires the harbor-meta flake input"
+      else
+        metaDevShell.mkShell {
+          inherit pkgs timeZone;
+          packages = basePackages ++ windowsPackages ++ osxPackages ++ opencodeLspPackages ++ native.packages ++ packages;
+          env = mergedEnv;
+          extraShellHook = ''
+            ${cargoConfigHook}
+            ${osxShellHook}
+            ${extraShellHook}
+          '';
+          builder = spec:
+            craneLib.devShell (
+              spec.env
+              // {
+                inherit checks;
+                inherit (spec) packages shellHook inputsFrom;
+              }
+            );
+        };
 
   # Build a docs/tooling shell that starts from the same foundation as
   # mkDevShell, but keeps cross-compilation environment variables disabled
@@ -150,6 +156,7 @@
   # use `nix develop` for native and `nix develop .#cross` etc.
   mkDevShells = {
     pkgs,
+    timeZone ? "UTC",
     craneLib,
     cross,
     enableOsxcrossEnv ? true,
@@ -157,6 +164,8 @@
     packages ? [],
     extraEnv ? {},
     extraShellHook ? "",
+    runtime ? null,
+    nativeRunner ? [],
     checks ? {},
     cargoConfig ? (craneLib.rsHarborCargoConfig or null),
     opencodeLsp ? {enable = true;},
@@ -166,7 +175,7 @@
       osx ? false,
     }:
       mkDevShell {
-        inherit pkgs craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig opencodeLsp;
+        inherit pkgs timeZone craneLib cross pkgConfigDeps packages extraEnv extraShellHook checks cargoConfig opencodeLsp runtime nativeRunner;
         enableWindowsEnv = win;
         enableOsxcrossEnv = osx && enableOsxcrossEnv;
       };

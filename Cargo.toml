@@ -1,17 +1,10 @@
 [workspace]
 resolver = "3"
-members = [
-  "cli",
-  "crates/harbor-sdk",
-  "crates/harbor-cache",
-  "crates/harbor-xtask",
-]
+members = ["cli", "crates/*"]
+exclude = ["templates/*", "tests/fixtures/*"]
 
-[workspace.package]
-edition = "2024"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/caniko/harbor-rs"
-
+# Versions and licenses belong to individual packages; only the shared lint
+# policy is inherited.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 
