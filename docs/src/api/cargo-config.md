@@ -82,4 +82,6 @@ cargoConfig = harbor-rs.lib.mkCargoConfig {
 Pass the result into `mkDevShell` or `mkDevShells` and `harbor-rs` will install
 it into a hash-specific directory under the user cache. That directory is
 exported as `CARGO_HOME` only when the caller has not already selected one, so
-the project tree stays free of generated configuration.
+the project tree stays free of generated configuration. A caller-selected
+`CARGO_HOME` without its own `config.toml` or `config`, such as a fresh CI
+directory, receives the same file.

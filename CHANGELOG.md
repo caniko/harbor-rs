@@ -4,6 +4,10 @@
 
 ### Fixed
 
+- Development shells install generated Cargo configuration into a preset
+  `CARGO_HOME` that has no Cargo config of its own, such as CI's `/tmp/.cargo`,
+  so CI links with the same clang/mold configuration as local shells instead of
+  falling back to `cc`. A different existing config is never replaced.
 - Android Cargo targets retain NDK-owned linkers instead of host clang/mold,
   allowing offline builds to reuse the same Cargo home as dependency fetching.
 - Direnv loads the Rust tools and OpenCode LSP configuration through one shell,

@@ -1583,10 +1583,20 @@ in
         done
         for pid in "''${pids[@]}"; do wait "$pid"; done
 
-        export CARGO_HOME="$TMPDIR/previous-harbor-home"
+        # A fresh preset Cargo home, as CI exports, receives the config.
+        export CARGO_HOME="$TMPDIR/preset-cargo"
         source ${hook} 2>diagnostic
-        test "$CARGO_HOME" = "$TMPDIR/previous-harbor-home"
-        test ! -e "$CARGO_HOME"
+        test "$CARGO_HOME" = "$TMPDIR/preset-cargo"
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        source ${hook} 2>diagnostic
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        grep -q "cargo config at $CARGO_HOME/config.toml" diagnostic
+
+        export CARGO_HOME="$TMPDIR/legacy-cargo"
+        mkdir -p "$CARGO_HOME"
+        printf '# user-owned config\n' > "$CARGO_HOME/config"
+        source ${hook} 2>diagnostic
+        test ! -e "$CARGO_HOME/config.toml"
         grep -q 'generated Cargo config is not activated' diagnostic
 
         export CARGO_HOME="$TMPDIR/user-cargo"
