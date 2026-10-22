@@ -1583,10 +1583,28 @@ in
         done
         for pid in "''${pids[@]}"; do wait "$pid"; done
 
-        export CARGO_HOME="$TMPDIR/previous-harbor-home"
+        # Outside CI, a preset Cargo home is never written.
+        unset CI
+        export CARGO_HOME="$TMPDIR/preset-cargo"
         source ${hook} 2>diagnostic
-        test "$CARGO_HOME" = "$TMPDIR/previous-harbor-home"
+        test "$CARGO_HOME" = "$TMPDIR/preset-cargo"
         test ! -e "$CARGO_HOME"
+        grep -q 'generated Cargo config is not activated' diagnostic
+
+        # In CI, a fresh preset Cargo home receives the config.
+        export CI=true
+        source ${hook} 2>diagnostic
+        test "$CARGO_HOME" = "$TMPDIR/preset-cargo"
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        source ${hook} 2>diagnostic
+        cmp ${toolchain.cargoConfig.configPath} "$CARGO_HOME/config.toml"
+        grep -q "cargo config at $CARGO_HOME/config.toml" diagnostic
+
+        export CARGO_HOME="$TMPDIR/legacy-cargo"
+        mkdir -p "$CARGO_HOME"
+        printf '# user-owned config\n' > "$CARGO_HOME/config"
+        source ${hook} 2>diagnostic
+        test ! -e "$CARGO_HOME/config.toml"
         grep -q 'generated Cargo config is not activated' diagnostic
 
         export CARGO_HOME="$TMPDIR/user-cargo"
@@ -1596,6 +1614,7 @@ in
         test "$CARGO_HOME" = "$TMPDIR/user-cargo"
         test "$(cat "$CARGO_HOME/config.toml")" = '# user-owned config'
         grep -q 'generated Cargo config is not activated' diagnostic
+        unset CI
 
         unset CARGO_HOME
         export XDG_CACHE_HOME="$TMPDIR/not-a-directory"
