@@ -27,10 +27,10 @@ pub fn build_shared_object() -> Vec<u8> {
     program_header(&mut bytes, 1, 0, file_size, 0x1000); // PT_LOAD.
     program_header(&mut bytes, 2, dynamic_offset, dynamic_size, 8); // PT_DYNAMIC.
     for (tag, value) in [
-        (5u64, strings_offset), // DT_STRTAB.
+        (5u64, strings_offset),                      // DT_STRTAB.
         (10, u64::try_from(strings.len()).unwrap()), // DT_STRSZ.
-        (1, 1), // DT_NEEDED: libharbor-fixture.so.
-        (0, 0), // DT_NULL.
+        (1, 1),                                      // DT_NEEDED: libharbor-fixture.so.
+        (0, 0),                                      // DT_NULL.
     ] {
         bytes.extend(tag.to_le_bytes());
         bytes.extend(value.to_le_bytes());
