@@ -62,6 +62,13 @@
     nix-bundle,
     ...
   }: let
+    # harbor's superproject root passes itself; a formal argument would make
+    # standalone Nix resolve it as a registry flake.
+    harborRoot =
+      inputs.harborRoot or (harbor-meta.lib.standaloneRoot {
+        core = harbor-meta;
+        rust = self;
+      });
     sccacheLib = import ./sccache/lib {
       inherit nixpkgs;
       sccacheDefault = import ./lib/generated/sccache-default.nix;
@@ -147,14 +154,14 @@
         rsHarborCli = import ./nix/harbor-rs-cli.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
-          src = ../..;
+          src = ./.;
           version = rsHarborVersion;
         };
 
         harborCi = import ./nix/harbor-ci.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
-          src = ../..;
+          src = ./.;
           version = rsHarborVersion;
         };
 
@@ -166,7 +173,7 @@
               inherit (toolchain) craneLib;
               pname = "harbor-rs";
               commonArgs = {
-                src = ../..;
+                src = ./.;
                 cargoExtraArgs = "-p nix_harbor_rs";
                 version = rsHarborVersion;
                 strictDeps = true;
@@ -298,9 +305,12 @@
 
         checks =
           (import ./checks.nix {
-            inherit self pkgs system toolchain cross nixpkgs rust-overlay crane;
+            inherit self pkgs system toolchain cross nixpkgs rust-overlay crane harborRoot;
             inherit (inputs) treefmt-nix git-hooks;
             rootInputNames = builtins.attrNames inputs;
+            # The lock that resolves this flake's inputs: harbor's inside the
+            # superproject, this repository's own standalone.
+            rootLock = builtins.fromJSON (builtins.readFile ((inputs.harborRoot or self).outPath + "/flake.lock"));
           })
           // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./checks/release-archives.nix {
             inherit pkgs self system;

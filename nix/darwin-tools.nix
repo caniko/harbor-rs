@@ -1,4 +1,4 @@
-# Native macOS tools use the shared workspace and the same production recipes
+# Native macOS tools use this workspace and the same production recipes
 # as Linux, without importing Linux-only modules or sandbox checks.
 {
   harbor,
@@ -8,7 +8,7 @@
   rustOverlay,
 }: let
   systems = ["x86_64-darwin" "aarch64-darwin"];
-  version = (builtins.fromTOML (builtins.readFile (harborRoot.outPath + "/components/rust/cli/Cargo.toml"))).package.version;
+  version = (builtins.fromTOML (builtins.readFile ../cli/Cargo.toml)).package.version;
   forSystem = system: let
     pkgs =
       import (
@@ -26,7 +26,7 @@
     arguments = {
       inherit pkgs version;
       inherit (toolchain) craneLib;
-      src = harborRoot.outPath;
+      src = ../.;
     };
     cli = import ./harbor-rs-cli.nix arguments;
     ci = import ./harbor-ci.nix arguments;

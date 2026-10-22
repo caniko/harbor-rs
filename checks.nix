@@ -5,6 +5,8 @@
   toolchain,
   cross,
   rootInputNames,
+  rootLock,
+  harborRoot,
   nixpkgs,
   rust-overlay,
   crane,
@@ -12,7 +14,6 @@
   git-hooks,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
-  rootLock = builtins.fromJSON (builtins.readFile ../../flake.lock);
   rootHasPathInput =
     builtins.any
     (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
@@ -1295,7 +1296,7 @@ in
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor = self.inputs.harborRoot;
+          harbor = harborRoot;
         };
         requiredFiles = [
           "flake.nix"
@@ -1317,7 +1318,7 @@ in
         flakeNix = ./templates/default/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor = self.inputs.harborRoot;
+          harbor = harborRoot;
         };
       };
     in
@@ -1348,7 +1349,7 @@ in
         flakeNix = ./templates/bevy/flake.nix;
         inputs = {
           inherit nixpkgs rust-overlay crane treefmt-nix git-hooks;
-          harbor = self.inputs.harborRoot;
+          harbor = harborRoot;
         };
         requiredFiles = [
           "flake.nix"
@@ -1378,7 +1379,7 @@ in
           inherit pkgs;
           inherit (toolchain) rustToolchain;
           treefmtWrapper = pkgs.treefmt;
-          harbor = self.inputs.harborRoot;
+          harbor = harborRoot;
         };
       hooks = mkHooks ./templates/default/nix/pre-commit.nix;
       bevyHooks = mkHooks ./templates/bevy/nix/pre-commit.nix;
