@@ -91,8 +91,8 @@ devShells =
 
 The shell installs the selected configuration in a hash-specific directory
 under the user cache and uses it as `CARGO_HOME` only when the caller has not
-already selected one. A caller-selected `CARGO_HOME` without its own Cargo
-config receives the same file. Pass `cargoConfig` explicitly only to override the
+already selected one. In CI (`CI` is set), a caller-selected `CARGO_HOME`
+without its own Cargo config receives the same file. Pass `cargoConfig` explicitly only to override the
 configuration attached to `craneLib` by `mkToolchain`. Prefer
 `toolchain.cargoConfig` over reconstructing the same file with `mkCargoConfig`.
 
@@ -117,10 +117,11 @@ A nested checkout that must not inherit a parent Harbor shell needs its own
 
 Harbor's Cargo hook:
 
-- installs generated config into Harbor's hashed cache directory, or into a
-  caller-selected `CARGO_HOME` that has no Cargo config of its own
-- never replaces a different `config.toml` or `config`; it reports that
-  generated config is not activated
+- installs generated config into Harbor's hashed cache directory, or, in CI,
+  into a caller-selected `CARGO_HOME` that has no Cargo config of its own
+- otherwise leaves an existing `CARGO_HOME` unchanged, never replaces a
+  different `config.toml` or `config`, and reports that generated config is
+  not activated
 - fails the shell when that install cannot complete
 
 `checks.mkDevShells-cargo-home` covers repeated, concurrent, preset,

@@ -68,10 +68,11 @@
         if [ -z "''${CARGO_HOME:-}" ]; then
           export CARGO_HOME="$RS_HARBOR_CARGO_HOME"
         fi
-        # A preset CARGO_HOME (e.g. a fresh CI one) also receives the generated
-        # config, unless it already holds a different one.
+        # In CI, a preset CARGO_HOME also receives the generated config unless
+        # it already holds a different one. A developer's global CARGO_HOME
+        # is never written: the config would leak into builds outside the shell.
         if [ "$CARGO_HOME" = "$RS_HARBOR_CARGO_HOME" ] || {
-          [ ! -e "$CARGO_HOME/config" ] && {
+          [ -n "''${CI:-}" ] && [ ! -e "$CARGO_HOME/config" ] && {
             [ ! -e "$CARGO_HOME/config.toml" ] \
               || ${pkgs.diffutils}/bin/cmp -s ${cargoConfig.configPath} "$CARGO_HOME/config.toml"
           }
@@ -86,7 +87,7 @@
           fi
           echo "harbor-rs: cargo config at $CARGO_HOME/config.toml" >&2
         else
-          echo "harbor-rs: keeping the existing Cargo config in CARGO_HOME=$CARGO_HOME; generated Cargo config is not activated" >&2
+          echo "harbor-rs: keeping existing CARGO_HOME=$CARGO_HOME; generated Cargo config is not activated" >&2
         fi
       ''
       else "";
