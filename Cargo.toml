@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["cli", "crates/*"]
+exclude = ["templates/*", "tests/fixtures/*"]
+
+# Versions and licenses belong to individual packages; only the shared lint
+# policy is inherited.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
