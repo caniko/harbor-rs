@@ -107,6 +107,7 @@ in {
     (builtins.removeAttrs args ["pkgs"]);
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
+  mkCachePin = import ./cache-pin.nix;
   mkDevSandbox = import ./dev-sandbox.nix;
   mkMacosUniversalStager = import ./macos-staging.nix;
   mkOsxcrossHooks = import ./osxcross-hooks.nix;

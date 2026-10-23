@@ -47,6 +47,11 @@
       url = "github:cachix/git-hooks.nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    # Only the mkCachePin check reads it; consumers pass their own source.
+    nix-cache-pin = {
+      url = "github:caniko/nix-cache-pin/0.3.0";
+      flake = false;
+    };
   };
 
   outputs = inputs @ {
@@ -306,7 +311,7 @@
         checks =
           (import ./checks.nix {
             inherit self pkgs system toolchain cross nixpkgs rust-overlay crane harborRoot;
-            inherit (inputs) treefmt-nix git-hooks;
+            inherit (inputs) treefmt-nix git-hooks nix-cache-pin;
             rootInputNames = builtins.attrNames inputs;
             # The lock that resolves this flake's inputs: harbor's inside the
             # superproject, this repository's own standalone.

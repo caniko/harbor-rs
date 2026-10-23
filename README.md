@@ -21,6 +21,7 @@ Reusable Rust toolchain and cross-compilation infrastructure for Nix flakes.
 - `mkDevShell`, `mkDocsShell`, and `mkDevShells` for consistent development shells
 - `mkProjectCliShellTools` for exposing a flake-built project CLI inside direnv/dev shells
 - `mkGpuRenderPin` for visual snapshot test renderer pinning
+- `mkCachePin` for nix-cache-pin pins in plain (non-flake-parts) flakes
 - `mkAppImage`, `mkFlatpakManifest`, `mkCoprSpec`, and `mkHomebrewFormula` for packaging outputs
 - `devShells.<system>.opencode-lsp` for a direnv-composable OpenCode LSP profile using the harbor-rs Rust toolchain
 - `lib.opencodeRust` for the Rust OpenCode profile (`rustLsp`, `profiles`, and a registry-bound `mkCli` behind the `harbor-opencode` package/app); OpenPencil MCP stays opt-in via `--openpencil`
