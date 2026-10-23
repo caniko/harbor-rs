@@ -30,21 +30,20 @@
   sanitize = text: builtins.concatStringsSep "-" (builtins.filter builtins.isString (builtins.split "[^A-Za-z0-9_-]+" text));
   baseLabel = drv: sanitize (lib.getName drv + lib.optionalString ((drv.outputName or "out") != "out") "-${drv.outputName}");
   # Labels follow `from` attribute order, then input order; collisions get -2, -3, ...
-  targets =
-    builtins.foldl' (acc: drv: let
-      base = baseLabel drv;
-      pick = i: let
-        label =
-          if i == 1
-          then base
-          else "${base}-${toString i}";
-      in
-        if acc ? ${label} || builtins.elem label packages
-        then pick (i + 1)
-        else label;
+  targets = builtins.foldl' (acc: drv: let
+    base = baseLabel drv;
+    pick = i: let
+      label =
+        if i == 1
+        then base
+        else "${base}-${toString i}";
     in
-      acc // {${pick 1} = drv;}) {}
-    derived;
+      if acc ? ${label} || builtins.elem label packages
+      then pick (i + 1)
+      else label;
+  in
+    acc // {${pick 1} = drv;}) {}
+  derived;
 
   evaluated = lib.evalModules {
     modules = [

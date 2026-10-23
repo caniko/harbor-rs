@@ -53,10 +53,10 @@ in
   assert pin.caches == ["https://cache.nixos.org"];
   assert pin.consumerFlakeRef == "." && pin.lockOnly && pin.verifyClosure && pin.pythonPackages == null;
   assert pin.consumerTargets
-    == {
-      hello = "${consumerAttr}.hello";
-      "python3Packages.six" = "${consumerAttr}.python3Packages.six";
-    };
+  == {
+    hello = "${consumerAttr}.hello";
+    "python3Packages.six" = "${consumerAttr}.python3Packages.six";
+  };
   # stdenv selects zlib.dev for both inputs; `custom` and `hello` are excluded.
   assert required == ["cmake" "zlib-dev"];
   assert pin.requiredConsumerTargets.zlib-dev == "${consumerAttr}.cachePinTargets.zlib-dev";
