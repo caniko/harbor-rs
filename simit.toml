@@ -6,7 +6,7 @@ workspace_strategy = "members"
 required_gates = [
   { id = "harbor-ci", run = "nix develop -c harbor-ci default" },
 ]
-publish_crates = false  # crates publish from the harbor superproject
+publish_crates = false # crates publish from the harbor superproject
 platform = "github"
 provider = "actions"
 all_features = false
