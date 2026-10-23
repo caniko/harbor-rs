@@ -12,6 +12,7 @@
   crane,
   treefmt-nix,
   git-hooks,
+  nix-cache-pin,
 }: let
   isLinux = builtins.match ".*-linux" system != null;
   rootHasPathInput =
@@ -34,6 +35,10 @@ in
     harborLib = self.lib;
   }))
   // {
+    mk-cache-pin = import ./nix/checks/cache-pin.nix {
+      inherit pkgs nix-cache-pin;
+      inherit (self.lib) mkCachePin;
+    };
     native-runner = import ./nix/checks/native-runner.nix {
       inherit pkgs;
       metaDevShell = self.inputs.harbor-meta.lib.devShell;

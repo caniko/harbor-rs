@@ -17,6 +17,7 @@
 - [mkDevShell and mkDevShells](./api/dev-shells.md)
 - [Development sandboxes](./api/dev-sandbox.md)
 - [mkGpuRenderPin](./api/gpu-render-pin.md)
+- [mkCachePin](./api/cache-pin.md)
 - [harbor-ci](./api/harbor-ci.md)
 
 # Packaging

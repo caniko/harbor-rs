@@ -253,6 +253,23 @@
         "type": "github"
       }
     },
+    "nix-cache-pin": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792571507,
+        "narHash": "sha256-8DdsRc5/cgwAtlHYEicNsMPgNCHR8qT/aurDteVkuQw=",
+        "owner": "caniko",
+        "repo": "nix-cache-pin",
+        "rev": "a69647e9be1afe5f9973732b9286b4e7de3b31b4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "caniko",
+        "ref": "0.3.0",
+        "repo": "nix-cache-pin",
+        "type": "github"
+      }
+    },
     "nix-opencode-lsp": {
       "inputs": {
         "flake-utils": "flake-utils",
@@ -382,6 +399,7 @@
         "harbor-android": "harbor-android",
         "harbor-meta": "harbor-meta",
         "nix-bundle": "nix-bundle",
+        "nix-cache-pin": "nix-cache-pin",
         "nix-opencode-lsp": "nix-opencode-lsp",
         "nixpkgs": "nixpkgs",
         "osxcross": "osxcross",
