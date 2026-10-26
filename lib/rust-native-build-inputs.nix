@@ -10,14 +10,18 @@
   includeMold ? true,
 }: let
   lib = pkgs.lib;
+  # Top-level attributes are not spliced: in a cross package set `pkgs.clang`
+  # and `pkgs.mold` are builds for the target host, which a cross derivation
+  # would compile and cannot run. buildPackages is the same set natively.
+  tools = pkgs.buildPackages;
 in
   [
     pkgs.stdenv.cc
   ]
   ++ lib.optionals includeClang [
-    pkgs.clang
+    tools.clang
   ]
   ++ lib.optionals includeMold [
-    pkgs.mold
+    tools.mold
   ]
   ++ extra
