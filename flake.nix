@@ -116,6 +116,7 @@
           sccache = import ./nix/sccache-module.nix;
           buildCache = import ./nix/build-cache-module.nix;
           mavenCache = import ./nix/maven-cache-module.nix;
+          cargoHousekeeping = import ./nix/cargo-housekeeping-module.nix;
         };
 
         homeManagerModules.sccache = import ./nix/sccache-home.nix;
