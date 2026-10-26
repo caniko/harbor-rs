@@ -10,6 +10,8 @@ publish_crates = false # crates publish from the harbor superproject
 platform = "github"
 provider = "actions"
 all_features = false
+# Validate PR heads once (pull_request) and the default branch on push.
+push_branches = ["trunk"]
 
 [ci.pages]
 repo = "caniko/harbor-rs"
