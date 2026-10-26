@@ -880,6 +880,18 @@ in
       assert !(builtins.elem pkgs.mold inputs);
         pkgs.runCommand "check-mkRustNativeBuildInputs-tool-opt-outs" {} "touch $out";
 
+    # Cross consumers must get build-platform tools, not target-host builds
+    # (which they would compile and could not execute).
+    mkRustNativeBuildInputs-cross-uses-build-tools = let
+      cross = pkgs.pkgsCross.aarch64-multiplatform;
+      drvs = map (p: p.drvPath) (self.lib.mkRustNativeBuildInputs {pkgs = cross;});
+    in
+      assert builtins.elem cross.buildPackages.clang.drvPath drvs;
+      assert builtins.elem cross.buildPackages.mold.drvPath drvs;
+      assert !(builtins.elem cross.clang.drvPath drvs);
+      assert !(builtins.elem cross.mold.drvPath drvs);
+        pkgs.runCommand "check-mkRustNativeBuildInputs-cross-uses-build-tools" {} "touch $out";
+
     # The same explicit pkg-config environment is available to dev-shell
     # callers and to consumers that need to reproduce a derivation's build
     # environment outside Nix's setup-hook phase.
