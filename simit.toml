@@ -10,6 +10,9 @@ publish_crates = false # crates publish from the harbor superproject
 platform = "github"
 provider = "actions"
 all_features = false
+# Validate PR heads once (pull_request); push runs cover the default branch
+# and the simit updater's candidate branches.
+push_branches = ["trunk", "simit/update/**"]
 
 [ci.pages]
 repo = "caniko/harbor-rs"
