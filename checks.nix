@@ -155,6 +155,31 @@ in
           touch "$out"
         '';
 
+    cargo-housekeeping-module-shape = let
+      cfg =
+        (nixpkgs.lib.nixosSystem {
+          inherit system;
+          modules = [
+            self.nixosModules.cargoHousekeeping
+            {
+              users.users.dev = {
+                isNormalUser = true;
+                home = "/srv/dev";
+              };
+              services.harborRs.cargoHousekeeping = {
+                enable = true;
+                user = "dev";
+              };
+            }
+          ];
+        }).config;
+      service = cfg.systemd.services.harbor-rs-cargo-housekeeping.serviceConfig;
+    in
+      assert service.User == "dev";
+      assert service.Environment == ["HOME=/srv/dev" "CARGO_HOME=/srv/dev/.cargo"];
+      assert cfg.systemd.timers.harbor-rs-cargo-housekeeping.timerConfig.OnCalendar == "weekly";
+        pkgs.runCommand "check-cargo-housekeeping-module-shape" {} "touch $out";
+
     maven-cache-proxy-persistence = pkgs.testers.nixosTest {
       name = "maven-cache-proxy-persistence";
       nodes.machine = {pkgs, ...}: {

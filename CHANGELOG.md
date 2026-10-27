@@ -39,6 +39,8 @@
 
 ### Added
 
+- `nixosModules.cargoHousekeeping` runs `cargo-cache --autoclean` for one
+  user's Cargo home on a systemd timer (`services.harborRs.cargoHousekeeping`).
 - Command-scoped native Cargo runners compose a shared runtime with an existing
   runner argument list, preserve cross-target runner settings, and reject
   conflicting native runner overrides. Native Linux and macOS checks exercise
