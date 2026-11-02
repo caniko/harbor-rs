@@ -29,28 +29,9 @@
       inputs.harbor-meta.follows = "harbor-meta";
     };
 
-    nix-opencode-lsp = {
-      url = "git+https://github.com/caniko/nix-opencode-lsp.git?ref=trunk";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-
     nix-bundle = {
       url = "github:nix-community/nix-bundle";
       inputs.nixpkgs.follows = "nixpkgs";
-    };
-
-    treefmt-nix = {
-      url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    git-hooks = {
-      url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    # Only the mkCachePin check reads it; consumers pass their own source.
-    nix-cache-pin = {
-      url = "github:caniko/nix-cache-pin/0.3.0";
-      flake = false;
     };
   };
 
@@ -63,7 +44,6 @@
     osxcross,
     harbor-meta,
     harbor-android,
-    nix-opencode-lsp,
     nix-bundle,
     ...
   }: let
@@ -80,6 +60,8 @@
     };
   in
     flake-parts.lib.mkFlake {inherit inputs;} {
+      imports = [flake-parts.flakeModules.partitions];
+
       systems = ["x86_64-linux" "aarch64-linux"];
 
       flake = let
@@ -132,6 +114,18 @@
         };
       };
 
+      # Dev-only outputs (devShells, formatter, checks) come from a partition
+      # whose inputs live in ./nix/flake.lock, keeping them out of consumers' locks.
+      partitions.dev = {
+        extraInputsFlake = ./nix;
+        module = ./nix/dev-partition.nix;
+      };
+      partitionedAttrs = {
+        devShells = "dev";
+        formatter = "dev";
+        checks = "dev";
+      };
+
       perSystem = {system, ...}: let
         pkgs = import nixpkgs {
           inherit system;
@@ -147,11 +141,6 @@
           toolchainProfile = "nightly";
         };
         cross = self.lib.mkCross {inherit pkgs system;};
-        inherit (toolchain) cargoConfig;
-        treefmt = inputs.treefmt-nix.lib.evalModule pkgs (import ./nix/treefmt.nix {
-          harbor-rs = self;
-          rustfmtPackage = toolchain.rustToolchain;
-        });
         rsHarborVersion = (builtins.fromTOML (builtins.readFile ./cli/Cargo.toml)).package.version;
 
         bootstrapCmdsMig = import ./nix/bootstrap-cmds-mig.nix {
@@ -300,42 +289,6 @@
             program = "${harborOpencode}/bin/harbor-opencode";
           };
         };
-
-        devShells = import ./nix/dev-shells.nix {
-          harbor = self.lib;
-          opencodeLsp = nix-opencode-lsp.lib;
-          inherit pkgs toolchain cross cargoConfig rsHarborCli harborCi;
-          treefmtWrapper = treefmt.config.build.wrapper;
-        };
-
-        formatter = treefmt.config.build.wrapper;
-
-        checks =
-          (import ./checks.nix {
-            inherit self pkgs system toolchain cross nixpkgs rust-overlay crane harborRoot;
-            inherit (inputs) treefmt-nix git-hooks nix-cache-pin;
-            rootInputNames = builtins.attrNames inputs;
-            # The lock that resolves this flake's inputs: harbor's inside the
-            # superproject, this repository's own standalone.
-            rootLock = builtins.fromJSON (builtins.readFile ((inputs.harborRoot or self).outPath + "/flake.lock"));
-          })
-          // pkgs.lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux (import ./checks/release-archives.nix {
-            inherit pkgs self system;
-          })
-          // (import ./nix/checks-dev-sandbox.nix {
-            inherit pkgs;
-            harborRsCli = rsHarborCli;
-            inherit (self.lib) mkDevSandbox;
-          })
-          // {
-            treefmt-modules = import ./nix/treefmt/check.nix {
-              inherit pkgs;
-              inherit (inputs) treefmt-nix;
-              inherit (toolchain) rustToolchain;
-              rustModule = self.treefmtModules.rust;
-              baseModules = [harbor-meta.treefmtModules.nix harbor-meta.treefmtModules.toml];
-            };
-          };
       };
     };
 }
