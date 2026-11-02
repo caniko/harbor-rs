@@ -6,19 +6,21 @@
   description = "harbor-rs development inputs (formatter, hooks, dev shell, checks)";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # Tooling-only nixpkgs: distinct from `nixpkgs` so the partition keeps the
+    # parent's (or a superproject's) nixpkgs for checks and dev shells.
+    nixpkgs-dev.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
     treefmt-nix = {
       url = "github:numtide/treefmt-nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs-dev";
     };
     git-hooks = {
       url = "github:cachix/git-hooks.nix";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs-dev";
     };
     nix-opencode-lsp = {
       url = "git+https://github.com/caniko/nix-opencode-lsp.git?ref=trunk";
-      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.nixpkgs.follows = "nixpkgs-dev";
     };
     # Only the mkCachePin check reads it; consumers pass their own source.
     nix-cache-pin = {

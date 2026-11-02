@@ -38,7 +38,7 @@
       "inputs": {
         "flake-compat": "flake-compat",
         "nixpkgs": [
-          "nixpkgs"
+          "nixpkgs-dev"
         ]
       },
       "locked": {
@@ -76,7 +76,7 @@
       "inputs": {
         "flake-utils": "flake-utils",
         "nixpkgs": [
-          "nixpkgs"
+          "nixpkgs-dev"
         ]
       },
       "locked": {
@@ -94,7 +94,7 @@
         "url": "https://github.com/caniko/nix-opencode-lsp.git"
       }
     },
-    "nixpkgs": {
+    "nixpkgs-dev": {
       "locked": {
         "lastModified": 1791252156,
         "narHash": "sha256-dVB/v4sp7KGkweBVFEaf063NHDyliiWx3RXnH09Kwi0=",
@@ -115,7 +115,7 @@
         "git-hooks": "git-hooks",
         "nix-cache-pin": "nix-cache-pin",
         "nix-opencode-lsp": "nix-opencode-lsp",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs-dev": "nixpkgs-dev",
         "treefmt-nix": "treefmt-nix"
       }
     },
@@ -137,7 +137,7 @@
     "treefmt-nix": {
       "inputs": {
         "nixpkgs": [
-          "nixpkgs"
+          "nixpkgs-dev"
         ]
       },
       "locked": {
