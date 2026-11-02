@@ -88,7 +88,8 @@
           };
       in {
         inherit lib;
-        inherit (darwinTools) packages checks;
+        # darwinTools.checks join the dev partition, which owns `checks`.
+        inherit (darwinTools) packages;
         treefmtModules.rust = ./nix/treefmt/rust.nix;
 
         sccache = sccacheLib;

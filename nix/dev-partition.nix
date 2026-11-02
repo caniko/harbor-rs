@@ -13,6 +13,19 @@
       rust = self;
     });
 in {
+  # The superproject's macOS checks; perSystem only covers the Linux systems.
+  flake.checks =
+    if inputs ? harborRoot
+    then
+      (import ./darwin-tools.nix {
+        harbor = self;
+        inherit (inputs) harborRoot;
+        inherit nixpkgs;
+        nixpkgsDarwin = inputs.nixpkgs-darwin;
+        rustOverlay = rust-overlay;
+      }).checks
+    else {};
+
   perSystem = {system, ...}: let
     pkgs = import nixpkgs {
       inherit system;
