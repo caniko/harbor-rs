@@ -46,13 +46,14 @@ harbor-rs.lib.mkCrossPackages {
 
 It returns an attrset of derivations keyed by **output attribute name**:
 
-| target name      | output attr name          | builder                                               |
-| ---------------- | ------------------------- | ----------------------------------------------------- |
-| `native`         | `${pname}`                | native `craneLib.buildPackage`                        |
-| `aarch64-linux`  | `${pname}-aarch64-linux`  | craneLib built from `pkgsCross.aarch64-multiplatform` |
-| `windows`        | `${pname}-windows`        | native craneLib + `cross.windowsEnv` + MinGW          |
-| `darwin-x86_64`  | `${pname}-darwin-x86_64`  | `cross.osxcrossRustHelpers.mkCrossBuilder`            |
-| `darwin-aarch64` | `${pname}-darwin-aarch64` | `cross.osxcrossRustHelpers.mkCrossBuilder`            |
+| target name       | output attr name           | builder                                                                                       |
+| ----------------- | -------------------------- | --------------------------------------------------------------------------------------------- |
+| `native`          | `${pname}`                 | native `craneLib.buildPackage`                                                                |
+| `aarch64-linux`   | `${pname}-aarch64-linux`   | craneLib built from `pkgsCross.aarch64-multiplatform`                                         |
+| `windows`         | `${pname}-windows`         | native craneLib + `cross.windowsEnv` + MinGW                                                  |
+| `windows-aarch64` | `${pname}-windows-aarch64` | craneLib with `aarch64-pc-windows-gnullvm` std + `cross.windowsAarch64.env` (llvm-mingw UCRT) |
+| `darwin-x86_64`   | `${pname}-darwin-x86_64`   | `cross.osxcrossRustHelpers.mkCrossBuilder`                                                    |
+| `darwin-aarch64`  | `${pname}-darwin-aarch64`  | `cross.osxcrossRustHelpers.mkCrossBuilder`                                                    |
 
 Only the requested targets' attrs are returned.
 

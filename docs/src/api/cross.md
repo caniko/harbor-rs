@@ -6,6 +6,13 @@
 
 MinGW toolchain components are exposed through the returned environment and can be enabled in dev shells without extra project-specific setup.
 
+## aarch64 Windows support
+
+The returned `windowsAarch64` record (`cc`, `pkgsCross`, `env`) targets
+`aarch64-pc-windows-gnullvm` through `pkgsCross.ucrtAarch64` (llvm-mingw, UCRT).
+`env` sets `CC_`, `CXX_`, `AR_`, `RC_` (windres, used by `embed-resource`) and
+`CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER` for that target.
+
 ## aarch64 Linux support
 
 The returned `linuxAarch64` record lifts the `aarch64-unknown-linux-gnu` cross

@@ -1,9 +1,9 @@
 # mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableImpureMacosSdkEnv?, enableOsxcross?, osxSdkVersion? }
-#         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv,
+#         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv, windowsAarch64,
 #              linuxAarch64, macosSdk, osxcrossToolchain, osxcrossRustHelpers }
 #
-# Build cross-compilation toolchains (MinGW for Windows, aarch64 Linux GNU,
-# osxcross for macOS).
+# Build cross-compilation toolchains (MinGW for Windows x86_64, llvm-mingw UCRT
+# for Windows aarch64, aarch64 Linux GNU, osxcross for macOS).
 {osxcross}: {
   pkgs,
   system,
@@ -55,6 +55,22 @@ else let
       CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}cc";
       CC_aarch64_unknown_linux_gnu = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}cc";
       CXX_aarch64_unknown_linux_gnu = "${linuxAarch64CC}/bin/${linuxAarch64CC.targetPrefix}c++";
+    };
+  };
+
+  # aarch64-pc-windows-gnullvm cross toolchain (llvm-mingw, UCRT). The wrapper
+  # ships ar and windres, so embed-resource finds them via RC_<target>.
+  windowsAarch64Cross = pkgs.pkgsCross.ucrtAarch64;
+  windowsAarch64CC = windowsAarch64Cross.stdenv.cc;
+  windowsAarch64 = {
+    cc = windowsAarch64CC;
+    pkgsCross = windowsAarch64Cross;
+    env = {
+      CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER = "${windowsAarch64CC}/bin/${windowsAarch64CC.targetPrefix}cc";
+      CC_aarch64_pc_windows_gnullvm = "${windowsAarch64CC}/bin/${windowsAarch64CC.targetPrefix}cc";
+      CXX_aarch64_pc_windows_gnullvm = "${windowsAarch64CC}/bin/${windowsAarch64CC.targetPrefix}c++";
+      AR_aarch64_pc_windows_gnullvm = "${windowsAarch64CC}/bin/${windowsAarch64CC.targetPrefix}ar";
+      RC_aarch64_pc_windows_gnullvm = "${windowsAarch64CC}/bin/${windowsAarch64CC.targetPrefix}windres";
     };
   };
 
@@ -273,7 +289,7 @@ else let
   };
 in {
   inherit mingwCC mingwBinutils winpthreads;
-  inherit linuxAarch64;
+  inherit linuxAarch64 windowsAarch64;
   macosSdk = effectiveMacosSdk;
   inherit osxcrossToolchain osxcrossRustHelpers;
   inherit windowsEnv;
