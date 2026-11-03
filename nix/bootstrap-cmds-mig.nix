@@ -29,7 +29,7 @@ pkgs.stdenv.mkDerivation {
   meta = {
     description = "Cross-platform Mach Interface Generator (markmentovai/bootstrap_cmds)";
     homepage = "https://github.com/markmentovai/bootstrap_cmds";
-    license = pkgs.lib.licenses.apsl20;
+    license = pkgs.lib.licenses.apple-psl20;
     platforms = pkgs.lib.platforms.unix;
   };
 }
