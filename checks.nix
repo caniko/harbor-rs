@@ -953,6 +953,9 @@ in
       assert c.windowsAarch64.env.CC_aarch64_pc_windows_gnullvm != "";
       assert c.windowsAarch64.env ? CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER;
       assert c.windowsAarch64.env ? RC_aarch64_pc_windows_gnullvm;
+      # Binaries must not import libunwind.dll (not part of Windows).
+      assert builtins.elem "-static-libgcc" c.windowsAarch64.cc.nixSupport.cc-cflags;
+      assert !(builtins.elem "-lunwind" c.windowsAarch64.cc.nixSupport.cc-cflags);
         pkgs.runCommand "check-mkCross-shape" {} "touch $out";
 
     # osxcross disabled returns nulls
