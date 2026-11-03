@@ -61,7 +61,22 @@ else let
   # aarch64-pc-windows-gnullvm cross toolchain (llvm-mingw, UCRT). The wrapper
   # ships ar and windres, so embed-resource finds them via RC_<target>.
   windowsAarch64Cross = pkgs.pkgsCross.ucrtAarch64;
-  windowsAarch64CC = windowsAarch64Cross.stdenv.cc;
+  # The wrapper's `-lunwind` resolves to libunwind.dll.a, and clang's MinGW
+  # driver adds `-l:libunwind.dll.a` without -static-libgcc, so every binary
+  # would need libunwind.dll, which Windows does not ship. Link it statically.
+  windowsAarch64CC = windowsAarch64Cross.stdenv.cc.override (old: {
+    nixSupport =
+      old.nixSupport
+      // {
+        cc-cflags =
+          map (flag:
+            if flag == "-lunwind"
+            then "-l:libunwind.a"
+            else flag)
+          old.nixSupport.cc-cflags
+          ++ ["-static-libgcc"];
+      };
+  });
   windowsAarch64 = {
     cc = windowsAarch64CC;
     pkgsCross = windowsAarch64Cross;
