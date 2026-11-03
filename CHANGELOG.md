@@ -43,6 +43,9 @@
 
 ### Added
 
+- `mkCross` exposes `windowsAarch64` (llvm-mingw UCRT cc, ar, windres env for
+  `aarch64-pc-windows-gnullvm`), and `mkCrossPackages` accepts a `windows-aarch64`
+  target that produces `${pname}-windows-aarch64`.
 - `nixosModules.cargoHousekeeping` runs `cargo-cache --autoclean` for one
   user's Cargo home on a systemd timer (`services.harborRs.cargoHousekeeping`).
 - Command-scoped native Cargo runners compose a shared runtime with an existing

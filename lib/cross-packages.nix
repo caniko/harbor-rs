@@ -13,6 +13,7 @@
 #        "native"         -> attr "${pname}"
 #        "aarch64-linux"  -> attr "${pname}-aarch64-linux"
 #        "windows"        -> attr "${pname}-windows"
+#        "windows-aarch64" -> attr "${pname}-windows-aarch64"
 #        "x86_64-linux-musl" -> attr "${pname}-x86_64-linux-musl"
 #        "aarch64-linux-musl" -> attr "${pname}-aarch64-linux-musl"
 #        "darwin-x86_64"  -> attr "${pname}-darwin-x86_64"
@@ -21,9 +22,10 @@
 # Each target builds its own cargoArtifacts via buildDepsOnly, then buildPackage,
 # applying the right CARGO_BUILD_TARGET + cross env. The aarch64-linux target
 # builds a dedicated craneLib from pkgs.pkgsCross.aarch64-multiplatform via
-# mkToolchain. Darwin targets fall back to a runCommand that exits 1 when
-# cross.osxcrossRustHelpers == null (no realized macOS SDK). Only the requested
-# targets' attrs are returned.
+# mkToolchain, and windows-aarch64 (aarch64-pc-windows-gnullvm via llvm-mingw)
+# does the same with that std target. Darwin targets fall back to a runCommand
+# that exits 1 when cross.osxcrossRustHelpers == null (no realized macOS SDK).
+# Only the requested targets' attrs are returned.
 #
 # This lifts the per-project cross-build boilerplate (previously hand-rolled in
 # each consumer flake; see rs-modde flake.nix) into a single reusable helper.
@@ -44,6 +46,7 @@
     "native"
     "aarch64-linux"
     "windows"
+    "windows-aarch64"
     "x86_64-linux-musl"
     "aarch64-linux-musl"
     "darwin-x86_64"
@@ -138,6 +141,35 @@ in
       if buildCache == null
       then windowsPkgRaw
       else buildCache.withRustCache {package = windowsPkgRaw;};
+
+    # --- windows-aarch64 (aarch64-pc-windows-gnullvm via llvm-mingw/UCRT) ----
+    windowsAarch64Target = "aarch64-pc-windows-gnullvm";
+    toolchainWindowsAarch64 = mkToolchain (
+      {
+        inherit pkgs;
+        crossTargets = [windowsAarch64Target];
+      }
+      // targetToolchainArgs
+    );
+    craneLibWindowsAarch64 = toolchainWindowsAarch64.craneLib;
+    windowsAarch64Args =
+      commonArgs
+      // {pname = "${pname}-windows-aarch64";}
+      // cross.windowsAarch64.env
+      // {
+        CARGO_BUILD_TARGET = windowsAarch64Target;
+        PKG_CONFIG_ALLOW_CROSS = "1";
+        depsBuildBuild = [cross.windowsAarch64.cc];
+      }
+      // extraFor "windows-aarch64";
+    windowsAarch64CargoArtifacts = craneLibWindowsAarch64.buildDepsOnly windowsAarch64Args;
+    windowsAarch64PkgRaw =
+      craneLibWindowsAarch64.buildPackage (windowsAarch64Args
+        // {cargoArtifacts = windowsAarch64CargoArtifacts;});
+    windowsAarch64Pkg =
+      if buildCache == null
+      then windowsAarch64PkgRaw
+      else buildCache.withRustCache {package = windowsAarch64PkgRaw;};
 
     # Static Linux targets use the build-host rust toolchain with a target
     # extension and the corresponding nixpkgs MUSL linker. This keeps the
@@ -240,6 +272,7 @@ in
       "native" = {"${pname}" = nativePkg;};
       "aarch64-linux" = {"${pname}-aarch64-linux" = aarch64LinuxPkg;};
       "windows" = {"${pname}-windows" = windowsPkg;};
+      "windows-aarch64" = {"${pname}-windows-aarch64" = windowsAarch64Pkg;};
       "x86_64-linux-musl" = {"${pname}-x86_64-linux-musl" = x86_64LinuxMuslPkg;};
       "aarch64-linux-musl" = {"${pname}-aarch64-linux-musl" = aarch64LinuxMuslPkg;};
       "darwin-x86_64" = {"${pname}-darwin-x86_64" = mkDarwinPkg "darwin-x86_64" "x86_64-apple-darwin";};

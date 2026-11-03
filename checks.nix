@@ -943,12 +943,16 @@ in
       assert c ? mingwBinutils;
       assert c ? winpthreads;
       assert c ? windowsEnv;
+      assert c ? windowsAarch64;
       assert c ? macosSdk;
       assert c ? osxcrossToolchain;
       assert c ? osxcrossRustHelpers;
       assert builtins.isAttrs c.windowsEnv;
       assert c.windowsEnv ? CC_x86_64_pc_windows_gnu;
       assert c.windowsEnv ? CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER;
+      assert c.windowsAarch64.env.CC_aarch64_pc_windows_gnullvm != "";
+      assert c.windowsAarch64.env ? CARGO_TARGET_AARCH64_PC_WINDOWS_GNULLVM_LINKER;
+      assert c.windowsAarch64.env ? RC_aarch64_pc_windows_gnullvm;
         pkgs.runCommand "check-mkCross-shape" {} "touch $out";
 
     # osxcross disabled returns nulls
@@ -1917,6 +1921,7 @@ in
           pname = "fixture";
           targets = [
             "aarch64-linux"
+            "windows-aarch64"
             "x86_64-linux-musl"
             "aarch64-linux-musl"
             "darwin-x86_64"
@@ -1925,6 +1930,7 @@ in
         };
       in
         assert out ? "fixture-aarch64-linux";
+        assert out ? "fixture-windows-aarch64";
         assert out ? "fixture-x86_64-linux-musl";
         assert out ? "fixture-aarch64-linux-musl";
         assert out ? "fixture-darwin-x86_64";
@@ -1935,6 +1941,7 @@ in
         assert pkgs.lib.isDerivation out."fixture-x86_64-linux-musl";
         assert pkgs.lib.isDerivation out."fixture-aarch64-linux-musl";
         assert builtins.isString out."fixture-aarch64-linux".drvPath;
+        assert builtins.isString out."fixture-windows-aarch64".drvPath;
         # Without a realized SDK in pure eval, darwin outputs are the
         # mkDarwinUnavailable runCommand placeholders, which still evaluate.
         assert pkgs.lib.isDerivation out."fixture-darwin-x86_64";
