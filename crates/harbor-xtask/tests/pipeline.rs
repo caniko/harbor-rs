@@ -120,3 +120,21 @@ fn keep_going_executes_following_steps() {
         .expect_err("a kept-going failure remains a failure");
     assert!(format!("{report:#}").contains("fail"));
 }
+
+#[test]
+fn failed_plan_keeps_its_report() {
+    let (report, error) = PipelinePlan::new()
+        .step(CommandSpec::new("ok", "true"))
+        .step(CommandSpec::new("fail", "false"))
+        .step(CommandSpec::new("missing", "/nonexistent/harbor-ci-step"))
+        .keep_going(true)
+        .run_with_report();
+    assert!(error.is_some());
+    assert!(!report.success);
+    let steps: Vec<_> = report
+        .steps
+        .iter()
+        .map(|step| (step.label.as_str(), step.success))
+        .collect();
+    assert_eq!(steps, [("ok", true), ("fail", false), ("missing", false)]);
+}

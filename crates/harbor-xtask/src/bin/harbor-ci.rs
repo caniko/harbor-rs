@@ -48,9 +48,10 @@ fn main() -> Result<()> {
         &config.nextest_args,
     )
     .keep_going(keep_going);
-    let report = plan.run()?;
+    // Write the report before failing: a failed run is when it matters most.
+    let (report, error) = plan.run_with_report();
     if let Some(path) = report_path {
         write_report(path, &report)?;
     }
-    Ok(())
+    error.map_or(Ok(()), Err)
 }

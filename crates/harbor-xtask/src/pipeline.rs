@@ -122,9 +122,21 @@ impl PipelinePlan {
 
     /// Execute the plan and return a machine-readable report on success.
     pub fn run(&self) -> Result<PipelineReport> {
+        match self.run_with_report() {
+            (report, None) => Ok(report),
+            (_, Some(error)) => Err(error),
+        }
+    }
+
+    /// Execute the plan and keep its report when a step fails.
+    #[must_use]
+    pub fn run_with_report(&self) -> (PipelineReport, Option<anyhow::Error>) {
         let started = Instant::now();
-        let results = execute_steps(&self.steps, &self.cleanup, self.keep_going)?;
-        Ok(PipelineReport::from_results(results, started.elapsed()))
+        let (results, error) = execute_steps(&self.steps, &self.cleanup, self.keep_going);
+        (
+            PipelineReport::from_results(results, started.elapsed()),
+            error,
+        )
     }
 }
 
@@ -136,7 +148,7 @@ pub struct CommandResult {
     pub elapsed: Duration,
     /// Empty unless the step captured output.
     pub stdout: String,
-    /// Empty unless the step captured output.
+    /// Empty unless the step captured output or failed to start.
     pub stderr: String,
 }
 
@@ -187,14 +199,17 @@ pub fn write_report(path: impl AsRef<Path>, report: &PipelineReport) -> Result<(
 ///
 /// A failing captured step surfaces its stdout/stderr in the error message.
 pub fn run_pipeline(steps: &[CommandSpec]) -> Result<Vec<CommandResult>> {
-    execute_steps(steps, &[], false)
+    match execute_steps(steps, &[], false) {
+        (results, None) => Ok(results),
+        (_, Some(error)) => Err(error),
+    }
 }
 
 fn execute_steps(
     steps: &[CommandSpec],
     cleanup: &[CommandSpec],
     keep_going: bool,
-) -> Result<Vec<CommandResult>> {
+) -> (Vec<CommandResult>, Option<anyhow::Error>) {
     let mut results = Vec::with_capacity(steps.len() + cleanup.len());
     let mut first_error = None;
 
@@ -211,6 +226,7 @@ fn execute_steps(
                 }
             }
             Err(error) => {
+                results.push(spawn_failure(spec, &error));
                 if first_error.is_none() {
                     first_error = Some(error);
                 }
@@ -230,6 +246,7 @@ fn execute_steps(
                 results.push(result);
             }
             Err(error) => {
+                results.push(spawn_failure(spec, &error));
                 if first_error.is_none() {
                     first_error = Some(error);
                 }
@@ -237,10 +254,17 @@ fn execute_steps(
         }
     }
 
-    if let Some(error) = first_error {
-        Err(error)
-    } else {
-        Ok(results)
+    (results, first_error)
+}
+
+// A step that could not start still appears, failed, in the report.
+fn spawn_failure(spec: &CommandSpec, error: &anyhow::Error) -> CommandResult {
+    CommandResult {
+        label: spec.label.clone(),
+        success: false,
+        elapsed: Duration::ZERO,
+        stdout: String::new(),
+        stderr: format!("{error:#}"),
     }
 }
 

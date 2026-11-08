@@ -4,6 +4,7 @@
 
 ### Added
 
-- Synchronous Cargo CI planning and command pipeline execution with reports.
+- Synchronous Cargo CI planning and command pipeline execution with reports,
+  written even when a step fails or cannot start.
 - Shared documentation, Nix, coverage, COPR packaging, and release helpers.
 - Package documentation, Rust 1.88 metadata, and bundled original licenses.
