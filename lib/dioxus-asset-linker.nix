@@ -1,6 +1,6 @@
 {
   pkgs,
-  dioxusCli ? pkgs.dioxus-cli,
+  dioxusCli ? import ./dioxus-cli-base.nix {inherit pkgs;},
 }:
 pkgs.writeShellApplication {
   name = "dioxus-link-assets";

@@ -145,7 +145,7 @@
     },
     wasmBindgenCli ? null,
     allowWasmBindgenMismatch ? false,
-    dioxusCli ? pkgs.dioxus-cli,
+    dioxusCli ? import ./dioxus-cli-base.nix {inherit pkgs;},
     # Dioxus always runs wasm-opt during bundling. Keep binaryen in the
     # hermetic builder by default; callers can pass null only when their
     # Dioxus CLI is wrapped with an equivalent optimizer.
@@ -322,7 +322,7 @@
     },
     wasmBindgenCli ? null,
     allowWasmBindgenMismatch ? false,
-    dioxusCli ? pkgs.dioxus-cli,
+    dioxusCli ? import ./dioxus-cli-base.nix {inherit pkgs;},
     wasmOptPackage ? pkgs.binaryen,
     wasmOptArgs ? [],
     publicSubdir ? "share/${pname}/public",
