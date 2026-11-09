@@ -158,10 +158,19 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
       "harbor-rs: mkToolchain 'toolchainFile' must contain [toolchain].channel";
-        (rustBin.fromRustupToolchainFile resolvedToolchainFile).override {
-          extensions = fileExtensions;
-          targets = fileTargets;
-        }
+        (rustBin.fromRustupToolchainFile resolvedToolchainFile).override ({
+            extensions = fileExtensions;
+            targets = fileTargets;
+          }
+          # rust-overlay turns cargo's libsecret integration off for the
+          # minimal profile. Keep the previous default-profile behavior for
+          # harbor-rs's own profile files, so they only drop rust-docs; a
+          # consumer's toolchain file keeps its own profile's default. Key on
+          # the file, not toolchainProfile: cross builds re-call mkToolchain
+          # with only toolchainFile and must get the same toolchain.
+          // pkgs.lib.optionalAttrs (builtins.elem resolvedToolchainFile (builtins.attrValues profileToolchainFiles)) {
+            enableLibsecret = pkgs.buildPackages.stdenv.hostPlatform.isLinux;
+          })
     else
       dateSet.default.override {
         extensions = legacyExtensions';

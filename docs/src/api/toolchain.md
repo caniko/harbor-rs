@@ -104,6 +104,12 @@ outputs unless `toolchainArgs` is supplied explicitly. Updating the profile
 manifest in harbor-rs then updates every consumer when it refreshes its
 harbor-rs input, without requiring per-project version edits.
 
+Both profile manifests select the rustup `minimal` profile and list `clippy`
+and `rustfmt` as components. Compared with rustup's default profile, the only
+component left out is `rust-docs`, a large download that every crane package
+build would otherwise pull in. `cargo`, `rustc`, `clippy`, `rustfmt`,
+`rust-src`, and `rust-analyzer` stay available.
+
 Projects with a checked-in Rust toolchain file can consume it directly:
 
 ```nix
