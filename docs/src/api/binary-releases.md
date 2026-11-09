@@ -177,3 +177,33 @@ in
   };
 }
 ```
+
+## cargo-binstall metadata
+
+Every release bundle (`mkReleaseBundle`, and the `releaseBundle` of
+`mkBinaryRelease` and `mkPortableBinaryRelease`) exposes `binstall`: the
+`[package.metadata.binstall]` overrides that point `cargo binstall <crate>` at
+its `tar.gz`/`zip` binary archives, one override per Rust target the archive
+runs on. Static and nix-bundle Linux archives serve both `-gnu` and `-musl`
+hosts. The URL uses the crate's `repository` and simit's bare `<version>` tag;
+pass `binstallTagPrefix = "v"` to the bundle helper for `v<version>` tags.
+AppImages, wheels and other opaque files are not considered.
+
+Wire it as a flake check against the crate that owns the binaries:
+
+```nix
+checks.binstall-metadata = harbor-rs.lib.mkBinstallCheck {
+  inherit pkgs;
+  bundle = packages.release-bundle;
+  cargoToml = ./crates/my-tool/Cargo.toml;
+};
+```
+
+The check fails until the manifest has `package.repository` and exactly the
+generated block, and until every archive ships each `[[bin]]` without
+`required-features` (binstall refuses partial archives at install time). A
+hand-made `mkReleaseArtifact` archive must pass `binaries`, its archive-relative
+executable paths such as `["bin/my-tool"]`. Write
+the block with
+`nix eval --raw .#checks.x86_64-linux.binstall-metadata.toml >> crates/my-tool/Cargo.toml`
+and replace it the same way after the archive set changes.

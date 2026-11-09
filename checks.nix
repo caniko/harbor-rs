@@ -375,6 +375,120 @@ in
       assert bundle.rsHarborReleaseBundle;
         pkgs.runCommand "check-generic-release-artifact-contract" {} "touch $out";
 
+    binstall-metadata-contract = let
+      source = pkgs.writeText "binstall-release-source" "artifact";
+      artifact = args:
+        self.lib.mkReleaseArtifact ({
+            inherit pkgs source;
+            pname = "fixture";
+            version = "0.1.0";
+            consumable = true;
+          }
+          // args);
+      bundle = self.lib.mkReleaseBundle {
+        inherit pkgs;
+        pname = "fixture";
+        version = "0.1.0";
+        artifacts = {
+          linux = artifact {
+            name = "fixture-0.1.0-x86_64-linux-musl.tar.gz";
+            kind = "binary-archive";
+            format = "tar.gz";
+            system = "x86_64-linux";
+            rustTarget = "x86_64-unknown-linux-musl";
+            validation = "static-archive";
+            binaries = ["bin/fixture"];
+          };
+          windows = artifact {
+            name = "fixture-0.1.0-x86_64-windows.zip";
+            kind = "binary";
+            format = "zip";
+            system = "x86_64-windows";
+            rustTarget = "x86_64-pc-windows-gnu";
+            binaries = ["fixture.exe"];
+          };
+          appimage = artifact {
+            name = "fixture-0.1.0-x86_64.AppImage";
+            system = "x86_64-linux";
+          };
+        };
+      };
+      o = bundle.binstall.overrides;
+      manifest = bins: binstall:
+        builtins.toFile "Cargo.toml" (''
+            [package]
+            name = "fixture"
+            repository = "https://github.com/caniko/fixture"
+          ''
+          + bins
+          + binstall);
+      check = bins: binstall:
+        self.lib.mkBinstallCheck {
+          inherit pkgs bundle;
+          cargoToml = manifest bins binstall;
+        };
+      inherit (check "" "") toml;
+      good = check "" toml;
+      stale = check "" (builtins.replaceStrings ["{ version }/"] ["v{ version }/"] toml);
+      # Every binary without required features must be in every archive.
+      partial =
+        check ''
+          [[bin]]
+          name = "fixture"
+          [[bin]]
+          name = "extra"
+          [[bin]]
+          name = "gated"
+          required-features = ["gated"]
+          [[bin]]
+          name = "ungated"
+          required-features = []
+        ''
+        toml;
+      unrecorded = self.lib.mkBinstallCheck {
+        inherit pkgs;
+        bundle = self.lib.mkReleaseBundle {
+          inherit pkgs;
+          pname = "fixture";
+          version = "0.1.0";
+          artifacts.linux = artifact {
+            name = "fixture-0.1.0-x86_64-linux-musl.tar.gz";
+            kind = "binary-archive";
+            format = "tar.gz";
+            system = "x86_64-linux";
+            validation = "static-archive";
+          };
+        };
+        cargoToml = manifest "" "";
+      };
+      empty = self.lib.mkBinstallCheck {
+        inherit pkgs;
+        bundle = self.lib.mkReleaseBundle {
+          inherit pkgs;
+          pname = "fixture";
+          version = "0.1.0";
+          artifacts.linux = artifact {
+            name = "fixture-0.1.0-x86_64-linux-musl.tar.gz";
+            kind = "binary-archive";
+            format = "tar.gz";
+            system = "x86_64-linux";
+            validation = "static-archive";
+            binaries = [];
+          };
+        };
+        cargoToml = manifest "" "";
+      };
+    in
+      assert builtins.attrNames o == ["x86_64-pc-windows-gnu" "x86_64-pc-windows-msvc" "x86_64-unknown-linux-gnu" "x86_64-unknown-linux-musl"];
+      assert o.x86_64-unknown-linux-gnu.pkg-url == "{ repo }/releases/download/{ version }/fixture-{ version }-x86_64-linux-musl.tar.gz";
+      assert o.x86_64-pc-windows-msvc.pkg-fmt == "zip";
+      assert o.x86_64-unknown-linux-musl.bin-dir == "bin/{ bin }{ binary-ext }";
+      assert o.x86_64-pc-windows-gnu.bin-dir == "{ bin }{ binary-ext }";
+      assert good.matches && !stale.matches;
+      assert partial.missing == ["fixture-0.1.0-x86_64-linux-musl.tar.gz lacks extra" "fixture-0.1.0-x86_64-linux-musl.tar.gz lacks ungated" "fixture-0.1.0-x86_64-windows.zip lacks extra.exe" "fixture-0.1.0-x86_64-windows.zip lacks ungated.exe"];
+      assert unrecorded.missing == ["fixture-0.1.0-x86_64-linux-musl.tar.gz records no binaries; pass binaries to mkReleaseArtifact"];
+      assert empty.missing == ["fixture-0.1.0-x86_64-linux-musl.tar.gz lacks fixture"] && pkgs.lib.isString empty.drvPath; good;
+
     release-bundle-dual-system-contract = let
       x86Source = pkgs.writeScript "fixture-x86_64" "#!/bin/sh\necho x86_64\n";
       armSource = pkgs.writeScript "fixture-aarch64" "#!/bin/sh\necho aarch64\n";

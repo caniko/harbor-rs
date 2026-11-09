@@ -107,6 +107,7 @@ in {
   mkReleaseBundle = args:
     (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseBundle
     (builtins.removeAttrs args ["pkgs"]);
+  mkBinstallCheck = args: (import ./binstall.nix {inherit (args.pkgs) lib;}).mkBinstallCheck args;
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkCachePin = import ./cache-pin.nix;

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Release bundles expose `binstall`, cargo-binstall metadata generated from
+  their binary archives, and `lib.mkBinstallCheck` keeps a crate's
+  `[package.metadata.binstall]` equal to it and verifies that every archive
+  ships the crate's binaries.
+
 ### Fixed
 
 - In CI, development shells install generated Cargo configuration into a

@@ -30,8 +30,13 @@
       inherit pname version name kind format system rustTarget validation consumable files;
     };
 
-  artifactPassthru = meta: {
-    passthru.rsHarborReleaseArtifact = meta;
+  # `binaries` lists archive-relative executable paths for cargo-binstall; it
+  # stays out of the published descriptor.
+  artifactPassthru = meta: binaries: {
+    passthru = {
+      rsHarborReleaseArtifact = meta;
+      rsHarborReleaseBinaries = binaries;
+    };
   };
 
   mkFile = {
@@ -47,6 +52,7 @@
     validation ? "none",
     consumable ? false,
     executable ? false,
+    binaries ? null,
   }: let
     fileName = requireString "artifact name" name;
     sourceValue = require "artifact source" source;
@@ -60,7 +66,7 @@
       then "${sourceValue}"
       else "${sourceValue}/${sourcePath}";
   in
-    pkgs.runCommand "${pname}-${version}-${fileName}-release-artifact" (artifactPassthru meta) ''
+    pkgs.runCommand "${pname}-${version}-${fileName}-release-artifact" (artifactPassthru meta binaries) ''
       set -euo pipefail
       mkdir -p "$out"
       test -f ${escapeShellArg sourceArg}
@@ -92,6 +98,10 @@
     };
     packageValue = require "archive package" package;
     entryNames = builtins.attrNames entries;
+    executableEntry = name: let
+      entry = entries.${name};
+    in
+      builtins.isString entry || lib.mod (lib.toInt (builtins.substring 1 1 (entry.mode or "0644"))) 2 == 1;
     entryArgs = concatStringsSep " " (map escapeShellArg entryNames);
     entrySources = common.stageFiles {
       root = "$stage";
@@ -141,7 +151,7 @@
       then ''cd "$stage" && find . -type f -print | LC_ALL=C sort | zip -X -q "$out/${archiveName}" -@''
       else throw "harbor-rs: unsupported release archive format '${format}'";
   in
-    pkgs.runCommand "${pname}-${version}-${archiveName}-release-artifact" ((artifactPassthru meta)
+    pkgs.runCommand "${pname}-${version}-${archiveName}-release-artifact" ((artifactPassthru meta (lib.filter executableEntry entryNames))
       // timezoneEnv.env
       // {
         nativeBuildInputs = [pkgs.binutils pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.gnutar pkgs.gzip pkgs.zip];
@@ -164,6 +174,7 @@
     pname,
     version,
     artifacts,
+    binstallTagPrefix ? "",
   }: let
     artifactValues = builtins.attrValues artifacts;
     descriptors = map (artifact:
@@ -182,6 +193,11 @@
       })
     artifactValues;
     descriptorNames = map (artifact: artifact.name) descriptors;
+    binstall = import ./binstall.nix {inherit lib;};
+    binstallArchives = binstall.binaryArchives (lib.zipListsWith (descriptor: artifact:
+        descriptor // {binaries = artifact.rsHarborReleaseBinaries or null;})
+      descriptors
+      artifactValues);
     manifest = builtins.toJSON {
       schemaVersion = 2;
       inherit pname version;
@@ -195,6 +211,12 @@
       pkgs.runCommand "${pname}-${version}-release-bundle" {
         nativeBuildInputs = [pkgs.coreutils pkgs.findutils pkgs.gnugrep pkgs.jq];
         passthru.rsHarborReleaseBundle = true;
+        passthru.binstallArchives = binstallArchives;
+        passthru.binstall = binstall.mkBinstallMetadata {
+          inherit version;
+          archives = binstallArchives;
+          tagPrefix = binstallTagPrefix;
+        };
       } ''
         set -euo pipefail
         mkdir -p "$out"

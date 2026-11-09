@@ -67,7 +67,7 @@
         -czf "$out/${archiveName}" -C "$stage" .
     '';
   in {
-    inherit archive archiveName package manifest;
+    inherit archive archiveName package manifest binaries;
   };
 
   mkPortableBinaryRelease = {
@@ -75,6 +75,7 @@
     version,
     artifacts,
     archiveTimezone ? "UTC",
+    binstallTagPrefix ? "",
   }: let
     prepared = lib.mapAttrs (system: spec: let
       bundler =
@@ -118,10 +119,11 @@
         format = "tar.gz";
         validation = "portable-executable";
         consumable = true;
+        binaries = map (binary: "bin/${binary}") result.binaries;
       })
     prepared;
     releaseBundle = (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseBundle {
-      inherit pname version;
+      inherit pname version binstallTagPrefix;
       artifacts = releaseArtifacts;
     };
   in {

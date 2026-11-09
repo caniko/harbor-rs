@@ -97,6 +97,7 @@
     version,
     artifacts,
     archiveTimezone ? "UTC",
+    binstallTagPrefix ? "",
   }: let
     archives = lib.mapAttrs (target: spec:
       mkArchive target (spec
@@ -120,10 +121,11 @@
         rustTarget = spec.rustTarget or system;
         validation = "static-archive";
         consumable = true;
+        binaries = map (binary: "bin/${binary}") spec.binaries;
       })
     archives;
     releaseBundle = (import ./release-artifacts.nix {inherit pkgs;}).mkReleaseBundle {
-      inherit pname version;
+      inherit pname version binstallTagPrefix;
       artifacts = releaseArtifacts;
     };
   in {
