@@ -134,8 +134,20 @@
     if cross != null
     then cross
     else mkCross {inherit pkgs system;};
+  # Release archives are built once per target and never run: cross test
+  # binaries cannot execute on the build host, and Rust's windows-gnu target
+  # shells out to the MinGW dlltool, which must be on PATH.
+  releaseTargetArgs = lib.genAttrs hostTargets (target: let
+    extra = targetArgs.${target} or {};
+  in
+    lib.optionalAttrs (target != "native") {doCheck = false;}
+    // extra
+    // lib.optionalAttrs (target == "windows") {
+      nativeBuildInputs = [crossTools.mingwCC crossTools.mingwBinutils] ++ (extra.nativeBuildInputs or []);
+    });
   crossPackages = mkCrossPackages {
-    inherit pkgs pname commonArgs targetArgs;
+    inherit pkgs pname commonArgs;
+    targetArgs = releaseTargetArgs;
     inherit (toolchain) craneLib;
     cross = crossTools;
     targets = hostTargets;

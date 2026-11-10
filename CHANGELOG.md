@@ -17,6 +17,10 @@
 
 ### Fixed
 
+- `mkBinstallRelease` builds cross targets without running their tests and
+  puts MinGW's compiler and binutils on the Windows build's `PATH`, so
+  consumers no longer pass either through `targetArgs`.
+
 - `mkCross` exposes `mingwOpenssl`: Nixpkgs' MinGW openssl without the
   `fix-mingw-linking.patch` reference that Nixpkgs 8edc0c7 lists but does not
   ship, so Windows cross builds evaluate on harbor's root nixpkgs.

@@ -500,7 +500,6 @@ in
         commonArgs = {
           src = fixture;
           version = "0.1.0";
-          doCheck = false;
         };
         crates = {
           alpha.cargoToml = fixture + "/crates/alpha/Cargo.toml";
@@ -517,7 +516,6 @@ in
             pname = "fixture";
             version = "0.1.0";
             toolchainArgs.cache.enable = false;
-            targetArgs.x86_64-linux-musl.doCheck = false;
           };
         release = mk system;
         unlisted = mk "aarch64-linux";
@@ -601,6 +599,10 @@ in
         assert builtins.isString release.releaseBundle.drvPath;
         assert builtins.isString release.packages."fixture-x86_64-linux-musl".drvPath;
         assert builtins.isString release.packages."fixture-windows".drvPath;
+        # Cross targets never run tests, and Windows links through MinGW's dlltool.
+        assert !(release.packages."fixture-x86_64-linux-musl".doCheck or true);
+        assert !(release.packages."fixture-windows".doCheck or true);
+        assert builtins.any (input: pkgs.lib.hasInfix "mingw32-binutils" (input.name or "")) release.packages."fixture-windows".nativeBuildInputs;
         # A system with no declared targets builds nothing, but still renders
         # the same union metadata and checks.
         assert unlisted.releaseBundle == null;
