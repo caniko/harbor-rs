@@ -1056,6 +1056,7 @@ in
       assert c ? mingwCC;
       assert c ? mingwBinutils;
       assert c ? winpthreads;
+      assert !(builtins.any (patch: baseNameOf patch == "fix-mingw-linking.patch") c.mingwOpenssl.patches);
       assert c ? windowsEnv;
       assert c ? windowsAarch64;
       assert c ? macosSdk;

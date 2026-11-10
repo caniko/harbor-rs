@@ -1,5 +1,5 @@
 # mkCross :: { pkgs, system, macosSdkStorePath?, sdkArchive?, macosSdk?, macosSdkOutputHash?, macosSdkEnvPath?, enableImpureMacosSdkEnv?, enableOsxcross?, osxSdkVersion? }
-#         -> { mingwCC, mingwBinutils, winpthreads, windowsEnv, windowsAarch64,
+#         -> { mingwCC, mingwBinutils, winpthreads, mingwOpenssl, windowsEnv, windowsAarch64,
 #              linuxAarch64, macosSdk, osxcrossToolchain, osxcrossRustHelpers }
 #
 # Build cross-compilation toolchains (MinGW for Windows x86_64, llvm-mingw UCRT
@@ -42,6 +42,12 @@ else let
   mingwCC = pkgs.pkgsCross.mingwW64.stdenv.cc;
   mingwBinutils = pkgs.pkgsCross.mingwW64.stdenv.cc.bintools.bintools;
   winpthreads = pkgs.pkgsCross.mingwW64.windows.pthreads;
+  # ponytail: Nixpkgs 8edc0c7 lists openssl's ./3.5/fix-mingw-linking.patch
+  # without shipping it, so mingwW64 openssl fails to evaluate. Drop the
+  # reference as Nixpkgs bf4259a does; remove once the root nixpkgs has it.
+  mingwOpenssl = pkgs.pkgsCross.mingwW64.openssl.overrideAttrs (old: {
+    patches = lib.filter (patch: baseNameOf patch != "fix-mingw-linking.patch") (old.patches or []);
+  });
 
   # aarch64-unknown-linux-gnu cross toolchain. Exposes the cross stdenv cc and
   # a ready-to-merge env attrset so consumers can build for ARM64 Linux without
@@ -303,7 +309,7 @@ else let
     CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS = "-L ${winpthreads}/lib";
   };
 in {
-  inherit mingwCC mingwBinutils winpthreads;
+  inherit mingwCC mingwBinutils winpthreads mingwOpenssl;
   inherit linuxAarch64 windowsAarch64;
   macosSdk = effectiveMacosSdk;
   inherit osxcrossToolchain osxcrossRustHelpers;

@@ -11,6 +11,10 @@
 
 ### Fixed
 
+- `mkCross` exposes `mingwOpenssl`: Nixpkgs' MinGW openssl without the
+  `fix-mingw-linking.patch` reference that Nixpkgs 8edc0c7 lists but does not
+  ship, so Windows cross builds evaluate on harbor's root nixpkgs.
+
 - In CI, development shells install generated Cargo configuration into a
   preset `CARGO_HOME` that has no Cargo config of its own, such as
   `/tmp/.cargo`, so CI links with the same clang/mold configuration as local
