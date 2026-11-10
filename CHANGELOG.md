@@ -17,6 +17,11 @@
 
 ### Fixed
 
+- In CI, a dev shell now replaces another harbor-rs shell's generated Cargo
+  config in a shared `CARGO_HOME` instead of inheriting it, so a stable
+  MSRV shell entered after the nightly default shell no longer reads `-Z`
+  flags. A project's own config is still left alone.
+
 - `mkBinstallRelease` refuses a crate whose binaries all need
   `required-features`, instead of shipping empty archives that pass the
   metadata check.
