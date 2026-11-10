@@ -8,6 +8,12 @@
   their binary archives, and `lib.mkBinstallCheck` keeps a crate's
   `[package.metadata.binstall]` equal to it and verifies that every archive
   ships the crate's binaries.
+- `lib.mkBinstallRelease` wires a whole workspace in one call: it cross-builds
+  the host's declared targets, packs every crate's binaries into
+  `bin/`-layout `tar.gz`/`zip` archives, and renders the union
+  `[package.metadata.binstall]` for all declared systems without evaluating
+  another system's toolchain. Per-crate checks arrive ready as
+  `release.checks`.
 
 ### Fixed
 

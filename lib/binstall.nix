@@ -79,6 +79,14 @@
       '')
       metadata.overrides);
 
+  # `[[bin]]` targets without required features must ship in every archive; a
+  # crate without explicit bins installs its package name.
+  crateBins = cargoToml: let
+    manifest = builtins.fromTOML (builtins.readFile cargoToml);
+    package = manifest.package or {};
+  in
+    map (bin: bin.name) (builtins.filter (bin: (bin.required-features or []) == []) (manifest.bin or [{name = package.name or "";}]));
+
   # Fails (without breaking evaluation) until the crate manifest carries the
   # bundle's metadata verbatim and every archive ships each required binary,
   # which binstall otherwise rejects at install time. `toml` is the block to paste.
@@ -90,14 +98,14 @@
     manifest = builtins.fromTOML (builtins.readFile cargoToml);
     package = manifest.package or {};
     toml = toToml bundle.binstall;
-    crateBins = map (bin: bin.name) (builtins.filter (bin: (bin.required-features or []) == []) (manifest.bin or [{name = package.name or "";}]));
+    bins = crateBins cargoToml;
     missing = lib.concatMap (archive: let
       shipped = map baseNameOf archive.binaries;
       ext = lib.optionalString (lib.hasSuffix "-windows" archive.system) ".exe";
     in
       if archive.binaries == null
       then ["${archive.name} records no binaries; pass binaries to mkReleaseArtifact"]
-      else map (bin: "${archive.name} lacks ${bin}${ext}") (builtins.filter (bin: !(builtins.elem "${bin}${ext}" shipped)) crateBins))
+      else map (bin: "${archive.name} lacks ${bin}${ext}") (builtins.filter (bin: !(builtins.elem "${bin}${ext}" shipped)) bins))
     bundle.binstallArchives;
     matches = package ? repository && (package.metadata.binstall or null) == bundle.binstall && missing == [];
   in
@@ -116,5 +124,5 @@
       ''
     );
 in {
-  inherit binaryArchives mkBinstallMetadata mkBinstallCheck;
+  inherit binaryArchives crateBins mkBinstallMetadata mkBinstallCheck;
 }

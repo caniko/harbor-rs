@@ -207,3 +207,78 @@ executable paths such as `["bin/my-tool"]`. Write
 the block with
 `nix eval --raw .#checks.x86_64-linux.binstall-metadata.toml >> crates/my-tool/Cargo.toml`
 and replace it the same way after the archive set changes.
+
+## One-call binstall releases
+
+`lib.mkBinstallRelease` wires the whole cargo-binstall path for a workspace:
+`mkCrossPackages` builds every binary once per target, `mkReleaseArchive` packs
+them under `bin/`, `mkReleaseBundle` publishes the archives, and `mkBinstallCheck`
+guards each crate's metadata.
+
+```nix
+let
+  release = harbor-rs.lib.mkBinstallRelease {
+    inherit pkgs system;
+    pname = "my-tool";
+    version = "1.2.3";
+    commonArgs = {
+      src = ./.;
+      strictDeps = true;
+    };
+    crates.my-tool = {cargoToml = ./Cargo.toml;};
+    # Defaults:
+    # targets = {
+    #   x86_64-linux = ["x86_64-linux-musl" "aarch64-linux-musl" "windows"];
+    #   aarch64-darwin = ["native"];
+    # };
+  };
+in {
+  packages.release-bundle = release.releaseBundle;
+  checks = release.checks;
+}
+```
+
+`targets` maps each build system to the `mkCrossPackages` targets that system
+builds. A host builds only its own entry (`release.packages` holds those
+derivations), so the returned `releaseBundle` is `null` on a system that is not
+listed. Every archive is named `<pname>-<version>-<rustTarget>.tar.gz` (`.zip`
+on Windows) and contains all non-gated binaries of all listed crates, so one
+bundle serves every crate.
+
+`crates` names each published crate and points at its `Cargo.toml`; its
+`[[bin]]` entries without `required-features` (or `package.name` when there are
+none) are the binaries binstall expects. The build uses `commonArgs` as-is: a
+virtual workspace already builds every member, while a root-package workspace
+needs `cargoExtraArgs = "--workspace"` so sibling crates are built too. The
+archive step fails loudly when a listed binary was not produced. `release.binstall` is the union
+`[package.metadata.binstall]` for **all** systems in `targets`, not only the
+current one, and it is derived from data (target names plus manifests), so any
+system renders the identical block without evaluating another system's
+toolchain. `release.archives` exposes those synthetic descriptors and
+`release.checks` carries one `binstall-metadata` check (or
+`binstall-metadata-<crate>` per crate in a workspace) with `passthru.toml` and
+`passthru.matches`.
+
+Pass `tagPrefix = "v"` for `v<version>` release tags, `cross` to reuse a
+`mkCross` you already built, `toolchainArgs` to pin the Rust channel or disable
+the compiler cache, and `targetArgs.<target>` for per-target crane arguments
+such as `doCheck = false`.
+
+Simit publishes the union from per-system runners: enable
+`[release.artifacts] prebuild_binaries = true` (equivalent to
+`nix_bundle_attrs = ["release-bundle"]`), and add every release system to
+`[package.metadata.simit.prebuild.system_runners]` (or
+`[ci.nix_system_runners]`) so `aarch64-darwin` builds the Mach-O archive next to
+the Linux and Windows ones. The release job uploads all archives to one tag;
+the union block in the crate manifest is what lets `cargo binstall` pick the
+right one on each host.
+
+Write the block from the check that runs on your build host:
+
+```bash
+nix eval --raw .#checks.x86_64-linux.binstall-metadata.toml >> Cargo.toml
+```
+
+For a multi-crate workspace use the per-crate key, for example
+`.#checks.x86_64-linux.binstall-metadata-my-tool.toml`, and append it to that
+crate's manifest.

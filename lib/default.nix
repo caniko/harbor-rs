@@ -48,6 +48,17 @@
     then harbor-meta.devShellTests
     else throw "harbor-rs: dev-shell-test helpers require the harbor-meta flake input";
   dioxusLib = import ./dioxus.nix {inherit packageTests;};
+  mkCross = import ./cross.nix {inherit osxcross;};
+  mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
+  mkReleaseArchive = args:
+    (import ./release-artifacts.nix {
+      inherit (args) pkgs;
+      inherit timezone;
+    }).mkReleaseArchive
+    (builtins.removeAttrs args ["pkgs"]);
+  mkReleaseBundle = args:
+    (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseBundle
+    (builtins.removeAttrs args ["pkgs"]);
 in {
   inherit mkBuildCachePolicy mkToolchain hardeningProfiles packageTests templateTests devShellTests mkCargoConfig;
   buildContract = import ./build-contract.nix {};
@@ -60,8 +71,8 @@ in {
   hooks = import ./hooks.nix {inherit harbor-meta;};
 
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
-  mkCross = import ./cross.nix {inherit osxcross;};
-  mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
+  inherit mkCross;
+  inherit mkCrossPackages;
   mkCrossPackageOutputs = import ./cross-package-outputs.nix {
     mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   };
@@ -98,16 +109,11 @@ in {
   mkReleaseArtifact = args:
     (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseArtifact
     (builtins.removeAttrs args ["pkgs"]);
-  mkReleaseArchive = args:
-    (import ./release-artifacts.nix {
-      inherit (args) pkgs;
-      inherit timezone;
-    }).mkReleaseArchive
-    (builtins.removeAttrs args ["pkgs"]);
-  mkReleaseBundle = args:
-    (import ./release-artifacts.nix {inherit (args) pkgs;}).mkReleaseBundle
-    (builtins.removeAttrs args ["pkgs"]);
+  inherit mkReleaseArchive mkReleaseBundle;
   mkBinstallCheck = args: (import ./binstall.nix {inherit (args.pkgs) lib;}).mkBinstallCheck args;
+  mkBinstallRelease = import ./binstall-release.nix {
+    inherit mkToolchain mkCross mkCrossPackages mkReleaseArchive mkReleaseBundle;
+  };
   mkSteamRuntimeTools = import ./steam-runtime.nix;
   mkGpuRenderPin = import ./gpu-render-pin.nix;
   mkCachePin = import ./cache-pin.nix;

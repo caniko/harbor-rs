@@ -489,6 +489,127 @@ in
       assert unrecorded.missing == ["fixture-0.1.0-x86_64-linux-musl.tar.gz records no binaries; pass binaries to mkReleaseArtifact"];
       assert empty.missing == ["fixture-0.1.0-x86_64-linux-musl.tar.gz lacks fixture"] && pkgs.lib.isString empty.drvPath; good;
 
+    # mkBinstallRelease derives the union binstall metadata from the declared
+    # systems without instantiating their toolchains. The synthetic descriptors
+    # it renders the TOML from must equal the host bundle's real descriptors,
+    # and every per-crate check must reject a manifest that lacks them.
+    mkBinstallRelease-contract =
+      if system == "x86_64-linux"
+      then let
+        fixture = ./tests/fixtures/binstall-release;
+        commonArgs = {
+          src = fixture;
+          version = "0.1.0";
+          doCheck = false;
+        };
+        crates = {
+          alpha.cargoToml = fixture + "/crates/alpha/Cargo.toml";
+          beta.cargoToml = fixture + "/crates/beta/Cargo.toml";
+        };
+        targets = {
+          x86_64-linux = ["x86_64-linux-musl" "windows"];
+          aarch64-darwin = ["native"];
+        };
+        mk = host:
+          self.lib.mkBinstallRelease {
+            inherit pkgs commonArgs crates targets;
+            system = host;
+            pname = "fixture";
+            version = "0.1.0";
+            toolchainArgs.cache.enable = false;
+            targetArgs.x86_64-linux-musl.doCheck = false;
+          };
+        release = mk system;
+        unlisted = mk "aarch64-linux";
+        o = release.binstall.overrides;
+        archiveNames = map (archive: archive.name) release.archives;
+        windowsArchive = builtins.head (builtins.filter (archive: archive.format == "zip") release.archives);
+        muslArchive = builtins.head (builtins.filter (archive: archive.system == "x86_64-linux") release.archives);
+        project = archive: {
+          inherit (archive) name system rustTarget format validation;
+          binaries = pkgs.lib.sort (a: b: a < b) archive.binaries;
+        };
+        byName = archives: pkgs.lib.sort (a: b: a.name < b.name) (map project archives);
+        toml = release.checks.binstall-metadata-alpha.toml;
+        manifest = bins: binstall:
+          builtins.toFile "Cargo.toml" (''
+              [package]
+              name = "alpha"
+              repository = "https://github.com/caniko/binstall-release-fixture"
+            ''
+            + bins
+            + binstall);
+        alphaBins = ''
+          [[bin]]
+          name = "alpha"
+
+          [[bin]]
+          name = "alpha-extra"
+
+          [[bin]]
+          name = "alpha-gated"
+          required-features = ["gated"]
+        '';
+        unionBundle = {
+          inherit (release) binstall;
+          binstallArchives = release.archives;
+        };
+        good = self.lib.mkBinstallCheck {
+          inherit pkgs;
+          bundle = unionBundle;
+          cargoToml = manifest alphaBins toml;
+        };
+        stale = self.lib.mkBinstallCheck {
+          inherit pkgs;
+          bundle = unionBundle;
+          cargoToml = manifest alphaBins (builtins.replaceStrings ["{ version }/"] ["v{ version }/"] toml);
+        };
+        hostArchives = builtins.filter (archive:
+          archive.system == "x86_64-linux" || archive.system == "x86_64-windows")
+        release.archives;
+      in
+        # One archive per declared target, named by Rust triple.
+        assert archiveNames
+        == [
+          "fixture-0.1.0-aarch64-apple-darwin.tar.gz"
+          "fixture-0.1.0-x86_64-unknown-linux-musl.tar.gz"
+          "fixture-0.1.0-x86_64-pc-windows-gnu.zip"
+        ];
+        # Every crate's non-gated binary lands in every archive, once.
+        assert muslArchive.binaries == ["bin/alpha" "bin/alpha-extra" "bin/beta"];
+        assert windowsArchive.binaries == ["bin/alpha.exe" "bin/alpha-extra.exe" "bin/beta.exe"];
+        # The union advertises every declared system, including the one this
+        # host never builds.
+        assert builtins.attrNames o == ["aarch64-apple-darwin" "x86_64-pc-windows-gnu" "x86_64-pc-windows-msvc" "x86_64-unknown-linux-gnu" "x86_64-unknown-linux-musl"];
+        assert o.aarch64-apple-darwin.pkg-url == "{ repo }/releases/download/{ version }/fixture-{ version }-aarch64-apple-darwin.tar.gz";
+        assert o.x86_64-pc-windows-msvc.pkg-fmt == "zip";
+        assert o.x86_64-unknown-linux-musl.bin-dir == "bin/{ bin }{ binary-ext }";
+        assert pkgs.lib.hasInfix "[package.metadata.binstall.overrides.aarch64-apple-darwin]" toml;
+        assert pkgs.lib.hasInfix ''pkg-url = "{ repo }/releases/download/{ version }/fixture-{ version }-x86_64-pc-windows-gnu.zip"'' toml;
+        # The rendered block is a real match; a retagged URL is not, and the
+        # committed fixture manifests stay stale.
+        assert good.matches;
+        assert !stale.matches;
+        assert !release.checks.binstall-metadata-alpha.matches;
+        assert !release.checks.binstall-metadata-beta.matches;
+        assert good.toml == toml;
+        # Synthetic descriptors equal the archives the host actually builds.
+        assert pkgs.lib.length hostArchives == 2;
+        assert byName hostArchives == byName release.releaseBundle.binstallArchives;
+        assert builtins.attrNames release.releaseBundle.binstall.overrides == ["x86_64-pc-windows-gnu" "x86_64-pc-windows-msvc" "x86_64-unknown-linux-gnu" "x86_64-unknown-linux-musl"];
+        assert builtins.attrNames release.packages == ["fixture-windows" "fixture-x86_64-linux-musl"];
+        assert builtins.isString release.releaseBundle.drvPath;
+        assert builtins.isString release.packages."fixture-x86_64-linux-musl".drvPath;
+        assert builtins.isString release.packages."fixture-windows".drvPath;
+        # A system with no declared targets builds nothing, but still renders
+        # the same union metadata and checks.
+        assert unlisted.releaseBundle == null;
+        assert unlisted.packages == {};
+        assert unlisted.binstall == release.binstall;
+        assert builtins.attrNames unlisted.checks == builtins.attrNames release.checks;
+          pkgs.runCommand "check-mkBinstallRelease-contract" {} "touch $out"
+      else pkgs.runCommand "check-mkBinstallRelease-contract-skipped" {} "touch $out";
+
     release-bundle-dual-system-contract = let
       x86Source = pkgs.writeScript "fixture-x86_64" "#!/bin/sh\necho x86_64\n";
       armSource = pkgs.writeScript "fixture-aarch64" "#!/bin/sh\necho aarch64\n";
