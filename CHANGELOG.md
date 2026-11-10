@@ -17,6 +17,9 @@
 
 ### Fixed
 
+- `mkBinstallRelease` refuses a crate whose binaries all need
+  `required-features`, instead of shipping empty archives that pass the
+  metadata check.
 - `mkBinstallRelease` builds cross targets without running their tests and
   puts MinGW's compiler and binutils on the Windows build's `PATH`, so
   consumers no longer pass either through `targetArgs`.

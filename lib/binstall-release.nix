@@ -36,6 +36,9 @@
   bins = lib.concatMap (crate: crateBins crate.cargoToml) crateList;
   duplicateBins = lib.filter (bin: lib.count (other: other == bin) bins > 1) (lib.unique bins);
   invalidCrates = map (crate: crate.name) (lib.filter (crate: !(crate ? cargoToml)) crateList);
+  # A crate whose every binary needs `required-features` would ship empty
+  # archives that still satisfy the metadata check.
+  binlessCrates = map (crate: crate.name) (lib.filter (crate: crate ? cargoToml && crateBins crate.cargoToml == []) crateList);
 
   # Nix system -> Rust triple, for the `native` target of any declared system.
   hostRustTarget = sys: let
@@ -215,6 +218,8 @@ in
   "harbor-rs: mkBinstallRelease needs at least one crate with binaries";
   assert lib.assertMsg (invalidCrates == [])
   "harbor-rs: mkBinstallRelease crate entries need a `cargoToml`: ${lib.concatStringsSep ", " invalidCrates}";
+  assert lib.assertMsg (binlessCrates == [])
+  "harbor-rs: mkBinstallRelease crate(s) ship no binary without `required-features`: ${lib.concatStringsSep ", " binlessCrates}";
   assert lib.assertMsg (duplicateBins == [])
   "harbor-rs: mkBinstallRelease crates ship the same binary name: ${lib.concatStringsSep ", " duplicateBins}";
   assert lib.assertMsg (unknownTargets == [])

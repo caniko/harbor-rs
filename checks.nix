@@ -519,6 +519,19 @@ in
           };
         release = mk system;
         unlisted = mk "aarch64-linux";
+        gatedOnly = self.lib.mkBinstallRelease {
+          inherit pkgs commonArgs system;
+          pname = "fixture";
+          version = "0.1.0";
+          crates.gated.cargoToml = builtins.toFile "Cargo.toml" ''
+            [package]
+            name = "gated"
+
+            [[bin]]
+            name = "gated"
+            required-features = ["cli"]
+          '';
+        };
         o = release.binstall.overrides;
         archiveNames = map (archive: archive.name) release.archives;
         windowsArchive = builtins.head (builtins.filter (archive: archive.format == "zip") release.archives);
@@ -599,6 +612,8 @@ in
         assert builtins.isString release.releaseBundle.drvPath;
         assert builtins.isString release.packages."fixture-x86_64-linux-musl".drvPath;
         assert builtins.isString release.packages."fixture-windows".drvPath;
+        # A crate with only feature-gated binaries is refused, not shipped empty.
+        assert !(builtins.tryEval gatedOnly.binstall).success;
         # Cross targets never run tests, and Windows links through MinGW's dlltool.
         assert !(release.packages."fixture-x86_64-linux-musl".doCheck or true);
         assert !(release.packages."fixture-windows".doCheck or true);
