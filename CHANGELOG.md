@@ -17,10 +17,12 @@
 
 ### Fixed
 
-- In CI, a dev shell now replaces another harbor-rs shell's generated Cargo
-  config in a shared `CARGO_HOME` instead of inheriting it, so a stable
-  MSRV shell entered after the nightly default shell no longer reads `-Z`
-  flags. A project's own config is still left alone.
+- In CI, a dev shell no longer writes its generated Cargo config into the
+  runner's shared `CARGO_HOME`. It uses a private Cargo home that links the
+  shared registry, git checkouts, `bin` and credentials. Later steps in other
+  shells, such as a stable MSRV shell after the nightly default shell or a
+  plain crane shell without mold, no longer read this shell's `-Z` flags or
+  linker. A project's own config is still left alone.
 
 - `mkBinstallRelease` refuses a crate whose binaries all need
   `required-features`, instead of shipping empty archives that pass the
