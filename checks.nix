@@ -2837,6 +2837,38 @@ in
         touch $out
       '';
 
+    # A transient push failure is retried; a persistent one fails after 3 attempts.
+    mkAtticPush-retries-push = let
+      adapter = self.lib.mkAdapter {
+        attic = {
+          endpoint = "https://x.com";
+          cache = "c";
+        };
+      };
+      # Stub client: counts calls in $ATTIC_CALLS, succeeds from call $ATTIC_SUCCEED_ON.
+      attic-client = pkgs.writeShellScriptBin "attic" ''
+        echo "$*" >> "$ATTIC_CALLS"
+        [ "$(wc -l < "$ATTIC_CALLS")" -ge "$ATTIC_SUCCEED_ON" ]
+      '';
+      app = self.lib.mkAtticPush {
+        pkgs = pkgs // {inherit attic-client;};
+        inherit adapter;
+        paths = [pkgs.hello];
+        closures = false;
+      };
+    in
+      pkgs.runCommand "check-mkAtticPush-retries-push" {} ''
+        export ATTIC_TOKEN=token HARBOR_ATTIC_PUSH_RETRY_SECONDS=0
+        ATTIC_CALLS=$PWD/flaky ATTIC_SUCCEED_ON=2 ${app.program}
+        test "$(wc -l < flaky)" = 2
+        if ATTIC_CALLS=$PWD/down ATTIC_SUCCEED_ON=9 ${app.program}; then
+          echo "publisher accepted a persistently failing push" >&2
+          exit 1
+        fi
+        test "$(wc -l < down)" = 3
+        touch $out
+      '';
+
     # mkCoprSpec returns expected attributes with default binary-shipping layout
     mkCoprSpec-shape = let
       s = self.lib.mkCoprSpec {

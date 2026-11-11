@@ -101,8 +101,19 @@ in
             sort -u -o "$manifest" "$manifest"
             test -s "$manifest"
             echo "Pushing to ${serverName}:${cache}..."
-            attic push --stdin --no-closure --ignore-upstream-cache-filter \
-              "${serverName}:${cache}" < "$manifest"
+            # Attic answers transient 5xx under load; a push is idempotent, so
+            # retry it a bounded number of times instead of failing the build.
+            attempt=1
+            until attic push --stdin --no-closure --ignore-upstream-cache-filter \
+              "${serverName}:${cache}" < "$manifest"; do
+              if [ "$attempt" -ge 3 ]; then
+                echo "ERROR: attic push failed $attempt times." >&2
+                exit 1
+              fi
+              echo "attic push failed (attempt $attempt/3); retrying..." >&2
+              sleep "$((attempt * ''${HARBOR_ATTIC_PUSH_RETRY_SECONDS:-30}))"
+              attempt=$((attempt + 1))
+            done
 
             echo "Done. Pushed to ${serverName}:${cache}."
           '';

@@ -17,6 +17,11 @@
 
 ### Fixed
 
+- `mkAtticPush` retries a failed `attic push` up to three times (30 s, then
+  60 s apart; `HARBOR_ATTIC_PUSH_RETRY_SECONDS` scales the delay), so a
+  transient Attic 5xx no longer fails a publish whose build already
+  finished. A persistent failure still fails after the third attempt.
+
 - In CI, a dev shell no longer writes its generated Cargo config into the
   runner's shared `CARGO_HOME`. It uses a private Cargo home that links the
   shared registry, git checkouts, `bin` and credentials. Later steps in other
