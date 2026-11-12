@@ -4005,6 +4005,8 @@ in
       assert pkgs.lib.hasInfix "sccache-user-daemon-launcher" service.ExecStart;
       assert cfg.home.sessionVariables.CARGO_INCREMENTAL == "0";
       assert cfg.systemd.user.sessionVariables.CARGO_INCREMENTAL == "0";
+      assert !(cfg.home.sessionVariables ? SCCACHE_SERVER_UDS);
+      assert !(cfg.programs.nushell.environmentVariables ? SCCACHE_SERVER_UDS);
         pkgs.runCommand "check-sccache-home-runtime-basedirs" {} "touch $out";
 
     sccache-module-env-vars = let
