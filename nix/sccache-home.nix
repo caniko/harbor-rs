@@ -139,8 +139,6 @@
     else wrapper;
 
   effectiveWrapperBinary = "${effectiveWrapper}/bin/${cfg.wrapperBinaryName}";
-
-  uid = osConfig.users.users.${config.home.username}.uid;
 in {
   options.programs.harborRs.sccache.userDaemon = {
     enable = mkOption {
@@ -334,15 +332,17 @@ in {
       effectiveWrapper
     ];
 
+    # The wrapper sets SCCACHE_SERVER_UDS for its own client only. Exporting
+    # the socket globally would route any other sccache (a dev shell's
+    # pkgs.sccache) to this daemon, and a client of another version fails
+    # every compile on the wire format.
     home.sessionVariables = {
       RUSTC_WRAPPER = effectiveWrapperBinary;
-      SCCACHE_SERVER_UDS = "/run/user/${toString uid}/${sccacheDefault.userSocketRel}";
       CARGO_INCREMENTAL = "0";
     };
 
     programs.nushell.environmentVariables = {
       RUSTC_WRAPPER = effectiveWrapperBinary;
-      SCCACHE_SERVER_UDS = "/run/user/${toString uid}/${sccacheDefault.userSocketRel}";
       CARGO_INCREMENTAL = "0";
     };
 
