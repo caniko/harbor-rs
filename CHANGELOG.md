@@ -4,6 +4,11 @@
 
 ### Added
 
+- `mkAtticPush` also pushes every non-derivation path the local store built
+  itself (crane deps, toolchains, build tools) when `HARBOR_ATTIC_BUILT_PATHS=1`,
+  so ephemeral CI runners stop rebuilding unchanged dependency derivations.
+  Paths signed by any substituter are never republished. Set it only on
+  ephemeral runners; simit's GitHub prebuild does.
 - Release bundles expose `binstall`, cargo-binstall metadata generated from
   their binary archives, and `lib.mkBinstallCheck` keeps a crate's
   `[package.metadata.binstall]` equal to it and verifies that every archive

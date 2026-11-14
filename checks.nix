@@ -2869,6 +2869,43 @@ in
         touch $out
       '';
 
+    # HARBOR_ATTIC_BUILT_PATHS=1 adds locally built paths only: no .drv
+    # files and nothing signed by a substituter. Unset, the manifest is unchanged.
+    mkAtticPush-built-paths = let
+      adapter = self.lib.mkAdapter {
+        attic = {
+          endpoint = "https://x.com";
+          cache = "c";
+        };
+      };
+      nix = pkgs.writeShellScriptBin "nix" ''
+        printf '%s\n' \
+          '/nix/store/a-server	ultimate' \
+          '/nix/store/b-server-deps	ultimate' \
+          '/nix/store/c-server.drv	ultimate' \
+          '/nix/store/d-glibc	cache.nixos.org-1:sig' \
+          '/nix/store/e-private	private-1:sig' \
+          '/nix/store/f-source	ultimate ca:fixed:r:sha256:abc'
+      '';
+      attic-client = pkgs.writeShellScriptBin "attic" ''cat > "$PUSHED"'';
+      app = self.lib.mkAtticPush {
+        pkgs = pkgs // {inherit attic-client nix;};
+        inherit adapter;
+        paths = [pkgs.hello];
+        closures = false;
+      };
+    in
+      pkgs.runCommand "check-mkAtticPush-built-paths" {} ''
+        export ATTIC_TOKEN=token
+        PUSHED=$PWD/default ${app.program}
+        test "$(cat default)" = ${pkgs.hello}
+        PUSHED=$PWD/built HARBOR_ATTIC_BUILT_PATHS=1 ${app.program}
+        printf '%s\n' /nix/store/a-server /nix/store/b-server-deps /nix/store/f-source ${pkgs.hello} \
+          | sort > expected
+        diff expected built
+        touch $out
+      '';
+
     # mkCoprSpec returns expected attributes with default binary-shipping layout
     mkCoprSpec-shape = let
       s = self.lib.mkCoprSpec {
