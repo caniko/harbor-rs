@@ -162,15 +162,9 @@ fn serve(interval: u64) -> Result<()> {
     fs::create_dir_all(&state)?;
     fs::set_permissions(&state, fs::Permissions::from_mode(0o700))?;
     let uid = fs::metadata("/proc/self")?.uid();
-    let ticks: f64 = String::from_utf8(
-        std::process::Command::new("getconf")
-            .arg("CLK_TCK")
-            .output()?
-            .stdout,
-    )?
-    .trim()
-    .parse()?;
-    anyhow::ensure!(ticks > 0.0, "invalid CLK_TCK");
+    // /proc reports times in USER_HZ, which Linux fixes at 100 on every
+    // architecture. Spawning `getconf` would fail under a systemd unit's PATH.
+    let ticks = 100.0;
     let snapshot = Arc::new(Mutex::new(json!({"error": "first observation pending"})));
     let shared = Arc::clone(&snapshot);
     std::thread::spawn(move || {
@@ -195,14 +189,22 @@ fn serve(interval: u64) -> Result<()> {
             .append(true)
             .mode(0o600)
             .open(state.join(format!("observe-{date}.jsonl")))?;
-        writeln!(file, "{}", value)?;
+        // The socket serves every process. The log keeps cargo entries and the
+        // aggregates, which is what the gates need: a full snapshot is ~15 KB a tick.
+        let mut logged = value;
+        if let Some(processes) = logged.get_mut("processes").and_then(Value::as_array_mut) {
+            processes.retain(|p| p["class"] == "cargo");
+        }
+        writeln!(file, "{logged}")?;
         cleanup(&state);
         std::thread::sleep(Duration::from_secs(interval));
     }
 }
 
 fn cleanup(dir: &Path) {
-    let cutoff = SystemTime::now().checked_sub(Duration::from_secs(14 * 86400));
+    // ponytail: ~95 MB/day at 10 s; 8 days covers the observe week. Sample or
+    // compress if observation outlives it.
+    let cutoff = SystemTime::now().checked_sub(Duration::from_secs(8 * 86400));
     if let (Ok(entries), Some(cutoff)) = (fs::read_dir(dir), cutoff) {
         for entry in entries.flatten() {
             let name = entry.file_name();

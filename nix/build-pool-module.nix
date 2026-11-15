@@ -16,7 +16,7 @@ in {
     };
     interval = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 5;
+      default = 10;
       description = "Seconds between observations.";
     };
   };
