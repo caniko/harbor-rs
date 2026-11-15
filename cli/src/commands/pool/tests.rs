@@ -49,11 +49,11 @@ fn pool_identical_groups() {
         (3, b"cargo\0test\0".to_vec()),
     ]);
     assert_eq!(groups, vec![vec![1, 2]]);
-    assert!(
+    assert_eq!(
         identical_groups(&[
             (1, b"cargo\0check\0".to_vec()),
             (2, b"cargo check\0".to_vec())
-        ])
-        .is_empty()
+        ]),
+        Vec::<Vec<u32>>::new()
     );
 }

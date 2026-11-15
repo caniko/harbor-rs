@@ -1,3 +1,11 @@
+// Counts converted to f64 (clock ticks, microseconds) stay far below 2^52;
+// the rmcp tool_router macro generates an async handler without an await.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::too_many_lines,
+    clippy::unused_async_trait_impl
+)]
+
 #[cfg(test)]
 mod tests;
 
@@ -8,9 +16,9 @@ use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, Read, Write},
     os::unix::{
-        fs::{MetadataExt, PermissionsExt},
+        fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt},
         net::{UnixListener, UnixStream},
     },
     path::{Path, PathBuf},
@@ -49,7 +57,7 @@ pub fn run(command: PoolCommand) -> Result<()> {
             build_dir,
             json,
         } => {
-            let status = request(cwd, build_dir)?;
+            let status = request(cwd.as_deref(), build_dir.as_deref())?;
             if json {
                 println!("{}", serde_json::to_string(&status)?);
             } else {
@@ -69,7 +77,7 @@ pub fn run(command: PoolCommand) -> Result<()> {
     }
 }
 
-fn request(cwd: Option<String>, build_dir: Option<String>) -> Result<Value> {
+fn request(cwd: Option<&str>, build_dir: Option<&str>) -> Result<Value> {
     let mut stream = UnixStream::connect(socket_path()?)
         .context("build pool daemon unavailable; start `harbor-rs pool serve --observe`")?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
@@ -101,7 +109,8 @@ impl PoolMcp {
         rmcp::handler::server::wrapper::Parameters(args): rmcp::handler::server::wrapper::Parameters<StatusArgs>,
     ) -> std::result::Result<String, String> {
         tokio::task::spawn_blocking(move || {
-            request(args.cwd, args.build_dir).and_then(|v| Ok(serde_json::to_string(&v)?))
+            request(args.cwd.as_deref(), args.build_dir.as_deref())
+                .and_then(|v| Ok(serde_json::to_string(&v)?))
         })
         .await
         .map_err(|e| e.to_string())?
@@ -148,7 +157,6 @@ fn serve(interval: u64) -> Result<()> {
             anyhow::bail!("pool daemon already running");
         }
         let metadata = fs::symlink_metadata(&socket)?;
-        use std::os::unix::fs::FileTypeExt;
         anyhow::ensure!(
             metadata.file_type().is_socket(),
             "refusing to remove non-socket {}",
@@ -183,7 +191,6 @@ fn serve(interval: u64) -> Result<()> {
             .lock()
             .map_err(|_| anyhow::anyhow!("snapshot lock poisoned"))? = value.clone();
         let date = chrono::Utc::now().format("%Y-%m-%d");
-        use std::os::unix::fs::OpenOptionsExt;
         let mut file = fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -226,7 +233,6 @@ fn handle_connection(mut stream: UnixStream, shared: &Mutex<Value>) -> Result<()
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     stream.set_write_timeout(Some(Duration::from_secs(2)))?;
     let mut input = String::new();
-    use std::io::Read;
     BufReader::new(stream.try_clone()?)
         .take(8192)
         .read_line(&mut input)?;
@@ -335,12 +341,11 @@ fn pressure(path: &str) -> Value {
         if let Some(kind) = parts.next() {
             let mut values = serde_json::Map::new();
             for item in parts {
-                if let Some((key, value)) = item.split_once('=') {
-                    if matches!(key, "avg10" | "avg60") {
-                        if let Ok(value) = value.parse::<f64>() {
-                            values.insert(key.into(), json!(value));
-                        }
-                    }
+                if let Some((key, value)) = item.split_once('=')
+                    && matches!(key, "avg10" | "avg60")
+                    && let Ok(value) = value.parse::<f64>()
+                {
+                    values.insert(key.into(), json!(value));
                 }
             }
             out.insert(kind.into(), Value::Object(values));
@@ -376,17 +381,17 @@ fn scan(
         if !interesting(comm) || !fs::metadata(&path).is_ok_and(|m| m.uid() == uid) {
             continue;
         }
-        let Ok(stat) = fs::read_to_string(path.join("stat")) else {
+        let Ok(stat_line) = fs::read_to_string(path.join("stat")) else {
             continue;
         };
-        let Some((_, tail)) = stat.rsplit_once(") ") else {
+        let Some((_, tail)) = stat_line.rsplit_once(") ") else {
             continue;
         };
         let fields: Vec<_> = tail.split_whitespace().collect();
         if fields.len() < 22 {
             continue;
         }
-        let (Ok(ppid), Ok(user), Ok(system), Ok(start), Ok(rss_pages)) = (
+        let (Ok(parent_pid), Ok(user), Ok(system), Ok(start), Ok(rss_pages)) = (
             fields[1].parse::<u32>(),
             fields[11].parse::<u64>(),
             fields[12].parse::<u64>(),
@@ -395,7 +400,7 @@ fn scan(
         ) else {
             continue;
         };
-        let parent = fs::read_to_string(format!("/proc/{ppid}/comm")).unwrap_or_default();
+        let parent = fs::read_to_string(format!("/proc/{parent_pid}/comm")).unwrap_or_default();
         let exe = fs::read_link(path.join("exe")).ok();
         let Some(class) = classify(comm, exe.as_ref().and_then(|p| p.to_str()), parent.trim())
         else {
@@ -418,7 +423,7 @@ fn scan(
         aggregate.0 += cpu;
         aggregate.1 += rss;
         let mut item =
-            json!({"pid": pid, "ppid": ppid, "class": class, "cpu_seconds": cpu, "rss": rss});
+            json!({"pid": pid, "ppid": parent_pid, "class": class, "cpu_seconds": cpu, "rss": rss});
         if class == "cargo" {
             let cwd = fs::read_link(path.join("cwd"))
                 .ok()
@@ -446,19 +451,18 @@ fn scan(
         processes.push(item);
     }
     *previous = samples;
-    let children: HashMap<u32, usize> = processes
+    let children: HashMap<u64, usize> = processes
         .iter()
         .filter(|p| p["class"] == "rustc" || p["class"] == "sccache")
         .fold(HashMap::new(), |mut map, p| {
-            *map.entry(p["ppid"].as_u64().unwrap_or(0) as u32)
-                .or_default() += 1;
+            *map.entry(p["ppid"].as_u64().unwrap_or(0)).or_default() += 1;
             map
         });
     for p in &mut processes {
         if p["class"] == "cargo" {
             p["children"] = json!(
                 children
-                    .get(&(p["pid"].as_u64().unwrap_or(0) as u32))
+                    .get(&p["pid"].as_u64().unwrap_or(0))
                     .copied()
                     .unwrap_or(0)
             );
