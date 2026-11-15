@@ -12,6 +12,7 @@
 - [mkToolchain](./api/toolchain.md)
 - [mkCargoConfig](./api/cargo-config.md)
 - [compile-bench](./api/compile-bench.md)
+- [Host build observations](./api/build-pool.md)
 - [mkCross](./api/cross.md)
 - [mkCrossPackages](./api/cross-packages.md)
 - [Binary release archives](./api/binary-releases.md)
@@ -40,5 +41,6 @@
 
 # Reference
 
+- [Build pool design](./reference/build-pool.md)
 - [Bevy Template](./reference/bevy-template.md)
 - [macOS SDK Initialization](./reference/macos-sdk.md)
