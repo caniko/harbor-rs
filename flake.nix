@@ -98,6 +98,7 @@
           macosSdk = import ./nix/nixos-module.nix;
           sccache = import ./nix/sccache-module.nix;
           buildCache = import ./nix/build-cache-module.nix;
+          buildPool = import ./nix/build-pool-module.nix {defaultPackage = system: self.packages.${system}.harbor-rs;};
           mavenCache = import ./nix/maven-cache-module.nix;
           cargoHousekeeping = import ./nix/cargo-housekeeping-module.nix;
         };
