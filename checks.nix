@@ -737,6 +737,22 @@ in
     assert !rootHasPathInput;
       pkgs.runCommand "check-harbor-rs-root-inputs-no-consumer-site" {} "touch $out";
 
+    # Consumers `follows` these root inputs. Removing one is a breaking
+    # flake-interface change: record it in CHANGELOG.md with a deprecation
+    # note and the migration before dropping it here.
+    harbor-rs-root-inputs-published = assert pkgs.lib.subtractLists rootInputNames [
+      "crane"
+      "flake-parts"
+      "harbor-android"
+      "harbor-meta"
+      "nix-bundle"
+      "nixpkgs"
+      "osxcross"
+      "rust-overlay"
+    ]
+    == [];
+      pkgs.runCommand "check-harbor-rs-root-inputs-published" {} "touch $out";
+
     # mkToolchain returns expected attributes
     mkToolchain-shape = let
       t = self.lib.mkToolchain {inherit pkgs;};
