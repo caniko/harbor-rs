@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Breaking
+
+- `mkToolchain` resolves toolchains through harbor-rs's own `rust-overlay`
+  input on `pkgs.buildPackages`, not through the `rust-bin` of the consumer's
+  `pkgs`. `pkgs` no longer needs rust-overlay, and a consumer's older overlay
+  can no longer make the pinned `toolchainProfile` channels unavailable
+  ("Nightly 2026-10-11 is not available"). `date = "latest"` and a custom
+  `toolchainFile` now resolve against harbor-rs's pin too: a channel newer
+  than that pin needs a harbor-rs bump,
+  `inputs.harbor-rs.inputs.rust-overlay.follows`, or the new explicit
+  `rustBin` argument (`rustBin = pkgs.buildPackages.rust-bin`). Importing
+  `lib/` directly without `rustOverlay` keeps the previous behavior.
+
 ### Added
 
 - `mkAtticPush` also pushes every non-derivation path the local store built

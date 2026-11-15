@@ -13,7 +13,6 @@
   metaDevShell ? null,
   opencodeProfiles ? null,
   mkToolchain ? null,
-  rustOverlay ? null,
 }: rec {
   # Install a generated Cargo config as CARGO_HOME. An inherited CARGO_HOME is
   # kept unless it is another harbor-rs generated config, whose channel or
@@ -85,29 +84,19 @@
     extraShellHook ? "",
     opencodeLsp ? {enable = true;},
   }: let
-    pkgs' =
-      if pkgs.buildPackages ? rust-bin
-      then pkgs
-      else if rustOverlay == null
-      then throw "harbor-rs: mkToolchainShell requires the rust-overlay flake input"
-      else pkgs.extend rustOverlay.overlays.default;
-    toolchain = mkToolchain {
-      pkgs = pkgs';
-      inherit toolchainProfile targets;
-    };
+    toolchain = mkToolchain {inherit pkgs toolchainProfile targets;};
     opencodeLspPackages = pkgs.lib.optionals (opencodeLsp.enable or true) (
       if opencodeProfiles == null
       then throw "harbor-rs: mkToolchainShell opencode LSP packages require the harbor-meta flake input"
-      else opencodeProfiles.rust.packages pkgs'
+      else opencodeProfiles.rust.packages pkgs
     );
     shell = metaDevShell.mkShell {
-      pkgs = pkgs';
-      inherit timeZone;
+      inherit pkgs timeZone;
       packages = [toolchain.rustToolchain] ++ opencodeLspPackages ++ packages;
       env = extraEnv;
       extraShellHook = ''
         ${mkCargoHomeHook {
-          pkgs = pkgs';
+          inherit pkgs;
           inherit (toolchain) cargoConfig;
         }}
         ${extraShellHook}

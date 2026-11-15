@@ -1,5 +1,5 @@
 # mkCrossPackages :: {
-#   pkgs,            # native build-system pkgs with rust-overlay applied
+#   pkgs,            # native build-system pkgs
 #   craneLib,        # native craneLib from harbor-rs.lib.mkToolchain
 #   cross,           # result of harbor-rs.lib.mkCross
 #   pname,           # base package name, e.g. "modde"
