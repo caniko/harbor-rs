@@ -155,6 +155,11 @@
           version = rsHarborVersion;
         };
 
+        compileBench = import ./nix/compile-bench.nix {
+          inherit pkgs;
+          inherit (self.lib) mkCargoConfig;
+        };
+
         harborCi = import ./nix/harbor-ci.nix {
           inherit pkgs;
           inherit (toolchain) craneLib;
@@ -253,6 +258,7 @@
             rs-harbor = rsHarborCli;
             harbor-ci = harborCi;
             harbor-opencode = harborOpencode;
+            compile-bench = compileBench.package;
           }
           // (
             if rsHarborBinaryRelease != null
@@ -288,6 +294,10 @@
           harbor-opencode = {
             type = "app";
             program = "${harborOpencode}/bin/harbor-opencode";
+          };
+          compile-bench = {
+            type = "app";
+            program = "${compileBench.package}/bin/harbor-compile-bench";
           };
         };
       };

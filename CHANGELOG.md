@@ -28,6 +28,19 @@
 
 ### Added
 
+- `compile-bench` (`packages.compile-bench`, `apps.compile-bench`) measures a
+  consumer's build against eleven generated Cargo configs: `none`, `current`,
+  `threads8`, `nothreads`, `lld`, `wild`, `hint`, `buildopt`, `cranelift`,
+  `incremental` and `aslived`, each in a memory-capped systemd user unit and
+  reported by hyperfine. Use it before proposing a default:
+  `nix develop -c nix run github:caniko/harbor-rs#compile-bench -- --edit-file crates/x/src/lib.rs`.
+- `mkCargoConfig` gained `parallelFrontendThreads`, `enableHintMostlyUnused`
+  and `devBuildOverrideOptLevel`, and `enableMold` now accepts `null` to keep
+  the linker rustc already defaults to. Every new argument's default leaves the
+  generated file byte-identical. `mkCargoConfig` also emits at most one
+  `[unstable]` and one `[profile.dev]` table now: `devCodegenUnits` together
+  with the default dev-profile options used to write two `[profile.dev]`
+  tables, which is not valid TOML.
 - `mkAtticPush` also pushes every non-derivation path the local store built
   itself (crane deps, toolchains, build tools) when `HARBOR_ATTIC_BUILT_PATHS=1`,
   so ephemeral CI runners stop rebuilding unchanged dependency derivations.

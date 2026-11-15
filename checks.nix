@@ -2787,6 +2787,195 @@ in
       assert !(pkgs.lib.hasInfix "threads" c.configText);
         pkgs.runCommand "check-mkCargoConfig-no-parallel-frontend" {} "touch $out";
 
+    # -Zthreads carries the requested count; 0 means one thread per core.
+    mkCargoConfig-parallel-frontend-threads = let
+      threads = n:
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          parallelFrontendThreads = n;
+        }).configText;
+      disabled =
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          enableParallelFrontend = false;
+          parallelFrontendThreads = 8;
+        }).configText;
+    in
+      assert pkgs.lib.hasInfix "-Zthreads=8" (threads 8);
+      assert pkgs.lib.hasInfix "-Zthreads=0" (threads 0);
+      assert !(pkgs.lib.hasInfix "threads" disabled);
+        pkgs.runCommand "check-mkCargoConfig-parallel-frontend-threads" {} "touch $out";
+
+    # enableMold = null trusts rust-lld on x86_64-unknown-linux-gnu and keeps
+    # mold on the Linux triples rustc does not default to lld.
+    mkCargoConfig-mold-auto = let
+      targets =
+        (builtins.fromTOML
+          (self.lib.mkCargoConfig {
+            inherit pkgs;
+            enableMold = null;
+          }).configText)
+        .target;
+      auto = targets.x86_64-unknown-linux-gnu;
+      other = targets.aarch64-unknown-linux-gnu;
+    in
+      assert !(auto ? linker);
+      assert !(builtins.elem "link-arg=-fuse-ld=mold" auto.rustflags);
+      assert builtins.elem "-Zshare-generics=y" auto.rustflags;
+      assert other.linker == "clang";
+      assert builtins.elem "link-arg=-fuse-ld=mold" other.rustflags;
+        pkgs.runCommand "check-mkCargoConfig-mold-auto" {} "touch $out";
+
+    # Upstream `[hints] mostly-unused` is honoured on nightly only, and shares
+    # a single [unstable] table with cranelift.
+    mkCargoConfig-hint-mostly-unused = let
+      hint =
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          enableHintMostlyUnused = true;
+        }).configText;
+      both =
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          enableHintMostlyUnused = true;
+          enableCranelift = true;
+        }).configText;
+      unstableTables = text:
+        builtins.length (builtins.filter (line: line == "[unstable]") (pkgs.lib.splitString "\n" text));
+      parsedHint = builtins.fromTOML hint;
+      parsedBoth = builtins.fromTOML both;
+    in
+      assert parsedHint.unstable."profile-hint-mostly-unused";
+      assert unstableTables both == 1;
+      assert parsedBoth.unstable."codegen-backend";
+      assert parsedBoth.unstable."profile-hint-mostly-unused";
+      assert !(pkgs.lib.hasInfix "profile-hint-mostly-unused"
+        (self.lib.mkCargoConfig {inherit pkgs;}).configText);
+        pkgs.runCommand "check-mkCargoConfig-hint-mostly-unused" {} "touch $out";
+
+    # The mostly-unused hint is a nightly Cargo flag.
+    mkCargoConfig-stable-rejects-hint-mostly-unused = let
+      result =
+        builtins.tryEval
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          channel = "stable";
+          enableHintMostlyUnused = true;
+        }).configText;
+    in
+      assert !result.success;
+        pkgs.runCommand "check-mkCargoConfig-stable-rejects-hint-mostly-unused" {} "touch $out";
+
+    # A build-override opt-level is opt-in on both channels and adds its own
+    # table instead of a second [profile.dev].
+    mkCargoConfig-build-override-opt = let
+      config = channel: args:
+        builtins.fromTOML
+        (self.lib.mkCargoConfig ({inherit pkgs channel;} // args)).configText;
+      on = config "nightly" {devBuildOverrideOptLevel = 3;};
+      off = config "stable" {devBuildOverrideOptLevel = 0;};
+      unset = config "nightly" {};
+    in
+      assert on.profile.dev."build-override"."opt-level" == 3;
+      assert off.profile.dev."build-override"."opt-level" == 0;
+      assert !(unset.profile.dev ? build-override);
+        pkgs.runCommand "check-mkCargoConfig-build-override-opt" {} "touch $out";
+
+    # Every bench variant and the knob combinations that share a table must be
+    # valid TOML. fromTOML rejects a repeated [unstable] or [profile.dev], so
+    # a duplicated table fails this check instead of reaching a bench run.
+    mkCargoConfig-variants-parse = let
+      bench = import ./nix/compile-bench.nix {
+        inherit pkgs;
+        inherit (self.lib) mkCargoConfig;
+      };
+      render = channel: args:
+        (self.lib.mkCargoConfig ({inherit pkgs channel;} // args)).configText;
+      nightlyCombos = map (args: render "nightly" args) [
+        {}
+        {enableCranelift = true;}
+        {enableHintMostlyUnused = true;}
+        {devCodegenUnits = 8;}
+        {enableDevProfileOpts = false;}
+        {devBuildOverrideOptLevel = 3;}
+        {
+          enableCranelift = true;
+          enableHintMostlyUnused = true;
+        }
+        {
+          enableCranelift = true;
+          devCodegenUnits = 8;
+        }
+        {
+          enableHintMostlyUnused = true;
+          devCodegenUnits = 8;
+        }
+        {
+          enableCranelift = true;
+          enableHintMostlyUnused = true;
+          devCodegenUnits = 8;
+        }
+        {
+          enableCranelift = true;
+          enableHintMostlyUnused = true;
+          enableDevProfileOpts = false;
+          devCodegenUnits = 8;
+        }
+        {
+          enableHintMostlyUnused = true;
+          devBuildOverrideOptLevel = 1;
+        }
+      ];
+      stableCombos = map (args: render "stable" args) [
+        {}
+        {devCodegenUnits = 16;}
+        {enableMold = null;}
+        {devBuildOverrideOptLevel = 0;}
+      ];
+      benchConfigs =
+        builtins.concatLists
+        (pkgs.lib.mapAttrsToList (_: byVariant: builtins.attrValues byVariant) bench.variants);
+      parses = text: pkgs.lib.isAttrs (builtins.fromTOML text);
+    in
+      assert pkgs.lib.all parses (nightlyCombos ++ stableCombos ++ benchConfigs);
+      assert builtins.attrNames bench.variants.stable
+      == [
+        "aslived"
+        "buildopt"
+        "current"
+        "incremental"
+        "lld"
+        "none"
+        "wild"
+      ];
+      assert builtins.length (builtins.attrNames bench.variants.nightly) == 11;
+        pkgs.runCommand "check-mkCargoConfig-variants-parse" {} "touch $out";
+
+    # The shipped bench lists the variants it would run, per channel.
+    compile-bench-smoke = let
+      bench = import ./nix/compile-bench.nix {
+        inherit pkgs;
+        inherit (self.lib) mkCargoConfig;
+      };
+    in
+      pkgs.runCommand "check-compile-bench-smoke" {} ''
+        ${bench.package}/bin/harbor-compile-bench --list-variants > variants.txt
+        for variant in none current lld wild buildopt incremental aslived; do
+          grep -q "^nightly *$variant\$" variants.txt
+          grep -q "^stable *$variant\$" variants.txt
+        done
+        for variant in threads8 nothreads hint cranelift; do
+          grep -q "^nightly *$variant\$" variants.txt
+          if grep -q "^stable *$variant\$" variants.txt; then
+            echo "stable must not offer the nightly-only variant $variant" >&2
+            exit 1
+          fi
+        done
+        test "$(grep -c '^nightly ' variants.txt)" -eq 11
+        test "$(grep -c '^stable ' variants.txt)" -eq 7
+        touch "$out"
+      '';
+
     # mkAdapter returns expected attributes
     mkAdapter-shape = let
       a = self.lib.mkAdapter {
