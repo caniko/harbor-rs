@@ -22,9 +22,40 @@
 - `enableCranelift` (default: `false`)
 - `enableShareGenerics`
 - `enableParallelFrontend`
+- `parallelFrontendThreads` (default: `0`)
+- `enableHintMostlyUnused` (default: `false`, nightly only)
 - `enableDevProfileOpts`
 - `devCodegenUnits`
+- `devBuildOverrideOptLevel` (default: `null`)
 - `extraConfig`: raw TOML appended to the generated file
+
+### `enableMold` (default: `true`)
+
+`true` links every Linux triple with mold. `false` leaves the linker alone.
+`null` keeps mold only where rustc has no lld default: `rustc` already links
+`x86_64-unknown-linux-gnu` with rust-lld, so that triple gets no `linker` and
+no `-fuse-ld=mold`, while `aarch64-unknown-linux-gnu` still gets both.
+
+### `parallelFrontendThreads` (default: `0`)
+
+Threads per rustc for the parallel frontend, emitted as `-Zthreads=N` inside
+the target sections and only when `enableParallelFrontend` is on. `0` means one
+thread per core. The `compile-bench` variants `threads8` and `nothreads` are the
+measurement for changing this default.
+
+### `enableHintMostlyUnused` (default: `false`, nightly only)
+
+Emits `[unstable] profile-hint-mostly-unused = true`, which makes Cargo honour
+an upstream crate's `[hints] mostly-unused = true` declaration instead of
+compiling that crate's unused API for every build. Cranelift's `[unstable]`
+keys share the same table.
+
+### `devBuildOverrideOptLevel` (default: `null`)
+
+Optional `0`-`3`. Emits its own `[profile.dev.build-override]` table with
+`opt-level = N`, which is where build scripts and proc macros live. Opt-in on
+both channels because it trades compile time for build-script speed; the
+`compile-bench` variant `buildopt` measures it.
 
 ### `enableCranelift` (default: `false`)
 

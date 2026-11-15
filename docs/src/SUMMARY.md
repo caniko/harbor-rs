@@ -11,6 +11,7 @@
 
 - [mkToolchain](./api/toolchain.md)
 - [mkCargoConfig](./api/cargo-config.md)
+- [compile-bench](./api/compile-bench.md)
 - [mkCross](./api/cross.md)
 - [mkCrossPackages](./api/cross-packages.md)
 - [Binary release archives](./api/binary-releases.md)
