@@ -16,6 +16,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum TopCommand {
+    /// Observe shared host build activity (Linux).
+    #[cfg(target_os = "linux")]
+    Pool {
+        #[command(subcommand)]
+        command: commands::pool::PoolCommand,
+    },
     /// Isolated development previews and design variants (Linux).
     #[cfg(target_os = "linux")]
     Sandbox {
@@ -64,6 +70,8 @@ enum StageCommand {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        #[cfg(target_os = "linux")]
+        TopCommand::Pool { command } => commands::pool::run(command),
         #[cfg(target_os = "linux")]
         TopCommand::Sandbox { command } => commands::sandbox::run(command),
         TopCommand::Audit { command } => commands::audit::run(command),
