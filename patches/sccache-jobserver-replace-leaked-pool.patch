@@ -1,0 +1,306 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index 94293fe..cbb2021 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -108,6 +108,7 @@ tokio = { version = "1", features = [
+   "net",
+   "process",
+   "macros",
++  "sync",
+ ] }
+ tokio-serde = "0.9"
+ tokio-util = { version = "0.7.18", features = ["codec", "io", "rt"] }
+diff --git a/src/jobserver.rs b/src/jobserver.rs
+index 65ac384..7e46b44 100644
+--- a/src/jobserver.rs
++++ b/src/jobserver.rs
+@@ -1,10 +1,11 @@
+ use std::io;
+-use std::process::Command;
++use std::process::{Command, ExitStatus};
+ use std::sync::Arc;
+ 
+ use futures::StreamExt;
+ use futures::channel::mpsc;
+ use futures::channel::oneshot;
++use tokio::sync::watch;
+ 
+ use crate::errors::*;
+ 
+@@ -33,15 +34,55 @@ use crate::errors::*;
+ // every inherited descriptor when the server detaches; see
+ // `util::close_inherited_fds`.
+ 
++// A child we hand the jobserver to (rustc) borrows tokens straight from the
++// pipe and returns them when it exits. If it dies by a signal -- including the
++// SIGKILL `kill_on_drop` sends when a client disconnects -- the tokens it held
++// are gone, and the pool cannot tell how many. A long-lived server shared by
++// many builds then loses capacity until no compile can start (#2874). So when
++// such a child does not exit on its own, new work moves to a fresh, full pool;
++// children still running on the old pool return their tokens to it, and it is
++// dropped once the last of them is done.
+ #[derive(Clone)]
+ pub struct Client {
+-    helper: Option<Arc<jobserver::HelperThread>>,
+-    tx: Option<mpsc::UnboundedSender<oneshot::Sender<io::Result<jobserver::Acquired>>>>,
++    current: Arc<watch::Sender<Arc<Pool>>>,
++    limit: usize,
++}
++
++struct Pool {
++    // Dropped before `helper`, so a helper callback waiting for a sender ends.
++    tx: mpsc::UnboundedSender<oneshot::Sender<io::Result<jobserver::Acquired>>>,
++    helper: jobserver::HelperThread,
+     inner: jobserver::Client,
+ }
+ 
+ pub struct Acquired {
+-    _token: Option<jobserver::Acquired>,
++    // Returned to `pool` before the pool itself can be dropped.
++    _token: jobserver::Acquired,
++    pool: Arc<Pool>,
++    client: Client,
++    shared: bool,
++    exited: bool,
++}
++
++impl Pool {
++    fn new(num: usize) -> Result<Pool> {
++        let inner = jobserver::Client::new(num).context("failed to create jobserver")?;
++        let (tx, mut rx) = mpsc::unbounded::<oneshot::Sender<_>>();
++        let helper = inner
++            .clone()
++            .into_helper_thread(move |token| {
++                let rt = tokio::runtime::Builder::new_current_thread()
++                    .build()
++                    .unwrap();
++                rt.block_on(async {
++                    if let Some(sender) = rx.next().await {
++                        drop(sender.send(token));
++                    }
++                });
++            })
++            .context("failed to spawn jobserver helper thread")?;
++        Ok(Pool { tx, helper, inner })
++    }
+ }
+ 
+ impl Client {
+@@ -50,37 +91,11 @@ impl Client {
+     }
+ 
+     pub fn new_num(num: usize) -> Client {
+-        let inner = jobserver::Client::new(num).expect("failed to create jobserver");
+-        Client::_new(inner, false)
+-    }
+-
+-    fn _new(inner: jobserver::Client, inherited: bool) -> Client {
+-        let (helper, tx) = if inherited {
+-            (None, None)
+-        } else {
+-            let (tx, mut rx) = mpsc::unbounded::<oneshot::Sender<_>>();
+-            let helper = inner
+-                .clone()
+-                .into_helper_thread(move |token| {
+-                    let rt = tokio::runtime::Builder::new_current_thread()
+-                        .build()
+-                        .unwrap();
+-                    rt.block_on(async {
+-                        if let Some(sender) = rx.next().await {
+-                            drop(sender.send(token));
+-                        }
+-                    });
+-                })
+-                .expect("failed to spawn helper thread");
+-            (Some(Arc::new(helper)), Some(tx))
+-        };
+-
+-        Client { inner, helper, tx }
+-    }
+-
+-    /// Configures this jobserver to be inherited by the specified command
+-    pub fn configure(&self, cmd: &mut Command) {
+-        self.inner.configure(cmd);
++        let pool = Pool::new(num).expect("failed to create jobserver");
++        Client {
++            current: Arc::new(watch::Sender::new(Arc::new(pool))),
++            limit: num,
++        }
+     }
+ 
+     /// Returns a future that represents an acquired jobserver token.
+@@ -89,21 +104,77 @@ impl Client {
+     /// definition of "work" is) to ensure that the system is properly
+     /// rate-limiting itself.
+     pub async fn acquire(&self) -> Result<Acquired> {
+-        let (helper, tx) = match (self.helper.as_ref(), self.tx.as_ref()) {
+-            (Some(a), Some(b)) => (a, b),
+-            _ => return Ok(Acquired { _token: None }),
+-        };
+-        let (mytx, myrx) = oneshot::channel();
+-        helper.request_token();
+-        tx.unbounded_send(mytx).unwrap();
++        let mut current = self.current.subscribe();
++        loop {
++            let pool = current.borrow_and_update().clone();
++            let (mytx, myrx) = oneshot::channel();
++            pool.tx.unbounded_send(mytx).unwrap();
++            pool.helper.request_token();
+ 
+-        let acquired = myrx
+-            .await
+-            .context("jobserver helper panicked")?
+-            .context("failed to acquire jobserver token")?;
++            tokio::select! {
++                acquired = myrx => {
++                    let acquired = acquired
++                        .context("jobserver helper panicked")?
++                        .context("failed to acquire jobserver token")?;
++                    return Ok(Acquired {
++                        _token: acquired,
++                        pool,
++                        client: self.clone(),
++                        shared: false,
++                        exited: false,
++                    });
++                }
++                // The pool was replaced while we waited; it may never get a
++                // token back. Our request there is released if it is served.
++                _ = current.changed() => {}
++            }
++        }
++    }
++
++    /// Replace `pool` with a fresh one, unless that already happened.
++    fn retire(&self, pool: &Arc<Pool>) {
++        self.current.send_if_modified(|current| {
++            if !Arc::ptr_eq(current, pool) {
++                return false;
++            }
++            match Pool::new(self.limit) {
++                Ok(fresh) => {
++                    warn!("A compiler sharing the jobserver did not exit on its own; using a fresh token pool");
++                    *current = Arc::new(fresh);
++                    true
++                }
++                Err(e) => {
++                    warn!("Keeping a jobserver that may have lost tokens: {e:?}");
++                    false
++                }
++            }
++        });
++    }
++}
++
++impl Acquired {
++    /// Hand the pool this token came from down to `cmd`.
++    pub fn configure(&mut self, cmd: &mut Command) {
++        self.shared = true;
++        self.pool.inner.configure(cmd);
++    }
++
++    /// Record how the child exited (`None`: we could not tell). Only a child
++    /// that exited on its own is known to have returned every token it borrowed.
++    pub fn exited(&mut self, status: Option<&ExitStatus>) {
++        #[cfg(unix)]
++        let on_its_own = status
++            .is_some_and(|s| std::os::unix::process::ExitStatusExt::signal(s).is_none());
++        #[cfg(not(unix))]
++        let on_its_own = status.is_some();
++        self.exited = on_its_own;
++    }
++}
+ 
+-        Ok(Acquired {
+-            _token: Some(acquired),
+-        })
++impl Drop for Acquired {
++    fn drop(&mut self) {
++        if self.shared && !self.exited {
++            self.client.retire(&self.pool);
++        }
+     }
+ }
+diff --git a/src/mock_command.rs b/src/mock_command.rs
+index 2f4494e..363f37c 100644
+--- a/src/mock_command.rs
++++ b/src/mock_command.rs
+@@ -172,17 +172,17 @@ impl CommandChild for Child {
+     }
+ 
+     async fn wait(self) -> io::Result<ExitStatus> {
+-        let Child { mut inner, token } = self;
+-        inner.wait().await.inspect(|_ret| {
+-            drop(token);
+-        })
++        let Child { mut inner, mut token } = self;
++        let ret = inner.wait().await;
++        token.exited(ret.as_ref().ok());
++        ret
+     }
+ 
+     async fn wait_with_output(self) -> io::Result<Output> {
+-        let Child { inner, token } = self;
+-        inner.wait_with_output().await.inspect(|_ret| {
+-            drop(token);
+-        })
++        let Child { inner, mut token } = self;
++        let ret = inner.wait_with_output().await;
++        token.exited(ret.as_ref().ok().map(|o| &o.status));
++        ret
+     }
+ }
+ 
+@@ -272,14 +272,13 @@ impl RunCommand for AsyncCommand {
+         // spawns can use a jobserver -- preprocessors, version probes and
+         // C/C++ compilers all ignore it -- so the default is not to share,
+         // and the callers that spawn `rustc` ask for it.
+-        if self.share_jobserver {
+-            self.jobserver.configure(&mut inner);
+-        }
+-
+         // The token is acquired either way: it rate-limits how many children
+         // *we* run, which is separate from whether the child can acquire
+         // tokens of its own.
+-        let token = self.jobserver.acquire().await?;
++        let mut token = self.jobserver.acquire().await?;
++        if self.share_jobserver {
++            token.configure(&mut inner);
++        }
+         let mut inner = tokio::process::Command::from(inner);
+         let child = inner
+             .kill_on_drop(true)
+@@ -729,4 +728,33 @@ mod test {
+             "share_jobserver() should give the child CARGO_MAKEFLAGS"
+         );
+     }
++
++    /// A child killed while holding a borrowed token must not shrink the
++    /// pool for later compiles (#2874).
++    #[test]
++    #[cfg(unix)]
++    fn killed_child_does_not_leak_jobserver_tokens() {
++        use std::os::unix::process::ExitStatusExt;
++        let runtime = tokio::runtime::Runtime::new().unwrap();
++        runtime.block_on(async {
++            let client = Client::new_num(2);
++            let mut creator = <ProcessCommandCreator as CommandCreator>::new(&client);
++            let mut cmd = creator.new_command("/bin/sh");
++            // Borrow the pool's other token, then die by a signal.
++            cmd.args(&[
++                "-c",
++                r#"a=${CARGO_MAKEFLAGS##*--jobserver-auth=}; eval "head -c1 <&${a%,*}" >/dev/null; kill -9 $$"#,
++            ]);
++            cmd.share_jobserver();
++            let status = cmd.spawn().await.unwrap().wait().await.unwrap();
++            assert_eq!(status.signal(), Some(9));
++
++            let both = async { (client.acquire().await, client.acquire().await) };
++            let (a, b) = tokio::time::timeout(std::time::Duration::from_secs(10), both)
++                .await
++                .expect("the killed child's token was never replaced");
++            a.unwrap();
++            b.unwrap();
++        });
++    }
+ }

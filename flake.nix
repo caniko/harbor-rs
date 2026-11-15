@@ -246,6 +246,8 @@
             # compiler-cache executable and version identical across the
             # Atlas fleet and every harbor-rs builder.
             inherit (pkgs) sccache;
+            # What the home-manager user daemon runs by default.
+            sccache-user-daemon = import ./lib/sccache-user-daemon.nix {inherit pkgs;};
             sccache-user-daemon-client = sccacheLib.mkClientWrapper {
               inherit pkgs;
               sccachePackage = pkgs.sccache;
