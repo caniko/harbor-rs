@@ -5,6 +5,7 @@ use std::{collections::{BTreeMap, HashMap}, fs, io::{BufRead, BufReader, Write},
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use serde_json::{json, Value};
+use rmcp::schemars;
 
 #[derive(Subcommand)]
 pub enum PoolCommand {
@@ -15,12 +16,71 @@ pub enum PoolCommand {
         #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..))]
         interval: u64,
     },
+    /// Show the latest snapshot.
+    Status {
+        #[arg(long)]
+        cwd: Option<String>,
+        #[arg(long)]
+        build_dir: Option<String>,
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 pub fn run(command: PoolCommand) -> Result<()> {
     match command {
         PoolCommand::Serve { observe: _, interval } => serve(interval),
+        PoolCommand::Status { cwd, build_dir, json } => {
+            let status = request(cwd, build_dir)?;
+            if json { println!("{}", serde_json::to_string(&status)?); }
+            else {
+                println!("Build pool observation: {}", status["timestamp"].as_str().unwrap_or("pending"));
+                println!("Host: {}", status["host"]);
+                println!("CPU and RSS by class: {}", status["classes"]);
+                println!("Build directories: {}", status["build_dirs"]);
+                for process in status["processes"].as_array().into_iter().flatten() { println!("{process}"); }
+            }
+            Ok(())
+        }
     }
+}
+
+fn request(cwd: Option<String>, build_dir: Option<String>) -> Result<Value> {
+    let mut stream = UnixStream::connect(socket_path()?).context("build pool daemon unavailable; start `harbor-rs pool serve --observe`")?;
+    stream.set_read_timeout(Some(Duration::from_secs(5)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(5)))?;
+    writeln!(stream, "{}", json!({"cwd": cwd, "build_dir": build_dir}))?;
+    let mut line = String::new();
+    BufReader::new(stream).read_line(&mut line)?;
+    Ok(serde_json::from_str(&line)?)
+}
+
+#[derive(Clone)]
+struct PoolMcp;
+
+#[derive(serde::Deserialize, schemars::JsonSchema)]
+struct StatusArgs {
+    /// Restrict cargo observations to this working directory.
+    cwd: Option<String>,
+    /// Restrict cargo observations to this build directory.
+    build_dir: Option<String>,
+}
+
+#[rmcp::tool_router(server_handler)]
+impl PoolMcp {
+    #[rmcp::tool(description = "Check build activity before a heavy build in a shared checkout. Never sleep-poll; cargo's lock already waits. Returns the latest observation, optionally filtered by cwd or build_dir.")]
+    async fn build_status(&self, rmcp::handler::server::wrapper::Parameters(args): rmcp::handler::server::wrapper::Parameters<StatusArgs>) -> std::result::Result<String, String> {
+        tokio::task::spawn_blocking(move || request(args.cwd, args.build_dir).and_then(|v| Ok(serde_json::to_string(&v)?)))
+            .await.map_err(|e| e.to_string())?.map_err(|e| format!("{e:#}"))
+    }
+}
+
+pub fn mcp() -> Result<()> {
+    use rmcp::ServiceExt;
+    tokio::runtime::Runtime::new()?.block_on(async {
+        PoolMcp.serve(rmcp::transport::stdio()).await?.waiting().await?;
+        Ok(())
+    })
 }
 
 fn socket_path() -> Result<PathBuf> {
@@ -98,15 +158,30 @@ fn handle_connection(mut stream: UnixStream, shared: &Mutex<Value>) -> Result<()
     BufReader::new(stream.try_clone()?).take(8192).read_line(&mut input)?;
     let filter: Value = serde_json::from_str(&input)?;
     let mut snapshot = shared.lock().map_err(|_| anyhow::anyhow!("snapshot lock poisoned"))?.clone();
+    let filtered = ["cwd", "build_dir"].iter().any(|key| filter.get(key).and_then(Value::as_str).is_some());
     if let Some(processes) = snapshot.get_mut("processes").and_then(Value::as_array_mut) {
         processes.retain(|p| ["cwd", "build_dir"].iter().all(|key| filter.get(key).and_then(Value::as_str).is_none_or(|v| p.get(key).and_then(Value::as_str) == Some(v))));
+    }
+    if filtered {
+        let pids: Vec<u64> = snapshot["processes"].as_array().into_iter().flatten().filter_map(|p| p["pid"].as_u64()).collect();
+        if let Some(dirs) = snapshot.get_mut("build_dirs").and_then(Value::as_object_mut) {
+            dirs.retain(|_, dir| {
+                if let Some(groups) = dir["identical_argv_groups"].as_array_mut() {
+                    for group in groups.iter_mut() { if let Some(p) = group.as_array_mut() { p.retain(|pid| pid.as_u64().is_some_and(|pid| pids.contains(&pid))); } }
+                    groups.retain(|group| group.as_array().is_some_and(|g| g.len() > 1));
+                }
+                true
+            });
+        }
+        let counts: BTreeMap<String, usize> = snapshot["processes"].as_array().into_iter().flatten().filter_map(|p| p["build_dir"].as_str()).fold(BTreeMap::new(), |mut map, dir| { *map.entry(dir.to_owned()).or_default() += 1; map });
+        if let Some(dirs) = snapshot.get_mut("build_dirs").and_then(Value::as_object_mut) { dirs.retain(|dir, value| { if let Some(count) = counts.get(dir) { value["cargo_count"] = json!(count); true } else { false } }); }
     }
     writeln!(stream, "{snapshot}")?;
     Ok(())
 }
 
 fn interesting(comm: &str) -> bool {
-    matches!(comm, "cargo" | "rustc" | "rust-analyzer" | "sccache" | "mold" | "ld" | "ld.lld" | "ld.mold" | "cc" | "gcc" | "clang") || comm.contains('-')
+    matches!(comm, "cargo" | "rustc" | "rust-analyzer" | "sccache" | "mold" | "ld" | "ld.lld" | "ld.mold" | "cc" | "gcc" | "clang") || comm.contains('-') || comm.len() == 15
 }
 
 fn read_key_values(path: &str) -> BTreeMap<String, u64> {
