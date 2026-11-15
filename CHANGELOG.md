@@ -14,6 +14,17 @@
   `inputs.harbor-rs.inputs.rust-overlay.follows`, or the new explicit
   `rustBin` argument (`rustBin = pkgs.buildPackages.rust-bin`). Importing
   `lib/` directly without `rustOverlay` keeps the previous behavior.
+- Flake interface, since `bf92627` (2026-11-02): `treefmt-nix`, `git-hooks`,
+  `nix-opencode-lsp` and `nix-cache-pin` are no longer root inputs. They moved
+  to the dev partition (`nix/flake.nix`), so
+  `inputs.<name>.follows = "harbor-rs/<name>"` no longer resolves for them.
+  Migration: declare the input yourself, for example
+  `treefmt-nix = { url = "github:numtide/treefmt-nix"; inputs.nixpkgs.follows = "nixpkgs"; };`
+  and `git-hooks = { url = "github:cachix/git-hooks.nix"; inputs.nixpkgs.follows = "nixpkgs"; };`.
+  That removal shipped without notice. From now on, removing a root input is
+  a breaking change: it is listed here with a deprecation note and its
+  migration before the input disappears. The
+  `harbor-rs-root-inputs-published` check holds the list.
 
 ### Added
 
