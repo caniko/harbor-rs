@@ -59,6 +59,14 @@
 
 ### Fixed
 
+- The home-manager sccache user daemon no longer hangs after hours of use.
+  Stock sccache SIGKILLs a rustc whose client disconnected, and the jobserver
+  tokens that rustc borrowed (a `-Zthreads=0` rustc can take the whole pool)
+  never return; once the pool is empty every client waits forever
+  (mozilla/sccache#2874). `userDaemon.package` now defaults to
+  `pkgs.sccache` with a patch (also exported as `packages.sccache-user-daemon`)
+  that moves new work to a fresh pool when a compiler sharing the jobserver dies by a signal
+  or is cancelled.
 - `mkAtticPush` retries a failed `attic push` up to three times (30 s, then
   60 s apart; `HARBOR_ATTIC_PUSH_RETRY_SECONDS` scales the delay), so a
   transient Attic 5xx no longer fails a publish whose build already

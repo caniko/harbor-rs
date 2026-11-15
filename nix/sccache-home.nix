@@ -153,7 +153,16 @@ in {
       '';
     };
 
-    package = lib.mkPackageOption pkgs "sccache" {};
+    package = mkOption {
+      type = types.package;
+      default = import ../lib/sccache-user-daemon.nix {inherit pkgs;};
+      defaultText = lib.literalExpression "pkgs.sccache with harbor-rs's jobserver patch";
+      description = ''
+        sccache for the user daemon and its client wrapper. The default is
+        `pkgs.sccache` patched so a compiler killed while it holds jobserver
+        tokens cannot drain the long-lived daemon's pool (mozilla/sccache#2874).
+      '';
+    };
 
     wrapperPackage = mkOption {
       type = types.nullOr types.package;
