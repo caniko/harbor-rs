@@ -61,7 +61,6 @@ tag's source and independent publisher qualification.
 ## Prerequisites
 
 - [Nix](https://nixos.org/) with flakes enabled
-- [rust-overlay](https://github.com/oxalica/rust-overlay) applied to the `pkgs` you pass into `mkToolchain`
 - A configured macOS SDK only if you want osxcross-based macOS targets
 
 ## Quick Start

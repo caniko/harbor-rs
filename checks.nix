@@ -871,6 +871,52 @@ in
       assert pkgs.lib.all matchesNative modes;
         pkgs.runCommand "check-mkToolchain-build-native" {} "touch $out";
 
+    # The pinned profiles resolve through harbor-rs's own rust-overlay: a
+    # consumer package set without rust-overlay, or with one too old to know
+    # the pinned channels, gets the same toolchains. `rustBin` is the only way
+    # to substitute another rust-bin set.
+    mkToolchain-owns-rust-overlay = let
+      staleRustBin = {
+        nightly = {};
+        stable = {};
+        fromRustupToolchainFile = _: throw "stale consumer rust-overlay: channel is not available";
+      };
+      consumerPkgs = {
+        missing = import nixpkgs {inherit system;};
+        stale = import nixpkgs {
+          inherit system;
+          overlays = [(_final: _prev: {rust-bin = staleRustBin;})];
+        };
+      };
+      drvFor = args: (self.lib.mkToolchain args).rustToolchain.drvPath;
+      ownsProfile = toolchainProfile: let
+        expected = drvFor {inherit pkgs toolchainProfile;};
+      in
+        pkgs.lib.all (consumer:
+          drvFor {
+            inherit toolchainProfile;
+            pkgs = consumer;
+          }
+          == expected) (builtins.attrValues consumerPkgs)
+        && drvFor {
+          inherit toolchainProfile;
+          pkgs = consumerPkgs.missing;
+          rustBin = pkgs.buildPackages.rust-bin;
+        }
+        == expected
+        && !(builtins.tryEval (drvFor {
+          inherit pkgs toolchainProfile;
+          rustBin = staleRustBin;
+        })).success;
+    in
+      assert pkgs.lib.all ownsProfile ["nightly" "stable"];
+      assert pkgs.lib.hasSuffix (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml)).toolchain.channel
+      (self.lib.mkToolchain {
+        pkgs = consumerPkgs.stale;
+        toolchainProfile = "nightly";
+      }).rustToolchain.version;
+        pkgs.runCommand "check-mkToolchain-owns-rust-overlay" {} "touch $out";
+
     # Fleet profile manifests already list the cross targets; a consumer that
     # passes overlapping explicit targets must get each target and its Cargo
     # table exactly once.

@@ -12,7 +12,7 @@
       then harbor-meta.devShell
       else null;
     opencodeProfiles = opencodeLib.profiles;
-    inherit mkToolchain rustOverlay;
+    inherit mkToolchain;
   };
   adapterLib = import ./adapter.nix;
   opencodeLib =
@@ -31,7 +31,7 @@
   mkCargoConfig = import ./cargo-config.nix;
   inherit ((import ./build-cache.nix {})) mkBuildCachePolicy;
   mkToolchain = import ./toolchain.nix {
-    inherit crane mkBuildCachePolicy mkCargoConfig;
+    inherit crane mkBuildCachePolicy mkCargoConfig rustOverlay;
   };
   hardeningProfiles = import ./hardening-profiles.nix;
   mkSccacheLib = import ./sccache.nix {};

@@ -50,8 +50,8 @@ That layout works well for workspaces where some crates only need native tools w
 ## mkToolchainShell
 
 A composable Rust toolchain shell for polyglot projects. It needs no crane,
-`mkCross`, MinGW, or osxcross, applies rust-overlay itself when `pkgs` lacks
-it, and defaults to the pinned stable profile with only the host standard
+`mkCross`, MinGW, or osxcross, takes plain `pkgs` without rust-overlay, and
+defaults to the pinned stable profile with only the host standard
 library. Compose it with harbor-meta's `devShell.mkShell`:
 
 ```nix

@@ -4,7 +4,7 @@
 
 ## Parameters
 
-- `pkgs` (required): native or cross nixpkgs with `rust-overlay` applied to its build package set
+- `pkgs` (required): native or cross nixpkgs. It needs no `rust-overlay`: toolchains resolve through harbor-rs's own `rust-overlay` input on `pkgs.buildPackages`, whatever overlay `pkgs` carries
 - `toolchainProfile`: optional harbor-rs-owned pin, either `"stable"` or `"nightly"`. Stable is currently pinned to Rust `1.98.1`; nightly uses the repository's checked-in `rust-toolchain.toml` (currently `nightly-2026-10-11`). Omitting it preserves the legacy channel/date behavior.
 - `toolchainFile`: optional path to a standard `rust-toolchain.toml`; when set, its channel, components, and targets are authoritative
 - `channel`: `"nightly"` or `"stable"`; defaults to `"nightly"`
@@ -14,6 +14,12 @@
 - `crossTargets`: list of target triples to include in the toolchain
 - `targets`: list of target triples that replaces the profile, file, or legacy target list instead of extending it; `[]` installs only the host standard library. Cannot be combined with `crossTargets`
 - `cache.enable`: explicitly enable the host-backed compiler cache; defaults to `false`
+- `rustBin`: escape hatch, a `rust-bin` set for the build platform (for example `pkgs.buildPackages.rust-bin` from your own rust-overlay) used instead of harbor-rs's. You then own the availability of the selected channel
+
+A `toolchainFile` channel or `date` newer than harbor-rs's `rust-overlay` pin
+is not available by default. Bump harbor-rs, override its input
+(`inputs.harbor-rs.inputs.rust-overlay.follows = "rust-overlay"`), or pass
+`rustBin`.
 
 ## Returns
 

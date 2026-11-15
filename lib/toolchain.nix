@@ -1,4 +1,4 @@
-# mkToolchain :: { pkgs, toolchainProfile?, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, targets?, cache? }
+# mkToolchain :: { pkgs, toolchainProfile?, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, targets?, cache?, rustBin? }
 #             -> { rustToolchain, craneLib, rawCraneLib, buildCache, cargoConfig, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
@@ -6,6 +6,9 @@
   crane,
   mkCargoConfig,
   mkBuildCachePolicy,
+  # harbor-rs's own rust-overlay flake. Null only when a consumer imports
+  # `lib/` directly without it; mkToolchain then needs rust-overlay on `pkgs`.
+  rustOverlay ? null,
 }: {
   pkgs,
   # Optional harbor-rs-owned pinned profile. Null preserves the historical
@@ -28,9 +31,12 @@
   targets ? null,
   # Compiler caching requires host transport and is therefore explicit.
   cache ? {},
+  # Escape hatch: a `rust-bin` set for the build platform (for example
+  # `pkgs.buildPackages.rust-bin` from the consumer's own rust-overlay) used
+  # instead of harbor-rs's rust-overlay. Whoever passes it owns the
+  # availability of the selected channel.
+  rustBin ? null,
 }:
-assert pkgs.lib.assertMsg (pkgs.buildPackages ? rust-bin)
-"harbor-rs: mkToolchain requires rust-overlay on the build package set (pkgs.buildPackages.rust-bin must exist)";
 assert pkgs.lib.assertMsg (targets == null || (builtins.isList targets && crossTargets == null))
 "harbor-rs: mkToolchain 'targets' must be a list and cannot be combined with 'crossTargets'";
 assert pkgs.lib.assertMsg (toolchainProfile == null || builtins.elem toolchainProfile ["nightly" "stable"])
@@ -143,12 +149,24 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       targets = legacyCrossTargets;
     };
   # Cargo/rustc run on the build platform; only their standard libraries target
-  # the host. Selecting pkgs.rust-bin here runs ARM tools under emulation.
-  rustBin = pkgs.buildPackages.rust-bin;
+  # the host. Selecting the host package set here runs ARM tools under emulation.
+  #
+  # Channels resolve through harbor-rs's own rust-overlay, never one the
+  # consumer applied to `pkgs`: an older consumer overlay cannot make the
+  # pinned profile channels unavailable.
+  rustBin' =
+    if rustBin != null
+    then rustBin
+    else if rustOverlay != null
+    then rustOverlay.lib.mkRustBin {} pkgs.buildPackages
+    else
+      assert pkgs.lib.assertMsg (pkgs.buildPackages ? rust-bin)
+      "harbor-rs: mkToolchain needs rust-overlay: import lib/ with 'rustOverlay', pass 'rustBin', or apply rust-overlay to the build package set (pkgs.buildPackages.rust-bin)";
+        pkgs.buildPackages.rust-bin;
   channelSet =
     if legacyChannel == "nightly"
-    then rustBin.nightly
-    else rustBin.stable;
+    then rustBin'.nightly
+    else rustBin'.stable;
   dateSet =
     if legacyDate == "latest"
     then channelSet.latest
@@ -158,7 +176,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     then
       assert pkgs.lib.assertMsg (manifestToolchain ? channel)
       "harbor-rs: mkToolchain 'toolchainFile' must contain [toolchain].channel";
-        (rustBin.fromRustupToolchainFile resolvedToolchainFile).override ({
+        (rustBin'.fromRustupToolchainFile resolvedToolchainFile).override ({
             extensions = fileExtensions;
             targets = fileTargets;
           }
@@ -186,6 +204,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       }
     )
     // pkgs.lib.optionalAttrs (extensions != null) {inherit extensions;}
+    // pkgs.lib.optionalAttrs (rustBin != null) {inherit rustBin;}
     // pkgs.lib.optionalAttrs (!withRustAnalyzer) {withRustAnalyzer = false;};
   cargoConfig = mkCargoConfig {
     inherit pkgs;

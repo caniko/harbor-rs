@@ -5,7 +5,6 @@ Use `harbor-rs` as a flake input and follow its pinned shared dependencies from 
 ## Requirements
 
 - Nix with flakes enabled
-- `rust-overlay` applied to the `pkgs` you pass into `mkToolchain`
 - nix-direnv, if you use the recommended `.envrc`
 - A macOS SDK only if you want Darwin cross-compilation through osxcross
 
