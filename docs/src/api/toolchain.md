@@ -15,6 +15,7 @@
 - `targets`: list of target triples that replaces the profile, file, or legacy target list instead of extending it; `[]` installs only the host standard library. Cannot be combined with `crossTargets`
 - `cache.enable`: explicitly enable the host-backed compiler cache; defaults to `false`
 - `rustBin`: escape hatch, a `rust-bin` set for the build platform (for example `pkgs.buildPackages.rust-bin` from your own rust-overlay) used instead of harbor-rs's. You then own the availability of the selected channel
+- `cargoConfigArgs`: attribute set merged into the `mkCargoConfig` call for the toolchain's generated config, for example `{ parallelFrontendThreads = 6; }`. `mkCargoConfig`'s asserts still fire, so a nightly-only knob on a stable toolchain fails evaluation. The generated file keeps today's bytes when the defaults are unchanged
 
 A `toolchainFile` channel or `date` newer than harbor-rs's `rust-overlay` pin
 is not available by default. Bump harbor-rs, override its input
@@ -28,8 +29,42 @@ is not available by default. Bump harbor-rs, override its input
 - `rustToolchain`
 - `craneLib`
 - `buildCache`: the compiler-cache policy when enabled, otherwise `null`
-- `cargoConfig`: matching `mkCargoConfig` output, inherited automatically by harbor-rs dev shells using this `craneLib`
+- `cargoConfig`: matching `mkCargoConfig` output, installed automatically by every `craneLib.devShell` and every harbor-rs dev shell using this `craneLib`
 - `crossTargets`
+
+## Dev shells
+
+The returned `craneLib` overrides Crane's `devShell`, so a bare
+`craneLib.devShell` carries the generated Cargo config hook and the packages
+that config needs (`clang`, and `mold` while an emitted target links with
+mold), with no consumer edit. `mkDevShell` and `mkDevShells` install the same
+hook themselves and disable the `craneLib` copy, so it runs exactly once.
+
+Opt out, or replace the config, per shell:
+
+```nix
+devShells.default = toolchain.craneLib.devShell {
+  # Keep whatever rustflags the project and environment already set.
+  rsHarborCargoConfig = false;
+};
+
+devShells.bench = toolchain.craneLib.devShell {
+  # Any mkCargoConfig result replaces the toolchain's config.
+  rsHarborCargoConfig = harbor-rs.lib.mkCargoConfig {
+    inherit pkgs;
+    channel = "nightly";
+    enableCranelift = true;
+  };
+};
+```
+
+Cargo reads exactly one rustflags source, in this order, first non-empty wins:
+`CARGO_ENCODED_RUSTFLAGS`, `RUSTFLAGS`, all matching `target.*.rustflags`,
+then `build.rustflags`. The generated config sets `target.*.rustflags`, so a
+project that keeps flags in `[build] rustflags` inside its own
+`.cargo/config.toml` does not get them once the generated config is active.
+Put project flags in `[target.<triple>]` (Cargo joins every matching target
+entry), export `RUSTFLAGS`, or opt out of the generated config.
 
 Cargo, rustc, and the other toolchain executables always run on
 `pkgs.stdenv.buildPlatform`, including when `pkgs` is a cross package set.

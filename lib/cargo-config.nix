@@ -1,4 +1,4 @@
-# mkCargoConfig :: { pkgs, channel?, ... } -> { configText, configPath }
+# mkCargoConfig :: { pkgs, channel?, ... } -> { configText, configPath, packages }
 #
 # Generate optimized .cargo/config.toml content for fast Rust builds.
 # Configures mold linker (Linux), lld (Windows), optional cranelift dev backend,
@@ -162,4 +162,10 @@ assert pkgs.lib.assertMsg (
 in {
   inherit configText;
   configPath = pkgs.writeText "cargo-config.toml" configText;
+  # Shell packages the config needs: the clang driver and mold, but only when
+  # an emitted target section actually selects mold.
+  packages =
+    if builtins.any moldFor (pkgs.lib.unique crossTargets)
+    then [pkgs.clang pkgs.mold]
+    else [];
 }
