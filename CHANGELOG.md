@@ -76,6 +76,13 @@
 
 ### Fixed
 
+- Dev shells built with `craneLib.devShell` no longer add `clang` to their
+  packages. A second cc-wrapper ran its setup hook beside the stdenv's and
+  repeated every input's include and library flags, so large shells
+  (tartan-ui: `NIX_CFLAGS_COMPILE` 13 KB to 75 KB) failed every link with
+  `mktemp: Argument list too long`. The generated Cargo config now names the
+  build platform's clang by store path; only `mold` is added.
+
 - The home-manager sccache user daemon no longer hangs after hours of use.
   Stock sccache SIGKILLs a rustc whose client disconnected, and the jobserver
   tokens that rustc borrowed (a `-Zthreads=0` rustc can take the whole pool)

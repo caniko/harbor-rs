@@ -96,7 +96,10 @@ assert pkgs.lib.assertMsg (
     # can inject unsupported PIE arguments into lld and fail the final link.
     allFlags = moldFlags ++ shareGenFlags ++ parallelFlags;
     linkerLine =
-      optionalString (moldFor triple) "linker = \"clang\"\n";
+      # An absolute driver path: a clang wrapper in the shell's packages would
+      # run its setup hook beside the stdenv's and repeat every input's
+      # include and library flags, which overflows exec on large shells.
+      optionalString (moldFor triple) "linker = \"${pkgs.buildPackages.clang}/bin/clang\"\n";
     flagsLine = mkRustflags allFlags;
   in
     if linkerLine == "" && flagsLine == ""
@@ -164,10 +167,10 @@ assert pkgs.lib.assertMsg (
 in {
   inherit configText;
   configPath = pkgs.writeText "cargo-config.toml" configText;
-  # Shell packages the config needs: the clang driver and mold, but only when
-  # an emitted target section actually selects mold.
+  # Shell packages the config needs: mold, but only when an emitted target
+  # section actually selects it. The linker names clang by store path.
   packages =
     if builtins.any moldFor (pkgs.lib.unique crossTargets)
-    then [pkgs.clang pkgs.mold]
+    then [pkgs.mold]
     else [];
 }
