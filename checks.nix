@@ -850,7 +850,7 @@ in
       assert !(pkgs.lib.hasInfix "-Z" stable.cargoConfig.configText);
       assert nightly.toolchainProfile == "nightly";
       assert nightly.buildCache.contract.rustToolchain.channel == "nightly-2026-10-11";
-      assert pkgs.lib.hasInfix "-Zthreads=0" nightly.cargoConfig.configText;
+      assert pkgs.lib.hasInfix "-Zthreads=8" nightly.cargoConfig.configText;
         pkgs.runCommand "check-mkToolchain-fleet-profiles" {} "touch $out";
 
     # A checked-in rust-toolchain.toml is authoritative and must retain its
@@ -2916,8 +2916,13 @@ in
       assert unstableTables both == 1;
       assert parsedBoth.unstable."codegen-backend";
       assert parsedBoth.unstable."profile-hint-mostly-unused";
+      assert pkgs.lib.hasInfix "profile-hint-mostly-unused"
+      (self.lib.mkCargoConfig {inherit pkgs;}).configText;
       assert !(pkgs.lib.hasInfix "profile-hint-mostly-unused"
-        (self.lib.mkCargoConfig {inherit pkgs;}).configText);
+        (self.lib.mkCargoConfig {
+          inherit pkgs;
+          enableHintMostlyUnused = false;
+        }).configText);
         pkgs.runCommand "check-mkCargoConfig-hint-mostly-unused" {} "touch $out";
 
     # The mostly-unused hint is a nightly Cargo flag.
@@ -3031,7 +3036,7 @@ in
           grep -q "^nightly *$variant\$" variants.txt
           grep -q "^stable *$variant\$" variants.txt
         done
-        for variant in threads8 nothreads hint cranelift; do
+        for variant in threads0 nothreads nohint cranelift; do
           grep -q "^nightly *$variant\$" variants.txt
           if grep -q "^stable *$variant\$" variants.txt; then
             echo "stable must not offer the nightly-only variant $variant" >&2

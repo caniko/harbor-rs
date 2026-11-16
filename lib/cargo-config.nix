@@ -26,8 +26,10 @@
   enableCranelift ? false,
   enableShareGenerics ? (channel == "nightly"),
   enableParallelFrontend ? (channel == "nightly"),
-  enableHintMostlyUnused ? false,
-  parallelFrontendThreads ? 0,
+  # Defaults from the 2026-11-15 compile-bench (harbor-rs docs, cargo-config):
+  # the hint cut clean builds 23-33% and 8 threads beat one per core.
+  enableHintMostlyUnused ? (channel == "nightly"),
+  parallelFrontendThreads ? 8,
   enableDevProfileOpts ? true,
   devCodegenUnits ? null,
   devBuildOverrideOptLevel ? null,

@@ -23,17 +23,17 @@ Each variant is one generated `config.toml`; the table prints with
 | --- | --- |
 | `none` | empty config, as a `craneLib.devShell` consumer has today |
 | `current` | `mkCargoConfig` defaults |
-| `threads8` / `nothreads` | `parallelFrontendThreads = 8` / `enableParallelFrontend = false` |
+| `threads0` / `nothreads` | `parallelFrontendThreads = 0` (one per core) / `enableParallelFrontend = false` |
 | `lld` | `enableMold = null`, so rust-lld serves `x86_64-unknown-linux-gnu` |
 | `wild` | `enableMold = false` plus `linker = "clang"` and `-Clink-arg=--ld-path=wild` |
-| `hint` | `enableHintMostlyUnused = true` |
+| `nohint` | `enableHintMostlyUnused = false` |
 | `buildopt` | `devBuildOverrideOptLevel = 3` |
 | `cranelift` | `enableCranelift = true`, informational |
 | `incremental` | `current`, with `CARGO_INCREMENTAL` unset |
 | `aslived` | `current`, with the host's `RUSTC_WRAPPER` (warm sccache) |
 
-The channel comes from `rustc -V`. Nightly-only variants (`threads8`,
-`nothreads`, `hint`, `cranelift`) are offered on nightly only, and asking for
+The channel comes from `rustc -V`. Nightly-only variants (`threads0`,
+`nothreads`, `nohint`, `cranelift`) are offered on nightly only, and asking for
 one on stable fails with a message instead of silently running `current`.
 
 Fixed for every variant except `aslived` and `incremental`: `RUSTC_WRAPPER`

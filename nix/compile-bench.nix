@@ -19,7 +19,7 @@
     wildFlags =
       ["-C" "link-arg=--ld-path=wild"]
       ++ nightlyOnly "-Zshare-generics=y"
-      ++ nightlyOnly "-Zthreads=0";
+      ++ nightlyOnly "-Zthreads=8";
     quote = f: "\"${f}\"";
   in
     {
@@ -40,9 +40,9 @@
       aslived = mk {};
     }
     // lib.optionalAttrs (channel == "nightly") {
-      threads8 = mk {parallelFrontendThreads = 8;};
+      threads0 = mk {parallelFrontendThreads = 0;};
       nothreads = mk {enableParallelFrontend = false;};
-      hint = mk {enableHintMostlyUnused = true;};
+      nohint = mk {enableHintMostlyUnused = false;};
       cranelift = mk {enableCranelift = true;};
     };
 

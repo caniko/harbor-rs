@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `mkCargoConfig` nightly dev configs now pass `-Zthreads=8` instead of
+  `-Zthreads=0` and honour upstream `mostly-unused` hints
+  (`profile-hint-mostly-unused`), from the 2026-11-15 compile-bench: clean
+  builds 23-33% faster with the hint, about 10% with 8 threads. Stable configs
+  are unchanged. The bench variants `threads8`/`hint` became `threads0`/`nohint`.
+  The changed rustflags invalidate dev sccache keys once.
+
 ### Breaking
 
 - `mkToolchain` resolves toolchains through harbor-rs's own `rust-overlay`

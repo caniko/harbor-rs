@@ -36,19 +36,24 @@
 `x86_64-unknown-linux-gnu` with rust-lld, so that triple gets no `linker` and
 no `-fuse-ld=mold`, while `aarch64-unknown-linux-gnu` still gets both.
 
-### `parallelFrontendThreads` (default: `0`)
+### `parallelFrontendThreads` (default: `8`)
 
 Threads per rustc for the parallel frontend, emitted as `-Zthreads=N` inside
 the target sections and only when `enableParallelFrontend` is on. `0` means one
-thread per core. The `compile-bench` variants `threads8` and `nothreads` are the
-measurement for changing this default.
+thread per core. On the 2026-11-15 compile-bench, 8 threads beat `0` by about
+10% on clean builds and checks (nix-cache-pin, fleetix) with lower peak memory
+on pink-raven; turning the parallel frontend off was slower still. The
+`compile-bench` variants `threads0` and `nothreads` re-measure it.
 
-### `enableHintMostlyUnused` (default: `false`, nightly only)
+### `enableHintMostlyUnused` (default: `true` on nightly, nightly only)
 
 Emits `[unstable] profile-hint-mostly-unused = true`, which makes Cargo honour
-an upstream crate's `[hints] mostly-unused = true` declaration instead of
-compiling that crate's unused API for every build. Cranelift's `[unstable]`
-keys share the same table.
+an upstream crate's `[hints] mostly-unused = true` declaration (rustix and
+windows declare it) instead of compiling that crate's unused API for every
+build. Cranelift's `[unstable]` keys share the same table. On the 2026-11-15
+compile-bench it cut clean builds by 33% (nix-cache-pin) and 23% (fleetix)
+with no scenario slower; the `nohint` variant re-measures it. Pass `false` to
+turn it off.
 
 ### `devBuildOverrideOptLevel` (default: `null`)
 
