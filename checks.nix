@@ -19,6 +19,8 @@
     builtins.any
     (nodeName: (rootLock.nodes.${nodeName}.original.type or null) == "path")
     (builtins.filter builtins.isString (builtins.attrValues rootLock.nodes.root.inputs));
+  # Generated Cargo configs name store paths; fromTOML rejects string context.
+  fromConfigTOML = text: builtins.fromTOML (builtins.unsafeDiscardStringContext text);
   defaultTemplateRoot = ./templates/default;
   defaultTemplateFlake = builtins.readFile (defaultTemplateRoot + "/flake.nix");
   defaultTemplateSimit = builtins.fromTOML (builtins.readFile (defaultTemplateRoot + "/simit.toml"));
@@ -1229,7 +1231,9 @@ in
     in
       assert hookCount shell == 1;
       assert pkgs.lib.hasInfix "echo consumer-hook" shell.shellHook;
-      assert builtins.elem pkgs.clang shell.nativeBuildInputs;
+      # clang is named by path, never added as a second cc-wrapper.
+      assert !(builtins.elem pkgs.clang shell.nativeBuildInputs);
+      assert pkgs.lib.hasInfix (builtins.unsafeDiscardStringContext "linker = \"${pkgs.clang}/bin/clang\"") (builtins.unsafeDiscardStringContext toolchain.cargoConfig.configText);
       assert builtins.elem pkgs.mold shell.nativeBuildInputs;
       # A config that emits no mold linker takes neither package.
       assert hookCount noMoldShell == 1;
@@ -2668,7 +2672,7 @@ in
       android = ["aarch64-linux-android" "armv7-linux-androideabi" "i686-linux-android" "x86_64-linux-android"];
       linux = ["x86_64-unknown-linux-gnu" "aarch64-unknown-linux-gnu" "x86_64-unknown-linux-musl"];
       config = channel:
-        builtins.fromTOML
+        fromConfigTOML
         (self.lib.mkCargoConfig {
           inherit pkgs channel;
           crossTargets = android ++ linux;
@@ -2685,7 +2689,7 @@ in
         android
         && builtins.all (triple:
           targets.${triple}.linker
-          == "clang"
+          == "${pkgs.buildPackages.clang}/bin/clang"
           && builtins.elem "link-arg=-fuse-ld=mold" targets.${triple}.rustflags)
         linux) ["stable" "nightly"];
         pkgs.runCommand "check-mkCargoConfig-android-linker" {} "touch $out";
@@ -2877,7 +2881,7 @@ in
     # mold on the Linux triples rustc does not default to lld.
     mkCargoConfig-mold-auto = let
       targets =
-        (builtins.fromTOML
+        (fromConfigTOML
           (self.lib.mkCargoConfig {
             inherit pkgs;
             enableMold = null;
@@ -2889,7 +2893,7 @@ in
       assert !(auto ? linker);
       assert !(builtins.elem "link-arg=-fuse-ld=mold" auto.rustflags);
       assert builtins.elem "-Zshare-generics=y" auto.rustflags;
-      assert other.linker == "clang";
+      assert other.linker == "${pkgs.buildPackages.clang}/bin/clang";
       assert builtins.elem "link-arg=-fuse-ld=mold" other.rustflags;
         pkgs.runCommand "check-mkCargoConfig-mold-auto" {} "touch $out";
 
@@ -2909,8 +2913,8 @@ in
         }).configText;
       unstableTables = text:
         builtins.length (builtins.filter (line: line == "[unstable]") (pkgs.lib.splitString "\n" text));
-      parsedHint = builtins.fromTOML hint;
-      parsedBoth = builtins.fromTOML both;
+      parsedHint = fromConfigTOML hint;
+      parsedBoth = fromConfigTOML both;
     in
       assert parsedHint.unstable."profile-hint-mostly-unused";
       assert unstableTables both == 1;
@@ -2942,7 +2946,7 @@ in
     # table instead of a second [profile.dev].
     mkCargoConfig-build-override-opt = let
       config = channel: args:
-        builtins.fromTOML
+        fromConfigTOML
         (self.lib.mkCargoConfig ({inherit pkgs channel;} // args)).configText;
       on = config "nightly" {devBuildOverrideOptLevel = 3;};
       off = config "stable" {devBuildOverrideOptLevel = 0;};
@@ -3007,7 +3011,7 @@ in
       benchConfigs =
         builtins.concatLists
         (pkgs.lib.mapAttrsToList (_: byVariant: builtins.attrValues byVariant) bench.variants);
-      parses = text: pkgs.lib.isAttrs (builtins.fromTOML text);
+      parses = text: pkgs.lib.isAttrs (fromConfigTOML text);
     in
       assert pkgs.lib.all parses (nightlyCombos ++ stableCombos ++ benchConfigs);
       assert builtins.attrNames bench.variants.stable
