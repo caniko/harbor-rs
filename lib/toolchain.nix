@@ -1,10 +1,11 @@
-# mkToolchain :: { pkgs, toolchainProfile?, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, targets?, cache?, rustBin? }
+# mkToolchain :: { pkgs, toolchainProfile?, toolchainFile?, channel?, date?, extensions?, withRustAnalyzer?, crossTargets?, targets?, cache?, rustBin?, cargoConfigArgs? }
 #             -> { rustToolchain, craneLib, rawCraneLib, buildCache, cargoConfig, crossTargets }
 #
 # Build a Rust toolchain + craneLib for a given pkgs set.
 {
   crane,
   mkCargoConfig,
+  mkCargoHomeHook,
   mkBuildCachePolicy,
   # harbor-rs's own rust-overlay flake. Null only when a consumer imports
   # `lib/` directly without it; mkToolchain then needs rust-overlay on `pkgs`.
@@ -36,6 +37,10 @@
   # instead of harbor-rs's rust-overlay. Whoever passes it owns the
   # availability of the selected channel.
   rustBin ? null,
+  # Extra mkCargoConfig arguments for the toolchain's generated Cargo config
+  # (for example `parallelFrontendThreads` or `enableCranelift`). Its asserts
+  # still fire, so a nightly-only knob on a stable toolchain fails evaluation.
+  cargoConfigArgs ? {},
 }:
 assert pkgs.lib.assertMsg (targets == null || (builtins.isList targets && crossTargets == null))
 "harbor-rs: mkToolchain 'targets' must be a list and cannot be combined with 'crossTargets'";
@@ -206,11 +211,12 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     // pkgs.lib.optionalAttrs (extensions != null) {inherit extensions;}
     // pkgs.lib.optionalAttrs (rustBin != null) {inherit rustBin;}
     // pkgs.lib.optionalAttrs (!withRustAnalyzer) {withRustAnalyzer = false;};
-  cargoConfig = mkCargoConfig {
-    inherit pkgs;
-    channel = cargoChannel;
-    crossTargets = resolvedCrossTargets;
-  };
+  cargoConfig = mkCargoConfig ({
+      inherit pkgs;
+      channel = cargoChannel;
+      crossTargets = resolvedCrossTargets;
+    }
+    // cargoConfigArgs);
   upstreamCraneLib = (crane.mkLib pkgs).overrideToolchain (_p: rustToolchain);
 
   patchCratesIoPathPatches = args: let
@@ -311,6 +317,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   stripRsHarborCraneArgs = args:
     builtins.removeAttrs args [
       "rsHarborAllowPathPatchBuildDepsOnly"
+      "rsHarborCargoConfig"
       "rsHarborCargoTomlContents"
       "rsHarborCacheReuseKey"
       "stdenv"
@@ -360,6 +367,39 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
   # constructs a Cargo derivation inherits it automatically.
   craneLib =
     (upstreamCraneLib.overrideScope (_final: prev: {
+      # Every dev shell built from this craneLib installs the generated Cargo
+      # config, so consumers that call `craneLib.devShell` directly get it
+      # without wiring mkDevShell. `rsHarborCargoConfig = false` opts out; a
+      # mkCargoConfig result replaces the toolchain's config.
+      devShell = args: let
+        config =
+          if args ? rsHarborCargoConfig
+          then args.rsHarborCargoConfig
+          else cargoConfig;
+        devShellConfig =
+          if config == false
+          then null
+          else config;
+        args' = stripRsHarborCraneArgs args;
+      in
+        (cranePrevFor prev args).devShell (args'
+          // {
+            shellHook =
+              mkCargoHomeHook {
+                # The hook runs on the build machine, also for cross package sets.
+                pkgs = pkgs.buildPackages;
+                cargoConfig = devShellConfig;
+              }
+              + (args'.shellHook or "");
+            packages =
+              (
+                if devShellConfig == null
+                then []
+                else devShellConfig.packages or []
+              )
+              ++ (args'.packages or []);
+          });
+
       mkCargoDerivation = args: let
         raw = (cranePrevFor prev args).mkCargoDerivation (stripRsHarborCraneArgs args);
       in

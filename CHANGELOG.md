@@ -55,6 +55,14 @@
   so ephemeral CI runners stop rebuilding unchanged dependency derivations.
   Paths signed by any substituter are never republished. Set it only on
   ephemeral runners; simit's GitHub prebuild does.
+- Every dev shell built from a `mkToolchain` `craneLib` now installs the
+  generated Cargo config and the packages that config needs, with no consumer
+  edit; before, only `mkDevShell` consumers got it. A bare
+  `craneLib.devShell` gains the hook, `clang` and (when a target links with
+  mold) `mold`. Set `rsHarborCargoConfig = false` to opt out, or pass a
+  `mkCargoConfig` result to replace the toolchain's config. `mkToolchain` also
+  takes `cargoConfigArgs` for the config's own knobs. `mkDevShell` installs its
+  hook once and still includes the same packages as before.
 - Release bundles expose `binstall`, cargo-binstall metadata generated from
   their binary archives, and `lib.mkBinstallCheck` keeps a crate's
   `[package.metadata.binstall]` equal to it and verifies that every archive

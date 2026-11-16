@@ -70,6 +70,20 @@ toolchain is available as `passthru.toolchain`. The Cargo hook is the same as
 `mkDevShell`'s. `checks.mkToolchainShell-composes` covers composition, host-only
 targets, and replacement of a parent nightly `CARGO_HOME`.
 
+## Bare `craneLib.devShell` shells
+
+`mkDevShell` and `mkDevShells` are not required for the generated Cargo config.
+A `craneLib` from `mkToolchain` overrides Crane's `devShell`, so every shell
+built from it — including `craneLib.devShell` called directly — installs the
+same hook and adds the packages the config needs (`clang`, and `mold` while an
+emitted target links with mold). `mkDevShell` still installs its own hook and
+disables the `craneLib` copy, so the hook runs exactly once.
+
+Pass `rsHarborCargoConfig = false` to keep the shell's Cargo environment
+untouched, or a `mkCargoConfig` result to replace the toolchain's config. The
+argument never reaches Crane. [mkToolchain](./toolchain.md#dev-shells) documents
+the rustflags precedence that the generated `[target.<triple>]` entries imply.
+
 ## mkDocsShell
 
 Use `mkDocsShell` for CI and local workflows that only need mdBook documentation:

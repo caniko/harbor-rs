@@ -29,9 +29,10 @@
     then harbor-meta.timezone
     else throw "harbor-rs: timezone helpers require an updated harbor-meta flake input";
   mkCargoConfig = import ./cargo-config.nix;
+  mkCargoHomeHook = import ./cargo-home-hook.nix;
   inherit ((import ./build-cache.nix {})) mkBuildCachePolicy;
   mkToolchain = import ./toolchain.nix {
-    inherit crane mkBuildCachePolicy mkCargoConfig rustOverlay;
+    inherit crane mkBuildCachePolicy mkCargoConfig mkCargoHomeHook rustOverlay;
   };
   hardeningProfiles = import ./hardening-profiles.nix;
   mkSccacheLib = import ./sccache.nix {};

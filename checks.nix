@@ -951,6 +951,28 @@ in
       assert builtins.length windowsSections == 1;
         pkgs.runCommand "check-mkToolchain-deduplicates-overlapping-crossTargets" {} "touch $out";
 
+    # cargoConfigArgs reaches the generated config, and mkCargoConfig's
+    # channel asserts still fire on a stable toolchain.
+    mkToolchain-cargo-config-args = let
+      nightly = self.lib.mkToolchain {
+        inherit pkgs;
+        cargoConfigArgs = {
+          parallelFrontendThreads = 6;
+          enableHintMostlyUnused = true;
+        };
+      };
+      stable = self.lib.mkToolchain {
+        inherit pkgs;
+        toolchainProfile = "stable";
+        cargoConfigArgs.enableHintMostlyUnused = true;
+      };
+    in
+      assert pkgs.lib.hasInfix "-Zthreads=6" nightly.cargoConfig.configText;
+      assert pkgs.lib.hasInfix "profile-hint-mostly-unused = true" nightly.cargoConfig.configText;
+      assert nightly.craneLib.rsHarborCargoConfig == nightly.cargoConfig;
+      assert !(builtins.tryEval stable.cargoConfig.configText).success;
+        pkgs.runCommand "check-mkToolchain-cargo-config-args" {} "touch $out";
+
     # Path-patched crates under [patch.crates-io] must not be dummified by
     # Crane's dependency-only phase. Registry dependencies may compile against
     # those patched crates and require their real API.
@@ -1192,6 +1214,48 @@ in
       assert result.success == true;
       assert pkgs.lib.isDerivation result.value;
         pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-escape-hatch" {} "touch $out";
+
+    # A bare craneLib.devShell gets the toolchain's generated Cargo config
+    # exactly once, plus the packages that config needs.
+    craneLib-devShell-cargo-home = let
+      shell = toolchain.craneLib.devShell {
+        shellHook = "echo consumer-hook";
+      };
+      noMoldShell = (self.lib.mkToolchain {
+        inherit pkgs;
+        cargoConfigArgs.enableMold = false;
+      }).craneLib.devShell {};
+      hookCount = shell: builtins.length (pkgs.lib.splitString "harbor-rs: cargo config at " shell.shellHook) - 1;
+    in
+      assert hookCount shell == 1;
+      assert pkgs.lib.hasInfix "echo consumer-hook" shell.shellHook;
+      assert builtins.elem pkgs.clang shell.nativeBuildInputs;
+      assert builtins.elem pkgs.mold shell.nativeBuildInputs;
+      # A config that emits no mold linker takes neither package.
+      assert hookCount noMoldShell == 1;
+      assert !(builtins.elem pkgs.clang noMoldShell.nativeBuildInputs);
+      assert !(builtins.elem pkgs.mold noMoldShell.nativeBuildInputs);
+        pkgs.runCommand "check-craneLib-devShell-cargo-home" {} "touch $out";
+
+    # craneLib.devShell can opt out, or take a mkCargoConfig result that
+    # replaces the toolchain's config.
+    craneLib-devShell-cargo-home-opt-out = let
+      disabled = toolchain.craneLib.devShell {rsHarborCargoConfig = false;};
+      customConfig = self.lib.mkCargoConfig {
+        inherit pkgs;
+        channel = "stable";
+        crossTargets = [];
+      };
+      replaced = toolchain.craneLib.devShell {rsHarborCargoConfig = customConfig;};
+      hookCount = shell: builtins.length (pkgs.lib.splitString "harbor-rs: cargo config at " shell.shellHook) - 1;
+    in
+      assert hookCount disabled == 0;
+      assert !(builtins.elem pkgs.mold disabled.nativeBuildInputs);
+      assert hookCount replaced == 1;
+      assert pkgs.lib.hasInfix (builtins.unsafeDiscardStringContext customConfig.configPath) replaced.shellHook;
+      assert !(pkgs.lib.hasInfix (builtins.unsafeDiscardStringContext toolchain.cargoConfig.configPath) replaced.shellHook);
+      assert !(builtins.elem pkgs.mold replaced.nativeBuildInputs);
+        pkgs.runCommand "check-craneLib-devShell-cargo-home-opt-out" {} "touch $out";
 
     # Rust package derivations carry compiler/linker tools explicitly so
     # build scripts and drv reproducers can find cc/gcc outside dev shells.
@@ -1930,6 +1994,9 @@ in
       pkgs.runCommand "check-mkDevShells-cargo-home" {
         inherit (shell) nativeBuildInputs;
       } ''
+        # mkDevShell installs the hook itself; a harbor craneLib must not add a
+        # second copy.
+        test "$(grep -c 'harbor-rs: cargo config at ' ${hook})" = 1
         export HOME="$TMPDIR/home"
         export XDG_CACHE_HOME="$TMPDIR/cache"
         unset CARGO_HOME
