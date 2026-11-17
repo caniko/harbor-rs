@@ -340,8 +340,65 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
 
     Crane's dependency-only build replaces path crates with dummy sources. That is unsafe when a patched crate is used by registry dependencies, because those dependencies can compile against a dummy API and fail with misleading missing-symbol errors.
 
-    Use craneLib.buildPackage (args // { cargoArtifacts = null; }) to build with real sources, remove the path patch, or vendor the dependency in a way that does not rely on [patch.crates-io]. If this project is known to tolerate dummy path patches, pass rsHarborAllowPathPatchBuildDepsOnly = true.
+    harbor-rs keeps the patched crates real automatically when `src` is a direct Nix path or lib.cleanSourceWith source, every patch path lies inside it, and neither `dummySrc` nor `rsHarborCargoTomlContents` is passed. Otherwise use craneLib.buildPackage (args // { cargoArtifacts = null; }) to build with real sources, or, if this project is known to tolerate dummy path patches, pass rsHarborAllowPathPatchBuildDepsOnly = true.
   '';
+
+  # Arguments for Crane's buildDepsOnly. Crane dummifies every workspace
+  # crate; registry crates may compile against a [patch.crates-io] path crate,
+  # so those directories stay real. They are copied from a source filtered to
+  # the patch directories alone, and vendoring reads the real `src`, so the
+  # dependency derivation changes only with Cargo manifests, Cargo.lock and the
+  # patched crates, and evaluation never reads the built dummy source (IFD).
+  buildDepsOnlyArgs = prev: args: let
+    pathPatches =
+      if args.rsHarborAllowPathPatchBuildDepsOnly or false
+      then []
+      else patchCratesIoPathPatches args;
+    dirs = builtins.map (patch: pkgs.lib.removeSuffix "/" (pkgs.lib.removePrefix "./" patch.path)) pathPatches;
+    supported =
+      args ? src
+      && !(args ? dummySrc)
+      && !(args ? rsHarborCargoTomlContents)
+      && builtins.all (dir: dir != "" && dir != "." && !(pkgs.lib.hasPrefix "/" dir) && !(builtins.elem ".." (pkgs.lib.splitString "/" dir))) dirs;
+    root =
+      toString (
+        if args.src._isLibCleanSourceWith or false
+        then args.src.origSrc
+        else args.src
+      )
+      + "/";
+    patchSrc = pkgs.lib.cleanSourceWith {
+      inherit (args) src;
+      name = "path-patches";
+      filter = path: _type: let
+        rel = pkgs.lib.removePrefix root path;
+      in
+        builtins.any (dir: rel == dir || pkgs.lib.hasPrefix "${dir}/" rel || pkgs.lib.hasPrefix "${rel}/" dir) dirs;
+    };
+    copyPatches =
+      pkgs.lib.concatMapStrings (dir: let
+        target = "\"$out\"/${pkgs.lib.escapeShellArg dir}";
+      in ''
+        rm -rf ${target}
+        mkdir -p "$(dirname ${target})"
+        cp -r --no-preserve=mode ${patchSrc}/${pkgs.lib.escapeShellArg dir} ${target}
+      '')
+      dirs;
+  in
+    stripRsHarborCraneArgs (
+      if pathPatches == []
+      then args
+      else if !supported
+      then throw (pathPatchBuildDepsOnlyError pathPatches)
+      else
+        builtins.removeAttrs args ["src"]
+        // {
+          dummySrc = prev.mkDummySrc (args // {extraDummyScript = (args.extraDummyScript or "") + "\n" + copyPatches;});
+          cargoVendorDir = args.cargoVendorDir or (prev.vendorCargoDeps args);
+          pname = args.pname or (prev.crateNameFromCargoToml args).pname;
+          version = args.version or (prev.crateNameFromCargoToml args).version;
+        }
+    );
 
   cacheEnabled = cache.enable or false;
   buildCache =
@@ -408,15 +465,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
         else buildCache.withRustCache {package = raw;};
 
       buildDepsOnly = args: let
-        allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
-        pathPatches =
-          if allow
-          then []
-          else patchCratesIoPathPatches args;
-        raw =
-          if pathPatches != []
-          then throw (pathPatchBuildDepsOnlyError pathPatches)
-          else (cranePrevFor prev args).buildDepsOnly (stripRsHarborCraneArgs args);
+        raw = (cranePrevFor prev args).buildDepsOnly (buildDepsOnlyArgs prev args);
       in
         if buildCache == null
         then raw
@@ -463,16 +512,7 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
     };
 
   rawCraneLib = upstreamCraneLib.overrideScope (_final: prev: {
-    buildDepsOnly = args: let
-      allow = args.rsHarborAllowPathPatchBuildDepsOnly or false;
-      pathPatches =
-        if allow
-        then []
-        else patchCratesIoPathPatches args;
-    in
-      if pathPatches != []
-      then throw (pathPatchBuildDepsOnlyError pathPatches)
-      else (cranePrevFor prev args).buildDepsOnly (stripRsHarborCraneArgs args);
+    buildDepsOnly = args: (cranePrevFor prev args).buildDepsOnly (buildDepsOnlyArgs prev args);
 
     buildPackage = args: let
       pathPatches =
