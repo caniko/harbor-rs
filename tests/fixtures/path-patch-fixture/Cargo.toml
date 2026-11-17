@@ -12,3 +12,9 @@ registry-like = { path = "registry-like" }
 
 [patch.crates-io]
 fake-api = { path = "vendor/fake-api" }
+
+[workspace]
+members = ["registry-like", "vendor/fake-api"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"

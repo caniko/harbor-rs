@@ -1176,17 +1176,38 @@ in
       assert pkg.cargoArtifacts == null;
         pkgs.runCommand "check-craneLib-path-patch-generated-source-explicit-manifest" {} "touch $out";
 
-    craneLib-path-patch-buildDepsOnly-rejected = let
-      fixtureSrc = ./tests/fixtures/path-patch-fixture;
-      result = builtins.tryEval (toolchain.craneLib.buildDepsOnly {
-        src = fixtureSrc;
-        pname = "path-patch-fixture";
-        version = "0.1.0";
-        doCheck = false;
-      });
+    # buildDepsOnly keeps path-patched crates real while dummifying the rest:
+    # a workspace source edit leaves the drvPath unchanged, a patched-crate
+    # edit changes it. The dummy source's build always fails here, so reading
+    # it during evaluation (import-from-derivation) fails this check.
+    craneLib-path-patch-buildDepsOnly-dummy-src = let
+      fixture = ./tests/fixtures/path-patch-fixture;
+      without = drop:
+        pkgs.lib.cleanSourceWith {
+          src = fixture;
+          filter = path: _type: !(builtins.elem (pkgs.lib.removePrefix "${toString fixture}/" path) drop);
+        };
+      deps = drop:
+        (toolchain.craneLib.buildDepsOnly {
+          src = without drop;
+          doCheck = false;
+          extraDummyScript = "exit 1";
+        }).drvPath;
     in
-      assert result.success == false;
-        pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-rejected" {} "touch $out";
+      assert deps [] == deps ["src/main.rs" "registry-like/src/lib.rs"];
+      assert deps [] != deps ["vendor/fake-api/src/lib.rs"];
+      assert !(builtins.tryEval
+        (toolchain.craneLib.buildDepsOnly {
+          src = fixture;
+          dummySrc = fixture;
+        }).drvPath).success;
+        pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-dummy-src" {} "touch $out";
+
+    # The real patched crate inherits workspace lints from the dummy root.
+    craneLib-path-patch-buildDepsOnly-build = toolchain.craneLib.buildDepsOnly {
+      src = ./tests/fixtures/path-patch-fixture;
+      doCheck = false;
+    };
 
     # Legacy `stdenv=` crane args must map to stdenvSelector, not warn.
     craneLib-stdenv-arg-uses-selector = let

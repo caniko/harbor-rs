@@ -79,15 +79,23 @@ Crane's dependency-only phase builds a dummy source tree for path crates. That i
 
 For these workspaces, `craneLib.buildPackage` automatically disables implicit dependency artifact reuse by passing `cargoArtifacts = null` unless the caller already provided `cargoArtifacts`.
 
-Direct `craneLib.buildDepsOnly` calls fail with an harbor-rs error naming the path patches. Prefer:
+Direct `craneLib.buildDepsOnly` calls keep the patched crates real. harbor-rs
+builds the dummy source with Crane's `mkDummySrc`, then copies each patch
+directory back from a source filtered to those directories, and vendors from
+the real `src`. The dependency derivation therefore changes only with Cargo
+manifests, `Cargo.lock` and the patched crates, and evaluation needs no
+import-from-derivation. Pass the real `src` and no `dummySrc`:
 
 ```nix
-craneLib.buildPackage (commonArgs // {
-  cargoArtifacts = null;
-})
+cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 ```
 
-If a workspace is known to tolerate dummy path patches, pass `rsHarborAllowPathPatchBuildDepsOnly = true` to `buildDepsOnly`.
+This needs `src` as a direct Nix path or `lib.cleanSourceWith` source with
+every patch path inside it. Otherwise, and when `dummySrc` or
+`rsHarborCargoTomlContents` is passed, `buildDepsOnly` fails with an harbor-rs
+error naming the path patches; build with `cargoArtifacts = null` instead. If a
+workspace is known to tolerate dummy path patches, or supplies its own
+`dummySrc`, pass `rsHarborAllowPathPatchBuildDepsOnly = true`.
 
 Path-patch detection reads `Cargo.toml` during evaluation. Direct Nix paths and
 `lib.cleanSourceWith` sources are handled automatically. If `src` is a generated
