@@ -1203,6 +1203,12 @@ in
         }).drvPath).success;
         pkgs.runCommand "check-craneLib-path-patch-buildDepsOnly-dummy-src" {} "touch $out";
 
+    # The real patched crate inherits workspace lints from the dummy root.
+    craneLib-path-patch-buildDepsOnly-build = toolchain.craneLib.buildDepsOnly {
+      src = ./tests/fixtures/path-patch-fixture;
+      doCheck = false;
+    };
+
     # Legacy `stdenv=` crane args must map to stdenvSelector, not warn.
     craneLib-stdenv-arg-uses-selector = let
       pkg = toolchain.craneLib.buildPackage {

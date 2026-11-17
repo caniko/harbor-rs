@@ -393,7 +393,13 @@ assert pkgs.lib.assertMsg (date == null || date == "latest" || builtins.match "[
       else
         builtins.removeAttrs args ["src"]
         // {
-          dummySrc = prev.mkDummySrc (args // {extraDummyScript = (args.extraDummyScript or "") + "\n" + copyPatches;});
+          dummySrc = prev.mkDummySrc (args
+            // {
+              extraDummyScript = (args.extraDummyScript or "") + "\n" + copyPatches;
+              # A real patched member may inherit `[lints] workspace = true`;
+              # Crane strips workspace.lints from the dummy root manifest.
+              cleanCargoTomlFilter = path: (args.cleanCargoTomlFilter or prev.filters.cargoTomlDefault) path || pkgs.lib.take 2 path == ["workspace" "lints"];
+            });
           cargoVendorDir = args.cargoVendorDir or (prev.vendorCargoDeps args);
           pname = args.pname or (prev.crateNameFromCargoToml args).pname;
           version = args.version or (prev.crateNameFromCargoToml args).version;
