@@ -25,7 +25,7 @@
         jq -e --arg version ${pkgs.lib.escapeShellArg version} --arg id ${pkgs.lib.escapeShellArg extensionId} \
           '.version == $version and .browser_specific_settings.gecko.id == $id' ${pkgs.lib.escapeShellArg "${src}/manifest.json"} >/dev/null \
           || { echo 'mkBrowserExtension: manifest version or gecko id does not match' >&2; exit 1; }
-        cp -R ${pkgs.lib.escapeShellArg (toString src)} source
+        cp -R ${pkgs.lib.escapeShellArg "${src}"} source
         chmod -R u+w source
         cd source
         export TZ=UTC

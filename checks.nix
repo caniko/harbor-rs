@@ -1090,12 +1090,9 @@ in
         pkgs.runCommand "check-mkJetBrainsPlugin-rejects-empty-id" {} "touch $out";
 
     mkBrowserExtension-build = let
-      src = pkgs.runCommand "extension-fixture-source" {} ''
-        mkdir -p "$out"
-        cp ${./tests/fixtures/browser-extension/manifest.json} "$out/manifest.json"
-      '';
       extension = self.lib.mkBrowserExtension {
-        inherit pkgs src;
+        inherit pkgs;
+        src = ./tests/fixtures/browser-extension;
         pname = "fixture";
         version = "1.0";
         extensionId = "fixture@example.org";
