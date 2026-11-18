@@ -131,6 +131,7 @@ in {
   mkGradlePackage = import ./gradle-package.nix;
   mkGradleMavenProxyInitScript = import ./maven-cache.nix;
   mkJetBrainsPlugin = import ./jetbrains-plugin.nix;
+  inherit (import ./browser-extension.nix) mkBrowserExtension mkNativeMessagingHost;
   mkJetBrainsSigningMaterial = import ./jetbrains-signing.nix;
   mkTrunkPackage = import ./trunk.nix {inherit crane packageTests;};
   inherit (dioxusLib) mkDioxusPackage mkDioxusWebPackage mkDioxusFullstackPackage;

@@ -37,6 +37,8 @@
 
 ### Added
 
+- `mkBrowserExtension` and `mkNativeMessagingHost` package Firefox and Floorp extensions and native messaging manifests.
+
 - `compile-bench` (`packages.compile-bench`, `apps.compile-bench`) measures a
   consumer's build against eleven generated Cargo configs: `none`, `current`,
   `threads8`, `nothreads`, `lld`, `wild`, `hint`, `buildopt`, `cranelift`,

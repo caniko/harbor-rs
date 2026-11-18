@@ -1089,6 +1089,60 @@ in
       assert !result.success;
         pkgs.runCommand "check-mkJetBrainsPlugin-rejects-empty-id" {} "touch $out";
 
+    mkBrowserExtension-build = let
+      src = pkgs.runCommand "extension-fixture-source" {} ''
+        mkdir -p "$out"
+        cp ${./tests/fixtures/browser-extension/manifest.json} "$out/manifest.json"
+      '';
+      extension = self.lib.mkBrowserExtension {
+        inherit pkgs src;
+        pname = "fixture";
+        version = "1.0";
+        extensionId = "fixture@example.org";
+      };
+    in
+      assert extension.rsHarbor.helper == "mkBrowserExtension";
+        pkgs.runCommand "check-mkBrowserExtension-build" {nativeBuildInputs = [pkgs.unzip];} ''
+          test -f "${extension.xpi}"
+          test "$(readlink ${extension}/fixture-1.0.xpi)" = "${extension.xpi}"
+          unzip -l "${extension.xpi}" | grep -E '[[:space:]]manifest\.json$'
+          touch "$out"
+        '';
+
+    mkNativeMessagingHost-build = let
+      host = self.lib.mkNativeMessagingHost {
+        inherit pkgs;
+        name = "org.example.fixture";
+        description = "Fixture";
+        program = "/example/bin/host";
+        allowedExtensions = ["fixture@example.org"];
+      };
+    in
+      assert host.rsHarbor.helper == "mkNativeMessagingHost";
+        pkgs.runCommand "check-mkNativeMessagingHost-build" {nativeBuildInputs = [pkgs.jq];} ''
+          jq -e '.name == "org.example.fixture" and .description == "Fixture" and .path == "/example/bin/host" and .type == "stdio" and .allowed_extensions == ["fixture@example.org"]' ${host}/lib/mozilla/native-messaging-hosts/org.example.fixture.json
+          touch "$out"
+        '';
+
+    browser-extension-rejects-invalid = let
+      extension = builtins.tryEval (self.lib.mkBrowserExtension {
+        inherit pkgs;
+        pname = "fixture";
+        version = "1.0";
+        src = ./tests/fixtures/browser-extension;
+        extensionId = "wrong@example.org";
+      });
+      host = builtins.tryEval (self.lib.mkNativeMessagingHost {
+        inherit pkgs;
+        name = "Bad-name";
+        description = "Fixture";
+        program = "/example/bin/host";
+        allowedExtensions = ["fixture@example.org"];
+      });
+    in
+      assert !extension.success && !host.success;
+        pkgs.runCommand "check-browser-extension-rejects-invalid" {} "touch $out";
+
     mkJetBrainsSigningMaterial-shape = let
       helper = self.lib.mkJetBrainsSigningMaterial {inherit pkgs;};
     in
