@@ -25,7 +25,8 @@
         jq -es --arg version ${pkgs.lib.escapeShellArg version} --arg id ${pkgs.lib.escapeShellArg extensionId} \
           'length == 1 and .[0].version == $version and .[0].browser_specific_settings.gecko.id == $id' ${pkgs.lib.escapeShellArg "${src}/manifest.json"} >/dev/null \
           || { echo 'mkBrowserExtension: manifest version or gecko id does not match' >&2; exit 1; }
-        cp -RL ${pkgs.lib.escapeShellArg "${src}"} source
+        cp -R ${pkgs.lib.escapeShellArg "${src}"} source
+        test -z "$(find source -type l)" || { echo 'mkBrowserExtension: src must not contain symlinks' >&2; exit 1; }
         chmod -R u+w source
         cd source
         export TZ=UTC
