@@ -30,6 +30,7 @@
 - [mkHomebrewFormula](./packaging/homebrew-formula.md)
 - [Homebrew CLI](./packaging/homebrew-cli.md)
 - [Dioxus packages](./packaging/dioxus.md)
+- [Browser extensions](./packaging/browser-extension.md)
 - [Android APK packages](./packaging/android-apk.md)
 - [Package Tests](./packaging/package-tests.md)
 - [Steam Runtime Tools](./packaging/steam-runtime.md)
