@@ -155,8 +155,7 @@
       target_env="''${target_env^^}"
       linker_var="CARGO_TARGET_''${target_env}_LINKER"
       if [ -n "$linker" ] && [[ "$target_env" =~ ^[A-Z0-9_]+$ ]] && [[ ! -v $linker_var ]]; then
-        printf -v "$linker_var" '%s' "$linker"
-        export "$linker_var"
+        export "$linker_var=$linker"
       fi
 
       mkdir -p "$HOME" "$CARGO_HOME" "$RUSTUP_HOME" "$CARGO_TARGET_DIR"
