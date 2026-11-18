@@ -68,6 +68,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
 
     let cwd = std::env::current_dir().context("reading current working directory")?;
     let workdir = args.workdir.clone().unwrap_or_else(|| cwd.clone());
+    let (uid, gid) = current_uid_gid()?;
 
     let mut cmd = Command::new(&runner);
     cmd.arg("run").arg("--rm");
@@ -77,6 +78,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
 
     let runner_basename = runner.file_name().and_then(|n| n.to_str()).unwrap_or("");
     if runner_basename == "podman" {
+        check_podman_graphroot(&runner, uid)?;
         cmd.arg("--userns=keep-id");
     }
 
@@ -92,7 +94,6 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
         .arg(format!("{}:{}", cwd.display(), cwd.display()));
     cmd.arg("--workdir").arg(&workdir);
 
-    let (uid, gid) = current_uid_gid()?;
     cmd.arg("--user").arg(format!("{uid}:{gid}"));
 
     cmd.arg(&args.image);
@@ -118,6 +119,56 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
                 .unwrap_or_else(|| "<signal>".to_string()),
         );
     }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn blocks_subordinate_uid(owner: u32, mode: u32, uid: u32) -> bool {
+    owner == uid && mode & 0o001 == 0
+}
+
+#[cfg(unix)]
+fn check_podman_graphroot(runner: &std::path::Path, uid: u32) -> Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    if uid == 0 {
+        return Ok(());
+    }
+    let Ok(output) = Command::new(runner)
+        .args(["info", "--format", "{{.Store.GraphRoot}}"])
+        .output()
+    else {
+        return Ok(());
+    };
+    if !output.status.success() {
+        return Ok(());
+    }
+    let Ok(graphroot) = std::str::from_utf8(&output.stdout) else {
+        return Ok(());
+    };
+    let path = std::path::Path::new(graphroot.trim());
+    if !path.is_absolute() {
+        return Ok(());
+    }
+    let Ok(path) = path.canonicalize() else {
+        return Ok(());
+    };
+    for ancestor in path.ancestors() {
+        if let Ok(metadata) = ancestor.metadata()
+            && blocks_subordinate_uid(metadata.uid(), metadata.mode(), uid)
+        {
+            bail!(
+                "podman graphroot ancestor {} is not traversable by subordinate UIDs; run chmod o+x '{}' (e.g. mode 0711) and retry",
+                ancestor.display(),
+                ancestor.display()
+            );
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn check_podman_graphroot(_runner: &std::path::Path, _uid: u32) -> Result<()> {
     Ok(())
 }
 
@@ -149,6 +200,15 @@ fn read_id(flag: &str) -> Result<u32> {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[cfg(unix)]
+    #[test]
+    fn identifies_owned_ancestors_without_other_execute() {
+        assert!(blocks_subordinate_uid(1000, 0o700, 1000));
+        assert!(blocks_subordinate_uid(1000, 0o710, 1000));
+        assert!(!blocks_subordinate_uid(1000, 0o711, 1000));
+        assert!(!blocks_subordinate_uid(0, 0o700, 1000));
+    }
 
     #[derive(Parser, Debug)]
     struct Test {

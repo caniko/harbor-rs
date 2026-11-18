@@ -118,6 +118,9 @@
         STEAM_RUNTIME_RUST_TOOLCHAIN Rust toolchain channel (default: stable)
         STEAM_RUNTIME_TARGET         Cargo target triple
                                      (default: x86_64-unknown-linux-gnu)
+        STEAM_RUNTIME_LINKER         Target linker (default: clang; empty keeps
+                                     the project's linker). An existing Cargo
+                                     target linker environment variable wins.
         LIBCLANG_PATH                Optional, defaults to
                                      /usr/lib/x86_64-linux-gnu
         CARGO_PROFILE_RELEASE_DEBUG  Forwarded; defaults to 1
@@ -146,6 +149,15 @@
       export CARGO_TARGET_DIR="''${CARGO_TARGET_DIR:-$runtime_root/target}"
       export LIBCLANG_PATH="''${LIBCLANG_PATH:-/usr/lib/x86_64-linux-gnu}"
       export CARGO_PROFILE_RELEASE_DEBUG="''${CARGO_PROFILE_RELEASE_DEBUG:-1}"
+
+      linker="''${STEAM_RUNTIME_LINKER-clang}"
+      target_env="''${target//-/_}"
+      target_env="''${target_env^^}"
+      linker_var="CARGO_TARGET_''${target_env}_LINKER"
+      if [ -n "$linker" ] && [[ "$target_env" =~ ^[A-Z0-9_]+$ ]] && [[ ! -v $linker_var ]]; then
+        printf -v "$linker_var" '%s' "$linker"
+        export "$linker_var"
+      fi
 
       mkdir -p "$HOME" "$CARGO_HOME" "$RUSTUP_HOME" "$CARGO_TARGET_DIR"
 

@@ -2432,6 +2432,24 @@ in
           grep -- '--features LIST' help
           grep 'STEAM_RUNTIME_BUILD_ROOT' help
           grep 'STEAM_RUNTIME_TARGET' help
+          grep 'STEAM_RUNTIME_LINKER' help
+          mkdir -p fake-bin
+          for tool in git gcc g++ pkg-config clang rustup; do
+            printf '#!%s\nexit 0\n' '${pkgs.runtimeShell}' > "fake-bin/$tool"
+            chmod +x "fake-bin/$tool"
+          done
+          cat > fake-bin/cargo <<'EOF'
+          #!${pkgs.runtimeShell}
+          printf '%s\n' "''${CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER-unset}"
+          EOF
+          chmod +x fake-bin/cargo
+          export PATH="$PWD/fake-bin:$PATH"
+          export STEAM_RUNTIME_BUILD_ROOT="$PWD/build"
+          bootstrap="${s.steamRuntimeCargoBootstrap}/bin/steam-runtime-cargo-bootstrap"
+          test "$("$bootstrap")" = clang
+          test "$(STEAM_RUNTIME_LINKER=gcc "$bootstrap")" = gcc
+          test "$(STEAM_RUNTIME_LINKER= "$bootstrap")" = unset
+          test "$(CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=custom STEAM_RUNTIME_LINKER=gcc "$bootstrap")" = custom
           touch "$out"
         '';
 
