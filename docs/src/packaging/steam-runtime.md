@@ -70,6 +70,27 @@ The wrapper does not install Rust, Nix, engine dependencies, or Steamworks SDK
 content. Projects with custom toolchains should either bake those into their own
 image or use the wrapper for runtime validation commands.
 
+For rootless Podman, `--userns=keep-id` requires subordinate UIDs to traverse
+the graphroot and its parent directories. The wrapper checks user-owned
+ancestors and reports directories without other-execute permission; add it with
+`chmod o+x /path/to/directory` (for example, mode `0711`). If Podman cannot
+report its graphroot, the check is skipped. Docker is not checked.
+
+### Bootstrapping Cargo inside the SDK
+
+`steam-runtime-cargo-bootstrap` defaults the target Cargo linker to `clang`
+inside the container. This supports `-fuse-ld=mold` with sniper's older GCC.
+Set `STEAM_RUNTIME_LINKER` to another linker, or to an empty string to retain
+the project's linker configuration. An already-set
+`CARGO_TARGET_<TRIPLE>_LINKER` takes precedence. Set these variables inside the
+container: `steam-runtime-exec` does not forward host environment variables.
+For example:
+
+```sh
+nix run .#steam-runtime-exec -- -- env STEAM_RUNTIME_LINKER= \
+  /path/to/steam-runtime-cargo-bootstrap
+```
+
 For Nix-built audit tools, mount `/nix/store` read-only:
 
 ```sh
