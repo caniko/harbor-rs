@@ -22,10 +22,10 @@
         meta.platforms = pkgs.lib.platforms.all;
       } ''
         test -f ${pkgs.lib.escapeShellArg "${src}/manifest.json"} || { echo 'mkBrowserExtension: manifest.json is missing' >&2; exit 1; }
-        jq -e --arg version ${pkgs.lib.escapeShellArg version} --arg id ${pkgs.lib.escapeShellArg extensionId} \
-          '.version == $version and .browser_specific_settings.gecko.id == $id' ${pkgs.lib.escapeShellArg "${src}/manifest.json"} >/dev/null \
+        jq -es --arg version ${pkgs.lib.escapeShellArg version} --arg id ${pkgs.lib.escapeShellArg extensionId} \
+          'length == 1 and .[0].version == $version and .[0].browser_specific_settings.gecko.id == $id' ${pkgs.lib.escapeShellArg "${src}/manifest.json"} >/dev/null \
           || { echo 'mkBrowserExtension: manifest version or gecko id does not match' >&2; exit 1; }
-        cp -R ${pkgs.lib.escapeShellArg "${src}"} source
+        cp -RL ${pkgs.lib.escapeShellArg "${src}"} source
         chmod -R u+w source
         cd source
         export TZ=UTC
@@ -33,7 +33,6 @@
         xpi="$out"/${pkgs.lib.escapeShellArg xpiPath}
         mkdir -p "$(dirname "$xpi")"
         find . -type f -printf '%P\n' | LC_ALL=C sort | zip -X -q "$xpi" -@
-        ln -s "$xpi" "$out"/${pkgs.lib.escapeShellArg "${pname}-${version}.xpi"}
       '';
   in
     assert builtins.isString extensionId && builtins.match "[^/\n]+" extensionId != null && extensionId != "." && extensionId != ".." || throw "mkBrowserExtension: extensionId must be a non-empty filename";

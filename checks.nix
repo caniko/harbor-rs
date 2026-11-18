@@ -1101,7 +1101,6 @@ in
       assert extension.rsHarbor.helper == "mkBrowserExtension";
         pkgs.runCommand "check-mkBrowserExtension-build" {nativeBuildInputs = [pkgs.unzip];} ''
           test -f "${extension.xpi}"
-          test "$(readlink ${extension}/fixture-1.0.xpi)" = "${extension.xpi}"
           unzip -l "${extension.xpi}" | grep -E '[[:space:]]manifest\.json$'
           touch "$out"
         '';
