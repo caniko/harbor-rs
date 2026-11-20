@@ -82,6 +82,7 @@ in {
         inherit (self.lib) mkDevSandbox;
       })
       // {
+        formatting = treefmt.config.build.check self;
         treefmt-modules = import ./treefmt/check.nix {
           inherit pkgs;
           inherit (inputs) treefmt-nix;
