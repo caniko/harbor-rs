@@ -19,18 +19,18 @@ and the project's inputs. The bench adds `hyperfine`, `jq`, `git`, `systemd` and
 Each variant is one generated `config.toml`; the table prints with
 `--list-variants`.
 
-| Variant | Config |
-| --- | --- |
-| `none` | empty config, as a `craneLib.devShell` consumer has today |
-| `current` | `mkCargoConfig` defaults |
+| Variant                  | Config                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| `none`                   | empty config, as a `craneLib.devShell` consumer has today                       |
+| `current`                | `mkCargoConfig` defaults                                                        |
 | `threads0` / `nothreads` | `parallelFrontendThreads = 0` (one per core) / `enableParallelFrontend = false` |
-| `lld` | `enableMold = null`, so rust-lld serves `x86_64-unknown-linux-gnu` |
-| `wild` | `enableMold = false` plus `linker = "clang"` and `-Clink-arg=--ld-path=wild` |
-| `nohint` | `enableHintMostlyUnused = false` |
-| `buildopt` | `devBuildOverrideOptLevel = 3` |
-| `cranelift` | `enableCranelift = true`, informational |
-| `incremental` | `current`, with `CARGO_INCREMENTAL` unset |
-| `aslived` | `current`, with the host's `RUSTC_WRAPPER` (warm sccache) |
+| `lld`                    | `enableMold = null`, so rust-lld serves `x86_64-unknown-linux-gnu`              |
+| `wild`                   | `enableMold = false` plus `linker = "clang"` and `-Clink-arg=--ld-path=wild`    |
+| `nohint`                 | `enableHintMostlyUnused = false`                                                |
+| `buildopt`               | `devBuildOverrideOptLevel = 3`                                                  |
+| `cranelift`              | `enableCranelift = true`, informational                                         |
+| `incremental`            | `current`, with `CARGO_INCREMENTAL` unset                                       |
+| `aslived`                | `current`, with the host's `RUSTC_WRAPPER` (warm sccache)                       |
 
 The channel comes from `rustc -V`. Nightly-only variants (`threads0`,
 `nothreads`, `nohint`, `cranelift`) are offered on nightly only, and asking for
@@ -45,13 +45,13 @@ instead of fetching them again. The dev-shell environment is captured once
 
 ## Scenarios
 
-| Scenario | Command | Runs |
-| --- | --- | --- |
-| `S1` | clean `cargo build --workspace` | 3 |
-| `S2` | no-op `cargo build --workspace` | 5 |
-| `S3` | `cargo build --workspace` after the one-line edit | 5 |
-| `S4` | clean `cargo check --workspace` | 3 |
-| `S5` | `cargo check --workspace` after the one-line edit | 5 |
+| Scenario | Command                                           | Runs |
+| -------- | ------------------------------------------------- | ---- |
+| `S1`     | clean `cargo build --workspace`                   | 3    |
+| `S2`     | no-op `cargo build --workspace`                   | 5    |
+| `S3`     | `cargo build --workspace` after the one-line edit | 5    |
+| `S4`     | clean `cargo check --workspace`                   | 3    |
+| `S5`     | `cargo check --workspace` after the one-line edit | 5    |
 
 `--scenarios a,b` selects a subset; the order is always S1 to S5. `S3` and `S5`
 append a single comment line to `--edit-file` before each run and restore the

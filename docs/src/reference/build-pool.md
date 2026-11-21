@@ -27,16 +27,16 @@ single thread's build is not much slower than it is today.
 
 ## What a cargo-level scheduler can and cannot bound
 
-| Consumer | Bounded by a shared jobserver? |
-| --- | --- |
-| rustc and build scripts started by cargo | Yes: cargo needs a token to start each unit. |
-| rustc `-Zthreads` and LLVM codegen threads, when cargo runs rustc directly | Yes, through the inherited `CARGO_MAKEFLAGS`. To verify (step 0). Only nightly harbor-rs builds pass `-Zthreads=0`: one of six sampled rustc had it. |
-| rustc that the sccache server runs on a miss | Only the start is bounded. Internal threads use the server's own pool. Sampled rustc were direct children of cargo, so the split is unknown (step 0). |
-| Linkers (mold) | No. They are sized by CPU count; `MOLD_JOBS` is a separate knob. |
-| Test and bench execution | No. `RUST_TEST_THREADS` and nextest `--test-threads` control them. |
-| rust-analyzer analysis and cache priming | No. The SynDB thread owns rust-analyzer configuration. |
-| rust-analyzer flychecks (`cargo check`) | Yes, when its environment carries the variable. |
-| nix-daemon builders | No. They use their own `cores`/`max-jobs` and a sandboxed environment. |
+| Consumer                                                                   | Bounded by a shared jobserver?                                                                                                                        |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| rustc and build scripts started by cargo                                   | Yes: cargo needs a token to start each unit.                                                                                                          |
+| rustc `-Zthreads` and LLVM codegen threads, when cargo runs rustc directly | Yes, through the inherited `CARGO_MAKEFLAGS`. To verify (step 0). Only nightly harbor-rs builds pass `-Zthreads=0`: one of six sampled rustc had it.  |
+| rustc that the sccache server runs on a miss                               | Only the start is bounded. Internal threads use the server's own pool. Sampled rustc were direct children of cargo, so the split is unknown (step 0). |
+| Linkers (mold)                                                             | No. They are sized by CPU count; `MOLD_JOBS` is a separate knob.                                                                                      |
+| Test and bench execution                                                   | No. `RUST_TEST_THREADS` and nextest `--test-threads` control them.                                                                                    |
+| rust-analyzer analysis and cache priming                                   | No. The SynDB thread owns rust-analyzer configuration.                                                                                                |
+| rust-analyzer flychecks (`cargo check`)                                    | Yes, when its environment carries the variable.                                                                                                       |
+| nix-daemon builders                                                        | No. They use their own `cores`/`max-jobs` and a sandboxed environment.                                                                                |
 
 The peak mix contained test and bench runs, rust-analyzer and `dx`, none of
 which a pool bounds. We do not yet know rustc's share of the load. Measuring it
@@ -94,7 +94,7 @@ fail the acceptance criteria.
 - **Same build dir.** This means the same worktree, since
   `CARGO_BUILD_BUILD_DIR` is keyed by workspace path.
   - Cargo's lock already serialises concurrent cargos here, per profile dir.
-  - Batching saves work only for *identical* requests: same argv and same
+  - Batching saves work only for _identical_ requests: same argv and same
     build-relevant environment. One run then serves everyone who boarded
     before it started. This is sound because every boarded thread is blocked,
     not editing, at departure.
@@ -117,14 +117,14 @@ There it reduces to coalescing identical commands.
 
 ## Options
 
-| | 0. Static caps | A. Shared fifo pool | B. Declared barrier | C. Per-build-dir train | E. Per-client proxy |
-| --- | --- | --- | --- | --- | --- |
-| What it is | Session variables: `CARGO_BUILD_JOBS=8`, `RUST_TEST_THREADS=8` | A daemon fills one fifo; every cargo inherits it | Threads declare intent, and all start when all are ready | A `harbor-rs build --` wrapper boards per build dir and coalesces identical commands | A wrapper gives each cargo a private fifo fed from a global budget |
-| Host-wide cap | No; per cargo only | Yes | No | No | Yes |
-| Covers LSPs and scripts | Yes | Yes | No | No | Only if the wrapper wins the `$CARGO`/`PATH` lookup |
-| Shares work | No | No | No | Identical commands, same dir | No |
-| Crash safety | n/a | Leaks on any signal death (below) | A dead participant stalls everyone until timeout | Socket EOF releases | Exact, per client |
-| Cost | One line | Daemon and reconciliation | Fragile protocol | Wrapper and train logic | Wrapper and rebalance loop |
+|                         | 0. Static caps                                                 | A. Shared fifo pool                              | B. Declared barrier                                      | C. Per-build-dir train                                                               | E. Per-client proxy                                                |
+| ----------------------- | -------------------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| What it is              | Session variables: `CARGO_BUILD_JOBS=8`, `RUST_TEST_THREADS=8` | A daemon fills one fifo; every cargo inherits it | Threads declare intent, and all start when all are ready | A `harbor-rs build --` wrapper boards per build dir and coalesces identical commands | A wrapper gives each cargo a private fifo fed from a global budget |
+| Host-wide cap           | No; per cargo only                                             | Yes                                              | No                                                       | No                                                                                   | Yes                                                                |
+| Covers LSPs and scripts | Yes                                                            | Yes                                              | No                                                       | No                                                                                   | Only if the wrapper wins the `$CARGO`/`PATH` lookup                |
+| Shares work             | No                                                             | No                                               | No                                                       | Identical commands, same dir                                                         | No                                                                 |
+| Crash safety            | n/a                                                            | Leaks on any signal death (below)                | A dead participant stalls everyone until timeout         | Socket EOF releases                                                                  | Exact, per client                                                  |
+| Cost                    | One line                                                       | Daemon and reconciliation                        | Fragile protocol                                         | Wrapper and train logic                                                              | Wrapper and rebalance loop                                         |
 
 Leaks under A are routine, not rare. Any signal death skips the token return:
 Ctrl-C, tool timeouts, thread interrupts, and probably rust-analyzer killing
@@ -198,7 +198,7 @@ train only where it pays.
   out to be needed, it belongs in the train wrapper, which admits whole cargo
   invocations.
 - **Opt-in.** A harbor-rs NixOS module, `programs.harborRs.buildPool = {
-  enable; user; capacity; }`, defines the user service and sets
+enable; user; capacity; }`, defines the user service and sets
   `environment.sessionVariables.CARGO_MAKEFLAGS`, the mechanism that already
   delivers `CARGO_BUILD_BUILD_DIR` to agents. harbor-rs `mkDevShells` exports
   it when the fifo exists. Canix enables the module on Atlas.
@@ -217,10 +217,10 @@ process, so state lives in the daemon. It is registered once in canix
 harbor-mcp, but this does not live there: harbor-mcp is a semver planner with
 its own release cadence.
 
-| Tool | Phase | Arguments | Returns |
-| --- | --- | --- | --- |
-| `build_status` | 1 | `cwd?`, `build_dir?` | Host `{mem_available, psi}` and CPU/RSS by class. Running cargos `{pid, build_dir, cwd, argv, class: agent\|flycheck\|terminal, started, rss}`. When A is enforced, also pool `{capacity, level, held_bound, withheld}` and reconciliation corrections. |
-| `build_result` | Train | `ticket`, `wait_seconds` ≤ 300 | The outcome and output tail of a train run. Call it again to keep waiting (the `pin_result` pattern). |
+| Tool           | Phase | Arguments                      | Returns                                                                                                                                                                                                                                                 |
+| -------------- | ----- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `build_status` | 1     | `cwd?`, `build_dir?`           | Host `{mem_available, psi}` and CPU/RSS by class. Running cargos `{pid, build_dir, cwd, argv, class: agent\|flycheck\|terminal, started, rss}`. When A is enforced, also pool `{capacity, level, held_bound, withheld}` and reconciliation corrections. |
+| `build_result` | Train | `ticket`, `wait_seconds` ≤ 300 | The outcome and output tail of a train run. Call it again to keep waiting (the `pin_result` pattern).                                                                                                                                                   |
 
 There is no `build_wait`. In canix's checkout, with flychecks on every save,
 the build dir is never idle: waiters would time out, then stampede when it
@@ -259,17 +259,17 @@ the build.
 
 ## Failure modes
 
-| Failure | Effect | Handling |
-| --- | --- | --- |
-| A token holder dies by any signal (A) | Capacity shrinks | Busy-time reconciliation; E if step 0 shows drift. |
-| Daemon crash or restart (A) | None: the fd store keeps the inode | `Restart=always`. |
-| Pool disabled while the variable is still set | Warning on every cargo, private pool | Fails open; next session picks up the change. |
-| Concurrent top-up race (A) | ±1 token | Scan, read, scan, then set the exact level. |
-| Nested cargo (xtask, build scripts, `dx`) | None: each cargo keeps its implicit token, so there is no deadlock | None needed. |
-| make older than 4.4 in a `-sys` crate | Falls back to `-j1` on a fifo jobserver | Step 0 tests one cmake/make crate. |
-| Memory spike | OOM is still possible | Agent-scope MemoryMax and systemd-oomd remain the backstop. |
-| Cargos under other uids or in nix-daemon | Not counted | Shown through PSI and the nix-daemon cgroup in the observe data. |
-| (Train) A participant dies or the executor is cancelled | Socket EOF | It is dropped, or the others re-board. |
+| Failure                                                 | Effect                                                             | Handling                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------- |
+| A token holder dies by any signal (A)                   | Capacity shrinks                                                   | Busy-time reconciliation; E if step 0 shows drift.               |
+| Daemon crash or restart (A)                             | None: the fd store keeps the inode                                 | `Restart=always`.                                                |
+| Pool disabled while the variable is still set           | Warning on every cargo, private pool                               | Fails open; next session picks up the change.                    |
+| Concurrent top-up race (A)                              | ±1 token                                                           | Scan, read, scan, then set the exact level.                      |
+| Nested cargo (xtask, build scripts, `dx`)               | None: each cargo keeps its implicit token, so there is no deadlock | None needed.                                                     |
+| make older than 4.4 in a `-sys` crate                   | Falls back to `-j1` on a fifo jobserver                            | Step 0 tests one cmake/make crate.                               |
+| Memory spike                                            | OOM is still possible                                              | Agent-scope MemoryMax and systemd-oomd remain the backstop.      |
+| Cargos under other uids or in nix-daemon                | Not counted                                                        | Shown through PSI and the nix-daemon cgroup in the observe data. |
+| (Train) A participant dies or the executor is cancelled | Socket EOF                                                         | It is dropped, or the others re-board.                           |
 
 ## Measurement plan
 
@@ -310,15 +310,15 @@ without slowing any single job by more than 10%.
      - a latency probe: a fixed single-CPU task timed every 10 s during the
        mix;
      - OOM events.
-     CPU PSI some is reported but is not an acceptance criterion. A pool
-     satisfies it by construction, because the waiting moves from the run
-     queue into the fifo.
+       CPU PSI some is reported but is not an acceptance criterion. A pool
+       satisfies it by construction, because the waiting moves from the run
+       queue into the fifo.
    - Acceptance:
      - the latency probe improves by at least 30%;
      - swap-in and OOMs do not get worse;
      - each job in the mix and the solo job stay within +10% of off, beyond
        the A/A noise floor.
-     Choose the cheapest arm that passes.
+       Choose the cheapest arm that passes.
 
 ## Work breakdown, after approval
 
