@@ -21,9 +21,9 @@
 - `enableMold`
 - `enableCranelift` (default: `false`)
 - `enableShareGenerics`
-- `enableParallelFrontend`
-- `parallelFrontendThreads` (default: `0`)
-- `enableHintMostlyUnused` (default: `false`, nightly only)
+- `enableParallelFrontend` (default: on for nightly, off for stable)
+- `parallelFrontendThreads` (default: `8`)
+- `enableHintMostlyUnused` (default: on for nightly, off for stable)
 - `enableDevProfileOpts`
 - `devCodegenUnits`
 - `devBuildOverrideOptLevel` (default: `null`)
