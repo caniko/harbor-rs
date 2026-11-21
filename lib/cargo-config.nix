@@ -3,7 +3,8 @@
 # Generate optimized .cargo/config.toml content for fast Rust builds.
 # Configures mold linker (Linux), lld (Windows), optional cranelift dev backend,
 # share-generics, memory-saving dev profile defaults, and optional dev codegen-
-# units tuning. All nightly-only features auto-disable on stable.
+# units tuning. Nightly defaults include -Zthreads=8 and Cargo's
+# profile-hint-mostly-unused; neither is enabled on stable.
 #
 # enableDevProfileOpts controls debug-info reductions that lower peak memory
 # without changing Cargo's codegen-unit default. devCodegenUnits is separate
