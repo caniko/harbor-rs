@@ -74,6 +74,7 @@ in {
   mkRustNativeBuildInputs = import ./rust-native-build-inputs.nix;
   inherit mkCross;
   inherit mkCrossPackages;
+  inherit (import ./cross-arch-musl-receipt.nix) mkVerifyStaticElf mkStaticMuslShell mkCrossArchMuslReceipt;
   mkCrossPackageOutputs = import ./cross-package-outputs.nix {
     mkCrossPackages = import ./cross-packages.nix {inherit mkToolchain;};
   };
