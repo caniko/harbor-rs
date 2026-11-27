@@ -18,7 +18,7 @@
           slots = [
             {
               name = "first";
-              emulatorPort = 5554;
+              emulatorPort = 5600;
               ramMb = 2048;
               cores = 2;
               extraArgs = ["-prop" "example=literal value"];
@@ -47,6 +47,7 @@ in
   assert adb.wantedBy == [] && adb.unitConfig.StopWhenUnneeded;
   assert first.requires == ["harbor-android-adb.service"] && first.wantedBy == [];
   assert builtins.elem "ADB_SERVER_SOCKET=tcp:127.0.0.1:15037" first.serviceConfig.Environment;
+  assert builtins.elem "ANDROID_ADB_SERVER_PORT=15037" first.serviceConfig.Environment;
   assert builtins.elem "/dev/kvm rw" first.serviceConfig.DeviceAllow;
   assert builtins.elem "kvm" config.users.users.android-worker.extraGroups;
   assert lib.hasInfix ''"example=literal value"'' first.serviceConfig.ExecStart;

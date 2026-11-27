@@ -147,6 +147,7 @@
           "ANDROID_SDK_ROOT=${sdkRoot}"
           "ANDROID_AVD_HOME=${state}"
           "ADB_SERVER_SOCKET=${adbEndpoint}"
+          "ANDROID_ADB_SERVER_PORT=${toString cfg.adbPort}"
         ];
         RuntimeMaxSec = "3h";
         TimeoutStopSec = "30s";
@@ -186,9 +187,9 @@ in {
       description = "Separate absolute path for external slot locks.";
     };
     adbHost = mkOption {
-      type = types.strMatching "127(\\.(0|[1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])){3}";
+      type = types.enum ["127.0.0.1"];
       default = "127.0.0.1";
-      description = "IPv4 loopback address for the local ADB server.";
+      description = "IPv4 loopback address used by emulator notifications. The emulator connects to 127.0.0.1, not arbitrary 127/8 addresses.";
     };
     adbPort = mkOption {
       type = types.ints.between 1024 65535;
