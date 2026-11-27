@@ -45,6 +45,10 @@ in
       inherit pkgs;
       metaDevShell = self.inputs.harbor-meta.lib.devShell;
     };
+    cross-arch-musl-receipt = import ./nix/checks/cross-arch-musl-receipt.nix {
+      inherit pkgs;
+      inherit (self.lib) mkVerifyStaticElf mkStaticMuslShell mkCrossArchMuslReceipt;
+    };
     opencode-rust-default = let
       rustConfig = self.lib.opencode.configTextFor {lsp = self.lib.opencodeRust.rustLsp;};
     in
