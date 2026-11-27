@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::prelude::{App, Camera2d, Commands, DefaultPlugins, Startup};
 
 fn main() {
     App::new()

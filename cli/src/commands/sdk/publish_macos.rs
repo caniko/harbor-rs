@@ -10,7 +10,7 @@ use clap::Args;
 // `--version` is a real SDK-version argument here, not a version flag; drop
 // clap's auto-generated `--version` so the two don't collide.
 #[command(disable_version_flag = true)]
-pub struct PublishMacosArgs {
+pub(crate) struct PublishMacosArgs {
     /// SDK archive path produced by the host-local Apple SDK download.
     #[arg(long)]
     pub archive: PathBuf,
@@ -38,7 +38,7 @@ pub struct PublishMacosArgs {
     pub gc_root: Option<PathBuf>,
 }
 
-pub fn run(
+pub(crate) fn run(
     PublishMacosArgs {
         archive,
         version,

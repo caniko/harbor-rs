@@ -1,7 +1,5 @@
 //! Shared helpers for the audit subcommands.
 
-#![allow(clippy::explicit_into_iter_loop, clippy::match_same_arms)]
-
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -14,7 +12,7 @@ use walkdir::WalkDir;
 /// Permission-denied entries below the root are skipped silently to match
 /// the previous shell scripts (which used `find -type f`); only failures
 /// at the root path itself bubble up.
-pub fn collect_files(path: &Path) -> Result<Vec<PathBuf>> {
+pub(crate) fn collect_files(path: &Path) -> Result<Vec<PathBuf>> {
     if !path.exists() {
         bail!("missing path: {}", path.display());
     }
@@ -22,22 +20,17 @@ pub fn collect_files(path: &Path) -> Result<Vec<PathBuf>> {
         return Ok(vec![path.to_path_buf()]);
     }
     let mut out = Vec::new();
-    for entry in WalkDir::new(path).follow_links(false).into_iter() {
-        match entry {
-            Ok(entry) if entry.file_type().is_file() => {
-                out.push(entry.path().to_path_buf());
-            }
-            Ok(_) => {}
-            Err(_) => {
-                // Skip permission-denied / vanished entries silently.
-            }
+    // Skip permission-denied / vanished entries silently.
+    for entry in WalkDir::new(path).follow_links(false).into_iter().flatten() {
+        if entry.file_type().is_file() {
+            out.push(entry.path().to_path_buf());
         }
     }
     Ok(out)
 }
 
 /// Ensure `value` matches `regex`; otherwise add a failure to `report`.
-pub fn require_match(report: &mut Report, regex: &Regex, value: &str, message: &str) {
+pub(crate) fn require_match(report: &mut Report, regex: &Regex, value: &str, message: &str) {
     if !regex.is_match(value) {
         report.fail(message);
     }
@@ -48,21 +41,21 @@ pub fn require_match(report: &mut Report, regex: &Regex, value: &str, message: &
 /// status when any failure was recorded *or* when zero files were
 /// inspected (matches the behaviour of the previous shell scripts).
 #[derive(Debug, Default)]
-pub struct Report {
+pub(crate) struct Report {
     pub checked: usize,
     pub failures: Vec<String>,
 }
 
 impl Report {
-    pub fn note_checked(&mut self) {
+    pub(crate) fn note_checked(&mut self) {
         self.checked += 1;
     }
 
-    pub fn fail(&mut self, message: impl Into<String>) {
+    pub(crate) fn fail(&mut self, message: impl Into<String>) {
         self.failures.push(message.into());
     }
 
-    pub fn finish(self, kind: &str, input: &Path) -> Result<()> {
+    pub(crate) fn finish(self, kind: &str, input: &Path) -> Result<()> {
         for line in &self.failures {
             eprintln!("{kind}: {line}");
         }
@@ -80,6 +73,6 @@ impl Report {
     }
 }
 
-pub fn compile_regex(label: &str, pattern: &str) -> Result<Regex> {
+pub(crate) fn compile_regex(label: &str, pattern: &str) -> Result<Regex> {
     Regex::new(pattern).with_context(|| format!("compiling {label} regex `{pattern}`"))
 }

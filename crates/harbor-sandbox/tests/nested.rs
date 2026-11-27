@@ -41,7 +41,7 @@ fn nested_preview_uses_only_the_declared_parent_and_stops_independently() {
                 && fs::metadata(p).unwrap().file_type().is_socket()
         })
         .unwrap();
-    let mut nested = parent.clone();
+    let mut nested = parent;
     nested.desktop = Desktop::Nested;
     nested.ready_timeout_seconds = 5;
     nested.ready = Some(vec!["bash".into(), "-c".into(), "test -S \"$WAYLAND_DISPLAY\" && test \"$WAYLAND_DISPLAY\" != /harbor/parent/wayland && test ! -e /dev/dri && test -n \"$DBUS_SESSION_BUS_ADDRESS\"".into()]);

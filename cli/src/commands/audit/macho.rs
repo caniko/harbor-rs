@@ -1,11 +1,5 @@
 //! `harbor-rs audit macho` — macOS Mach-O dependency auditor.
 
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::unnecessary_wraps,
-    clippy::manual_let_else
-)]
-
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -20,7 +14,7 @@ const DEFAULT_ALLOW_DYLIB_REGEX: &str = "^(@executable_path|@rpath|/usr/lib/|/Sy
 const DEFAULT_FORBID_PATH_REGEX: &str = "(/nix/store|/usr/local|/home/)";
 
 #[derive(Args, Debug)]
-pub struct AuditMachoArgs {
+pub(crate) struct AuditMachoArgs {
     /// Every Mach-O dependency path must match this regex.
     #[arg(long, default_value = DEFAULT_ALLOW_DYLIB_REGEX)]
     pub allow_dylib_regex: String,
@@ -33,30 +27,23 @@ pub struct AuditMachoArgs {
     pub input: PathBuf,
 }
 
-pub fn run(args: AuditMachoArgs) -> Result<()> {
+pub(crate) fn run(args: &AuditMachoArgs) -> Result<()> {
     let allow_dylib = compile_regex("allow-dylib", &args.allow_dylib_regex)?;
     let forbid_path = compile_regex("forbid-path", &args.forbid_path_regex)?;
 
     let mut report = Report::default();
     for path in collect_files(&args.input)? {
-        check_file(&path, &allow_dylib, &forbid_path, &mut report)?;
+        check_file(&path, &allow_dylib, &forbid_path, &mut report);
     }
     report.finish("audit-darwin-runtime-deps", &args.input)
 }
 
-fn check_file(
-    path: &Path,
-    allow_dylib: &Regex,
-    forbid_path: &Regex,
-    report: &mut Report,
-) -> Result<()> {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(_) => return Ok(()),
+fn check_file(path: &Path, allow_dylib: &Regex, forbid_path: &Regex, report: &mut Report) {
+    let Ok(bytes) = std::fs::read(path) else {
+        return;
     };
-    let mach = match Object::parse(&bytes) {
-        Ok(Object::Mach(m)) => m,
-        _ => return Ok(()),
+    let Ok(Object::Mach(mach)) = Object::parse(&bytes) else {
+        return;
     };
 
     report.note_checked();
@@ -72,8 +59,6 @@ fn check_file(
             }
         }
     }
-
-    Ok(())
 }
 
 fn audit_macho(

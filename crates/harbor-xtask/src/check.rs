@@ -17,7 +17,10 @@ pub enum TestRunner {
     Nextest,
 }
 
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "Each field independently controls a Cargo option or CI check"
+)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CargoCiOptions {
     pub locked: bool,

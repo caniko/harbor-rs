@@ -33,11 +33,11 @@ fn pool_classification_and_lock_paths() {
     );
     let temp = tempfile::tempdir().unwrap();
     let fd = temp.path().join("fd");
-    std::fs::create_dir(&fd).unwrap();
+    fs::create_dir(&fd).unwrap();
     symlink("/tmp/build/.cargo-build-lock", fd.join("3")).unwrap();
     assert_eq!(build_dir(&fd), Some("/tmp/build".into()));
     let empty = temp.path().join("empty");
-    std::fs::create_dir(&empty).unwrap();
+    fs::create_dir(&empty).unwrap();
     assert_eq!(build_dir(&empty), None);
 }
 

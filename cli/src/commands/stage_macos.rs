@@ -4,8 +4,6 @@
 //! Assumes the consumer compiled with `split-debuginfo = "packed"` so each
 //! per-target build dir has a `<binary>.dSYM` next to the binary.
 
-#![allow(clippy::needless_pass_by_value, clippy::unnecessary_trailing_comma)]
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -17,7 +15,7 @@ use goblin::mach::constants::cputype::{CPU_TYPE_ARM64, CPU_TYPE_X86, CPU_TYPE_X8
 use goblin::mach::{Mach, SingleArch};
 
 #[derive(Args, Debug)]
-pub struct StageMacosArgs {
+pub(crate) struct StageMacosArgs {
     /// Cargo binary name (required).
     #[arg(long)]
     pub binary: String,
@@ -51,21 +49,21 @@ pub struct StageMacosArgs {
     pub skip_universal: bool,
 }
 
-pub fn run(args: StageMacosArgs) -> Result<()> {
+pub(crate) fn run(args: &StageMacosArgs) -> Result<()> {
     let archs = parse_archs(&args.archs)?;
-    verify_inputs(&args, &archs)?;
+    verify_inputs(args, &archs)?;
     fs::create_dir_all(&args.dist_dir)
         .with_context(|| format!("creating dist dir {}", args.dist_dir.display()))?;
 
     if !args.skip_per_arch {
-        stage_per_arch(&args, &archs)?;
+        stage_per_arch(args, &archs)?;
     }
 
     if !args.skip_universal {
         // lipo is only needed for the universal slice; resolve it lazily
         // so callers using --skip-universal don't need it on PATH.
         let lipo = which_lipo()?;
-        stage_universal(&args, &archs, &lipo)?;
+        stage_universal(args, &archs, &lipo)?;
     }
 
     println!(
@@ -322,7 +320,7 @@ fn run_lipo_create(lipo: &Path, inputs: &[PathBuf], output: &Path) -> Result<()>
         .status()
         .with_context(|| format!("running {}", lipo.display()))?;
     if !status.success() {
-        bail!("{} -create failed for {}", lipo.display(), output.display(),);
+        bail!("{} -create failed for {}", lipo.display(), output.display());
     }
     Ok(())
 }
@@ -449,7 +447,7 @@ mod tests {
 
         let bogus_lipo = PathBuf::from("/does-not-exist/lipo");
         lipo_or_copy(
-            &[x86.clone(), arm.clone()],
+            &[x86, arm],
             &["x86_64".into(), "aarch64".into()],
             &bogus_lipo,
             &out,

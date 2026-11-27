@@ -6,21 +6,21 @@
 
 use clap::Subcommand;
 
-pub mod publish_macos;
-pub mod realize;
+pub(crate) mod publish_macos;
+pub(crate) mod realize;
 
-pub use publish_macos::PublishMacosArgs;
-pub use realize::RealizeArgs;
+pub(crate) use publish_macos::PublishMacosArgs;
+pub(crate) use realize::RealizeArgs;
 
 #[derive(Subcommand, Debug)]
-pub enum SdkCommand {
+pub(crate) enum SdkCommand {
     /// Realize a macOS SDK archive into a validated store path.
     Realize(RealizeArgs),
     /// Realize and publish a macOS SDK archive to Attic.
     PublishMacos(PublishMacosArgs),
 }
 
-pub fn run(cmd: SdkCommand) -> anyhow::Result<()> {
+pub(crate) fn run(cmd: SdkCommand) -> anyhow::Result<()> {
     match cmd {
         SdkCommand::Realize(args) => realize::run(args),
         SdkCommand::PublishMacos(args) => publish_macos::run(args),

@@ -4,19 +4,17 @@
 //! Three flavours match the three native binary formats: `elf` (Linux,
 //! e.g. Steam Runtime sniper), `pe` (Windows), `macho` (macOS).
 
-#![allow(clippy::doc_markdown)]
-
 use clap::Subcommand;
 
-pub mod common;
-pub mod elf;
-pub mod macho;
-pub mod pe;
+pub(crate) mod common;
+pub(crate) mod elf;
+pub(crate) mod macho;
+pub(crate) mod pe;
 
 #[derive(Subcommand, Debug)]
-pub enum AuditCommand {
+pub(crate) enum AuditCommand {
     /// Audit ELF executables/shared objects for forbidden RPATHs and
-    /// disallowed DT_NEEDED entries (Linux / Steam Runtime).
+    /// disallowed `DT_NEEDED` entries (Linux / Steam Runtime).
     Elf(elf::AuditElfArgs),
     /// Audit PE executables for disallowed imported DLLs and forbidden
     /// embedded path strings (Windows).
@@ -25,7 +23,7 @@ pub enum AuditCommand {
     Macho(macho::AuditMachoArgs),
 }
 
-pub fn run(cmd: AuditCommand) -> anyhow::Result<()> {
+pub(crate) fn run(cmd: &AuditCommand) -> anyhow::Result<()> {
     match cmd {
         AuditCommand::Elf(args) => elf::run(args),
         AuditCommand::Pe(args) => pe::run(args),

@@ -1,9 +1,6 @@
-// Counts converted to f64 (clock ticks, microseconds) stay far below 2^52;
-// the rmcp tool_router macro generates an async handler without an await.
-#![allow(
-    clippy::cast_precision_loss,
-    clippy::too_many_lines,
-    clippy::unused_async_trait_impl
+#![expect(
+    clippy::unused_async_trait_impl,
+    reason = "rmcp's tool router generates an async ServerHandler method without an await"
 )]
 
 #[cfg(test)]
@@ -27,7 +24,7 @@ use std::{
 };
 
 #[derive(Subcommand)]
-pub enum PoolCommand {
+pub(crate) enum PoolCommand {
     /// Collect observations without changing build behavior.
     Serve {
         #[arg(long, required = true)]
@@ -46,7 +43,7 @@ pub enum PoolCommand {
     },
 }
 
-pub fn run(command: PoolCommand) -> Result<()> {
+pub(crate) fn run(command: PoolCommand) -> Result<()> {
     match command {
         PoolCommand::Serve {
             observe: _,
@@ -118,7 +115,7 @@ impl PoolMcp {
     }
 }
 
-pub fn mcp() -> Result<()> {
+pub(crate) fn mcp() -> Result<()> {
     use rmcp::ServiceExt;
     tokio::runtime::Runtime::new()?.block_on(async {
         PoolMcp
@@ -506,8 +503,8 @@ fn classify(comm: &str, exe: Option<&str>, parent: &str) -> Option<&'static str>
 }
 
 fn build_dir(fd: &Path) -> Option<String> {
-    std::fs::read_dir(fd).ok()?.flatten().find_map(|entry| {
-        let path = std::fs::read_link(entry.path()).ok()?;
+    fs::read_dir(fd).ok()?.flatten().find_map(|entry| {
+        let path = fs::read_link(entry.path()).ok()?;
         matches!(
             path.file_name()?.to_str()?,
             ".cargo-build-lock" | ".cargo-lock"

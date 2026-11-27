@@ -665,7 +665,7 @@ pub fn status(directory: &Path) -> Result<Receipt> {
     let lock = lock_file(directory)?;
     let active = match lock.try_lock() {
         Ok(()) => false,
-        Err(std::fs::TryLockError::WouldBlock) => true,
+        Err(fs::TryLockError::WouldBlock) => true,
         Err(error) => return Err(error.into()),
     };
     let mut receipt: Receipt = serde_json::from_slice(&fs::read(directory.join("receipt.json"))?)?;

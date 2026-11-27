@@ -2,11 +2,11 @@
 
 use clap::Subcommand;
 
-pub mod push;
-pub mod token;
+pub(crate) mod push;
+pub(crate) mod token;
 
 #[derive(Subcommand, Debug)]
-pub enum CacheCommand {
+pub(crate) enum CacheCommand {
     /// Push a store path into a named cache.
     Push(push::PushArgs),
     /// Token management for cache access.
@@ -16,7 +16,7 @@ pub enum CacheCommand {
     },
 }
 
-pub fn run(cmd: CacheCommand) -> anyhow::Result<()> {
+pub(crate) fn run(cmd: &CacheCommand) -> anyhow::Result<()> {
     match cmd {
         CacheCommand::Push(args) => push::run(args),
         CacheCommand::Token { command } => token::run(command),
