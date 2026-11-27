@@ -90,6 +90,9 @@ in {
           rustModule = self.treefmtModules.rust;
           baseModules = [inputs.harbor-meta.treefmtModules.nix inputs.harbor-meta.treefmtModules.toml];
         };
+      }
+      // pkgs.lib.optionalAttrs (system == "x86_64-linux") {
+        android-worker = import ./checks/android-worker.nix {inherit nixpkgs self system;};
       };
   };
 }
