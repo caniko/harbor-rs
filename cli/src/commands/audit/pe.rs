@@ -1,11 +1,5 @@
 //! `harbor-rs audit pe` — Windows PE dependency auditor.
 
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::unnecessary_wraps,
-    clippy::manual_let_else
-)]
-
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -19,7 +13,7 @@ const DEFAULT_ALLOW_DLL_REGEX: &str = ".*";
 const DEFAULT_FORBID_PATH_REGEX: &str = "(/nix/store|/usr/local|/home/)";
 
 #[derive(Args, Debug)]
-pub struct AuditPeArgs {
+pub(crate) struct AuditPeArgs {
     /// Every imported DLL name must match this regex (case-insensitive).
     #[arg(long, default_value = DEFAULT_ALLOW_DLL_REGEX)]
     pub allow_dll_regex: String,
@@ -32,33 +26,26 @@ pub struct AuditPeArgs {
     pub input: PathBuf,
 }
 
-pub fn run(args: AuditPeArgs) -> Result<()> {
+pub(crate) fn run(args: &AuditPeArgs) -> Result<()> {
     let allow_dll = compile_regex("allow-dll", &format!("(?i){}", args.allow_dll_regex))?;
     let forbid_path = compile_regex("forbid-path", &args.forbid_path_regex)?;
 
     let mut report = Report::default();
     for path in collect_files(&args.input)? {
-        check_file(&path, &allow_dll, &forbid_path, &mut report)?;
+        check_file(&path, &allow_dll, &forbid_path, &mut report);
     }
     report.finish("audit-windows-runtime-deps", &args.input)
 }
 
-fn check_file(
-    path: &Path,
-    allow_dll: &Regex,
-    forbid_path: &Regex,
-    report: &mut Report,
-) -> Result<()> {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(_) => return Ok(()),
+fn check_file(path: &Path, allow_dll: &Regex, forbid_path: &Regex, report: &mut Report) {
+    let Ok(bytes) = std::fs::read(path) else {
+        return;
     };
     // Use goblin's PE::parse directly rather than the Object dispatcher;
     // some PE32+ files round-trip through Object as Coff, which would be
     // silently skipped.
-    let pe = match PE::parse(&bytes) {
-        Ok(pe) => pe,
-        Err(_) => return Ok(()),
+    let Ok(pe) = PE::parse(&bytes) else {
+        return;
     };
 
     report.note_checked();
@@ -82,8 +69,6 @@ fn check_file(
             break;
         }
     }
-
-    Ok(())
 }
 
 /// Iterate ASCII-printable runs of length >= `min_len`, modelled on the

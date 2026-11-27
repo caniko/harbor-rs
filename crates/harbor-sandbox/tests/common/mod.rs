@@ -9,7 +9,7 @@ use std::sync::{
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub fn profile() -> Profile {
+pub(crate) fn profile() -> Profile {
     let get = |name| {
         PathBuf::from(std::env::var(name).expect("explicit sandbox test tools required"))
             .canonicalize()
@@ -47,7 +47,7 @@ pub fn profile() -> Profile {
     }
 }
 
-pub fn source(root: &Path) -> PathBuf {
+pub(crate) fn source(root: &Path) -> PathBuf {
     let path = root.join("source");
     fs::create_dir(&path).unwrap();
     fs::write(path.join("design"), "good").unwrap();
@@ -55,7 +55,7 @@ pub fn source(root: &Path) -> PathBuf {
     path
 }
 
-pub fn wait_for(directory: &Path, predicate: impl Fn(&harbor_sandbox::Receipt) -> bool) {
+pub(crate) fn wait_for(directory: &Path, predicate: impl Fn(&harbor_sandbox::Receipt) -> bool) {
     let start = Instant::now();
     loop {
         if let Ok(receipt) = status(directory) {
@@ -90,13 +90,13 @@ pub fn wait_for(directory: &Path, predicate: impl Fn(&harbor_sandbox::Receipt) -
     }
 }
 
-pub struct Supervisor {
+pub(crate) struct Supervisor {
     cancel: Arc<AtomicBool>,
     worker: Option<thread::JoinHandle<anyhow::Result<i32>>>,
 }
 
 impl Supervisor {
-    pub fn start(session: Session, parent_wayland: Option<PathBuf>) -> Self {
+    pub(crate) fn start(session: Session, parent_wayland: Option<PathBuf>) -> Self {
         let cancel = Arc::new(AtomicBool::new(false));
         let worker_cancel = Arc::clone(&cancel);
         let worker = thread::spawn(move || {
@@ -115,7 +115,7 @@ impl Supervisor {
         }
     }
 
-    pub fn finish(mut self) {
+    pub(crate) fn finish(mut self) {
         self.cancel.store(true, Ordering::Relaxed);
         assert_eq!(self.worker.take().unwrap().join().unwrap().unwrap(), 0);
     }

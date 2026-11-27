@@ -79,13 +79,13 @@ fn main() -> anyhow::Result<()> {
         TopCommand::Mcp => commands::pool::mcp(),
         #[cfg(target_os = "linux")]
         TopCommand::Sandbox { command } => commands::sandbox::run(command),
-        TopCommand::Audit { command } => commands::audit::run(command),
+        TopCommand::Audit { command } => commands::audit::run(&command),
         TopCommand::Brew { command } => commands::brew::run(command),
-        TopCommand::Cache { command } => commands::cache::run(command),
+        TopCommand::Cache { command } => commands::cache::run(&command),
         TopCommand::Sdk { command } => commands::sdk::run(command),
         TopCommand::Stage { command } => match command {
-            StageCommand::Macos(args) => commands::stage_macos::run(args),
+            StageCommand::Macos(args) => commands::stage_macos::run(&args),
         },
-        TopCommand::SteamRuntime { command } => commands::steam_runtime::run(command),
+        TopCommand::SteamRuntime { command } => commands::steam_runtime::run(&command),
     }
 }

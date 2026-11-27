@@ -1,12 +1,10 @@
-#![allow(clippy::needless_pass_by_value)]
-
 use std::io::{self, Write};
 
 use anyhow::Result;
 use clap::Args;
 
 #[derive(Args, Debug)]
-pub struct TokenIssueArgs {
+pub(crate) struct TokenIssueArgs {
     /// Project name to grant access to.
     #[arg(long, value_name = "NAME")]
     pub project: String,
@@ -28,7 +26,7 @@ pub struct TokenIssueArgs {
     pub subject_prefix: String,
 }
 
-pub fn run(args: TokenIssueArgs) -> Result<()> {
+pub(crate) fn run(args: &TokenIssueArgs) -> Result<()> {
     let token = harbor_cache::issue_token(harbor_cache::IssueTokenOpts {
         server: &args.project,
         project: &args.project,

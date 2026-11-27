@@ -1,12 +1,10 @@
-#![allow(clippy::needless_pass_by_value)]
-
 use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Args;
 
 #[derive(Args, Debug)]
-pub struct PushArgs {
+pub(crate) struct PushArgs {
     /// Store path to push into Attic.
     #[arg(value_name = "store-path")]
     pub store_path: PathBuf,
@@ -24,7 +22,7 @@ pub struct PushArgs {
     pub token_file: Option<PathBuf>,
 }
 
-pub fn run(args: PushArgs) -> Result<()> {
+pub(crate) fn run(args: &PushArgs) -> Result<()> {
     let opts = harbor_cache::PushOpts {
         cache: &args.cache,
         store_path: &args.store_path,

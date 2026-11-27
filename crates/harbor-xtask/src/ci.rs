@@ -8,7 +8,10 @@ use crate::{CargoCiOptions, TestRunner};
 
 /// Configuration read from `[workspace.metadata.harbor-ci]` or
 /// `[package.metadata.harbor-ci]` in the root Cargo manifest.
-#[allow(clippy::struct_excessive_bools)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "The manifest config exposes independent switches for Cargo options and CI checks"
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HarborCiConfig {
     pub packages: Vec<String>,

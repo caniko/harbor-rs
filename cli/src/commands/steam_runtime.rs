@@ -6,8 +6,6 @@
 //! shim that calls into this subcommand, so callers don't need to know
 //! the registry URL.
 
-#![allow(clippy::needless_pass_by_value, clippy::map_unwrap_or)]
-
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -15,19 +13,19 @@ use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
 
 #[derive(Subcommand, Debug)]
-pub enum SteamRuntimeCommand {
+pub(crate) enum SteamRuntimeCommand {
     /// Run a command inside the configured Steam Runtime SDK container.
     Exec(SteamRuntimeExecArgs),
 }
 
-pub fn run(cmd: SteamRuntimeCommand) -> Result<()> {
+pub(crate) fn run(cmd: &SteamRuntimeCommand) -> Result<()> {
     match cmd {
         SteamRuntimeCommand::Exec(args) => exec(args),
     }
 }
 
 #[derive(Args, Debug)]
-pub struct SteamRuntimeExecArgs {
+pub(crate) struct SteamRuntimeExecArgs {
     /// Human-readable runtime label (printed for diagnostics).
     /// Repeats override earlier values, so the Nix shim can bake a
     /// default that callers may freely re-specify.
@@ -62,12 +60,12 @@ pub struct SteamRuntimeExecArgs {
     pub command: Vec<String>,
 }
 
-pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
+fn exec(args: &SteamRuntimeExecArgs) -> Result<()> {
     let runner = which::which(&args.container_runtime)
         .with_context(|| format!("container runtime not found: {}", args.container_runtime))?;
 
     let cwd = std::env::current_dir().context("reading current working directory")?;
-    let workdir = args.workdir.clone().unwrap_or_else(|| cwd.clone());
+    let workdir = args.workdir.as_ref().unwrap_or(&cwd);
     let (uid, gid) = current_uid_gid()?;
 
     let mut cmd = Command::new(&runner);
@@ -92,7 +90,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
 
     cmd.arg("--volume")
         .arg(format!("{}:{}", cwd.display(), cwd.display()));
-    cmd.arg("--workdir").arg(&workdir);
+    cmd.arg("--workdir").arg(workdir);
 
     cmd.arg("--user").arg(format!("{uid}:{gid}"));
 
@@ -115,8 +113,7 @@ pub fn exec(args: SteamRuntimeExecArgs) -> Result<()> {
             runner.display(),
             status
                 .code()
-                .map(|c| c.to_string())
-                .unwrap_or_else(|| "<signal>".to_string()),
+                .map_or_else(|| "<signal>".to_string(), |c| c.to_string()),
         );
     }
     Ok(())

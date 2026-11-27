@@ -33,8 +33,7 @@ fn dylib_command(cmd: u32, name: &str) -> Vec<u8> {
 
     let mut out = Vec::with_capacity(cmdsize);
     out.extend(cmd.to_le_bytes());
-    #[allow(clippy::cast_possible_truncation)]
-    out.extend((cmdsize as u32).to_le_bytes());
+    out.extend(u32::try_from(cmdsize).unwrap().to_le_bytes());
     out.extend(24u32.to_le_bytes()); // name offset within this command
     out.extend(0u32.to_le_bytes()); // timestamp
     out.extend(0x0001_0000u32.to_le_bytes()); // current_version (1.0.0)
@@ -47,7 +46,7 @@ fn dylib_command(cmd: u32, name: &str) -> Vec<u8> {
 
 /// Build a minimal Mach-O 64-bit thin dylib with `id` as the install
 /// name and `loads` as the `LC_LOAD_DYLIB` dependencies.
-pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
+pub(crate) fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
     let mut commands = Vec::new();
     commands.extend(dylib_command(LC_ID_DYLIB, id));
     for lib in loads {
@@ -59,7 +58,7 @@ pub fn build_thin_dylib(id: &str, loads: &[&str]) -> Vec<u8> {
 /// Build a minimal Mach-O 64-bit thin executable with `loads` as the
 /// `LC_LOAD_DYLIB` dependencies. Executables carry no `LC_ID_DYLIB`, so
 /// goblin leaves `libs[0]` as the literal placeholder `"self"`.
-pub fn build_thin_executable(loads: &[&str]) -> Vec<u8> {
+pub(crate) fn build_thin_executable(loads: &[&str]) -> Vec<u8> {
     let mut commands = Vec::new();
     for lib in loads {
         commands.extend(dylib_command(LC_LOAD_DYLIB, lib));
@@ -68,10 +67,8 @@ pub fn build_thin_executable(loads: &[&str]) -> Vec<u8> {
 }
 
 fn build_with(filetype: u32, commands: &[u8], ncmds: usize) -> Vec<u8> {
-    #[allow(clippy::cast_possible_truncation)]
-    let ncmds_u32 = ncmds as u32;
-    #[allow(clippy::cast_possible_truncation)]
-    let sizeofcmds = commands.len() as u32;
+    let ncmds_u32 = u32::try_from(ncmds).unwrap();
+    let sizeofcmds = u32::try_from(commands.len()).unwrap();
 
     let mut out = Vec::with_capacity(32 + commands.len());
     out.extend(MH_MAGIC_64.to_le_bytes());

@@ -3,7 +3,7 @@
 //! A load segment maps the whole file, and a dynamic segment locates the string
 //! table and one `DT_NEEDED` entry. The fixture is parsed, never executed.
 
-pub fn build_shared_object() -> Vec<u8> {
+pub(crate) fn build_shared_object() -> Vec<u8> {
     let strings = b"\0libharbor-fixture.so\0";
     let dynamic_offset = 64 + 2 * 56;
     let dynamic_size = 4 * 16;

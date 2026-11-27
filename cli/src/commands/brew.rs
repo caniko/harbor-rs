@@ -12,14 +12,14 @@ use clap::{Args, Subcommand};
 use sha2::{Digest, Sha256};
 
 #[derive(Subcommand, Debug)]
-pub enum BrewCommand {
+pub(crate) enum BrewCommand {
     /// Render or update a Homebrew formula in a tap repo.
     Bump(BumpArgs),
 }
 
 #[derive(Args, Debug)]
 #[command(disable_version_flag = true)]
-pub struct BumpArgs {
+pub(crate) struct BumpArgs {
     /// Formula name (for example, "modde"). `UpperCamelCased` for the Ruby class.
     #[arg(long)]
     pub name: String,
@@ -72,7 +72,7 @@ pub struct BumpArgs {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum Platform {
+pub(crate) enum Platform {
     DarwinArm,
     DarwinIntel,
     LinuxArm,
@@ -80,7 +80,7 @@ pub enum Platform {
 }
 
 #[derive(Clone, Debug)]
-pub struct ArchiveSpec {
+pub(crate) struct ArchiveSpec {
     pub platform: Platform,
     pub url: String,
     pub local_path: PathBuf,
@@ -104,7 +104,7 @@ struct Formula {
     binaries: Vec<String>,
 }
 
-pub fn run(cmd: BrewCommand) -> Result<()> {
+pub(crate) fn run(cmd: BrewCommand) -> Result<()> {
     match cmd {
         BrewCommand::Bump(args) => bump(&args),
     }
@@ -226,7 +226,7 @@ fn formula_from_args(args: &BumpArgs) -> Result<Formula> {
     })
 }
 
-pub fn parse_archive_spec(raw: &str) -> Result<ArchiveSpec, String> {
+pub(crate) fn parse_archive_spec(raw: &str) -> Result<ArchiveSpec, String> {
     let (platform, rest) = raw
         .split_once('=')
         .ok_or_else(|| "archive must be PLATFORM=URL,PATH".to_string())?;

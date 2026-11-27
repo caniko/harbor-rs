@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, atomic::AtomicBool};
 
 #[derive(Debug, Subcommand)]
-pub enum SandboxCommand {
+pub(crate) enum SandboxCommand {
     /// Start a single isolated preview; return its exit status.
     Run(SessionArgs),
     /// Debounce edits, rebuild and replace only ready previews.
@@ -23,7 +23,7 @@ pub enum SandboxCommand {
 }
 
 #[derive(Debug, Args)]
-pub struct SessionArgs {
+pub(crate) struct SessionArgs {
     #[arg(long)]
     profile: PathBuf,
     #[arg(long)]
@@ -35,7 +35,7 @@ pub struct SessionArgs {
     variant: String,
 }
 
-pub fn run(command: SandboxCommand) -> Result<()> {
+pub(crate) fn run(command: SandboxCommand) -> Result<()> {
     let (args, watch) = match command {
         SandboxCommand::Status { session } => {
             println!(

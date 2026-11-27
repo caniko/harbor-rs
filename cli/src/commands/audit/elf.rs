@@ -1,19 +1,11 @@
 //! `harbor-rs audit elf` — Steam-Runtime / Linux ELF dependency auditor.
 
-#![allow(
-    clippy::doc_markdown,
-    clippy::needless_pass_by_value,
-    clippy::manual_let_else,
-    clippy::ref_binding_to_reference,
-    clippy::if_same_then_else
-)]
-
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use anyhow::{Context, Result};
 use clap::Args;
-use goblin::elf::dynamic::{DT_NEEDED, DT_RPATH, DT_RUNPATH};
+use goblin::elf::dynamic::DT_NEEDED;
 use goblin::elf::{Elf, dynamic::Dynamic};
 use regex::Regex;
 
@@ -23,12 +15,12 @@ const DEFAULT_ALLOW_NEEDED_REGEX: &str = ".*";
 const DEFAULT_FORBID_PATH_REGEX: &str = "(/nix/store|/usr/local|/home/)";
 
 #[derive(Args, Debug)]
-pub struct AuditElfArgs {
-    /// Every ELF DT_NEEDED soname must match this regex.
+pub(crate) struct AuditElfArgs {
+    /// Every ELF `DT_NEEDED` soname must match this regex.
     #[arg(long, default_value = DEFAULT_ALLOW_NEEDED_REGEX)]
     pub allow_needed_regex: String,
 
-    /// RPATH/RUNPATH entries and ldd output must not match this regex.
+    /// RPATH/RUNPATH entries and `ldd` output must not match this regex.
     #[arg(long, default_value = DEFAULT_FORBID_PATH_REGEX)]
     pub forbid_path_regex: String,
 
@@ -44,13 +36,13 @@ pub struct AuditElfArgs {
     pub input: PathBuf,
 }
 
-pub fn run(args: AuditElfArgs) -> Result<()> {
+pub(crate) fn run(args: &AuditElfArgs) -> Result<()> {
     let allow_needed = compile_regex("allow-needed", &args.allow_needed_regex)?;
     let forbid_path = compile_regex("forbid-path", &args.forbid_path_regex)?;
 
     let mut report = Report::default();
     for path in collect_files(&args.input)? {
-        check_file(&path, &args, &allow_needed, &forbid_path, &mut report)?;
+        check_file(&path, args, &allow_needed, &forbid_path, &mut report)?;
     }
     report.finish("audit-elf-runtime-deps", &args.input)
 }
@@ -62,13 +54,11 @@ fn check_file(
     forbid_path: &Regex,
     report: &mut Report,
 ) -> Result<()> {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
-        Err(_) => return Ok(()),
+    let Ok(bytes) = std::fs::read(path) else {
+        return Ok(());
     };
-    let elf = match Elf::parse(&bytes) {
-        Ok(e) => e,
-        Err(_) => return Ok(()),
+    let Ok(elf) = Elf::parse(&bytes) else {
+        return Ok(());
     };
     if !matches!(
         elf.header.e_type,
@@ -82,14 +72,9 @@ fn check_file(
 
     let dynamic = elf.dynamic.as_ref();
 
-    let runpaths = elf.runpaths.clone();
-    let rpaths = elf.rpaths.clone();
-    let combined_paths: Vec<&str> = rpaths.iter().chain(runpaths.iter()).copied().collect();
+    let combined_paths = || elf.rpaths.iter().chain(&elf.runpaths).copied();
 
-    if let Some(ref bad) = combined_paths
-        .iter()
-        .find(|entry| forbid_path.is_match(entry))
-    {
+    if let Some(bad) = combined_paths().find(|entry| forbid_path.is_match(entry)) {
         report.fail(format!(
             "forbidden path in RPATH/RUNPATH for {}: {}",
             path.display(),
@@ -98,7 +83,7 @@ fn check_file(
     }
 
     if args.require_origin_rpath {
-        let has_origin = combined_paths.iter().any(|entry| entry.contains("$ORIGIN"));
+        let has_origin = combined_paths().any(|entry| entry.contains("$ORIGIN"));
         if !has_origin {
             report.fail(format!(
                 "missing $ORIGIN RPATH/RUNPATH in {}",
@@ -132,23 +117,19 @@ fn needed_libraries(elf: &Elf, dynamic: Option<&Dynamic>) -> Vec<String> {
         .dyns
         .iter()
         .filter_map(|d| {
-            let tag = d.d_tag;
-            let value = u32::try_from(d.d_val).ok()?;
             // RPATH/RUNPATH already exposed via elf.rpaths/runpaths above.
-            if tag == DT_NEEDED {
-                elf.dynstrtab.get_at(value as usize).map(str::to_string)
-            } else if tag == DT_RPATH || tag == DT_RUNPATH {
-                None
-            } else {
-                None
+            if d.d_tag != DT_NEEDED {
+                return None;
             }
+            let value = u32::try_from(d.d_val).ok()?;
+            elf.dynstrtab.get_at(value as usize).map(str::to_string)
         })
         .collect()
 }
 
 fn check_ldd(path: &Path, forbid_path: &Regex, report: &mut Report) -> Result<()> {
     let ldd = which::which("ldd").ok().or_else(|| {
-        let candidate = std::path::Path::new("/usr/bin/ldd");
+        let candidate = Path::new("/usr/bin/ldd");
         candidate.is_file().then(|| candidate.to_path_buf())
     });
     let Some(ldd) = ldd else {
